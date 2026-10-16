@@ -1,0 +1,50 @@
+/* Hot radar additive styles only; preserves existing V3.9.7 UI. */
+#page-radar{max-width:1480px;margin:0 auto;padding-bottom:40px}
+.radar-head{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:18px}
+.radar-head h2{margin:4px 0;font-size:25px}.radar-head p{margin:0}.radar-lock{border:1px solid #596272;padding:10px 14px;border-radius:12px;color:#b8cbda;font-size:12px;white-space:nowrap}
+.radar-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.radar-stats>div{background:var(--card,#19202b);border:1px solid #343d4c;border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.radar-stats strong{font-size:24px;font-variant-numeric:tabular-nums}.radar-stats span{color:#9caaba;font-size:12px}
+.radar-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-bottom:16px;align-items:start}
+.radar-panel{min-width:0;display:flex;flex-direction:column;gap:12px;padding:20px}
+.radar-panel h3{margin:0;font-size:17px}.radar-panel>label,.radar-import label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#c7d4e1}
+.radar-panel input:not([type='checkbox']),.radar-panel textarea,.radar-panel select{width:100%;box-sizing:border-box;min-height:39px;padding:9px 12px;border-radius:9px;border:1px solid #3c4958;background:#171f2a;color:#edf3fb;font:inherit}
+.radar-panel textarea{resize:vertical;min-height:65px;line-height:1.5}.radar-panel .check{flex-direction:row;align-items:center}.radar-panel .check input{accent-color:#5c9bf5}
+.radar-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.radar-grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#c7d4e1}
+.radar-actions{display:flex;flex-wrap:wrap;gap:10px}.radar-actions button{flex:1;min-width:150px}.radar-capabilities{font-size:12px;color:#a7b8c9;background:rgba(126,147,180,.07);border-radius:10px;padding:8px 12px}.radar-capabilities p{margin:6px 0}
+.radar-title-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.radar-items{display:flex;flex-direction:column;gap:9px;max-height:490px;overflow:auto}.radar-item{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid #344354;border-radius:10px;cursor:pointer}.radar-item>input{margin-top:8px;accent-color:#69a6ef}.radar-item>div{min-width:0;flex:1}.radar-item-head{display:flex;gap:8px;align-items:center}.radar-item b{font-size:13px;line-height:1.45}.radar-item p{font-size:12px;color:#b4c3d0;overflow-wrap:anywhere;margin:6px 0}.radar-meta{font-size:11px;color:#97a9bb;overflow-wrap:anywhere}.radar-meta a{color:#8ebcf7}.radar-pill{padding:3px 7px;background:#293547;border-radius:6px;font-size:11px;white-space:nowrap}
+.radar-import{border-top:1px solid #364255;padding-top:14px;display:flex;flex-direction:column;gap:10px}.radar-import summary{cursor:pointer;font-size:13px;font-weight:600}.radar-import[open] label,.radar-import[open] button{margin-top:10px}.radar-empty{font-size:13px;color:#8fa3b9;padding:18px 12px;text-align:center;border:1px dashed #44505f;border-radius:12px}.radar-estimate{font-size:13px;line-height:1.9;color:#b3c3d2;border-radius:11px;padding:10px;background:rgba(118,148,181,.07)}.radar-estimate:empty{display:none}.radar-scripts{max-height:640px;overflow:auto}.radar-script{padding:14px;border:1px solid #344354;border-radius:10px;margin:10px 0;font-size:13px}.radar-script-hook{display:flex;flex-direction:column;gap:4px;margin:8px 0}.radar-script-hook small{color:#a5b6c7}.radar-script details{margin:8px 0}.radar-script details p{padding:8px;border-bottom:1px solid #39485b;line-height:1.65}.radar-script .radar-copy{margin:10px 0}
+@media(max-width:980px){.radar-columns{grid-template-columns:1fr}.radar-head{align-items:flex-start;flex-direction:column}.radar-stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.radar-grid,.radar-stats{grid-template-columns:1fr}.radar-panel{padding:14px}}
+/* Intelligent product ad production review */
+#page-ads .ad-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin:14px 0}
+#page-ads .ad-shot{border:1px solid #384050;padding:12px;border-radius:10px;margin:10px 0;background:#151b27}
+#page-ads .ad-shot textarea{width:100%;margin-top:6px}
+#page-ads .ad-shot label{display:block;margin-top:10px}
+#page-ads .ad-scenes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
+#page-ads .ad-edit .ad-shot{grid-column:1/-1}
+#page-ads #adsNotice{margin-bottom:10px}
+
+/* V4.2.8.10 simplified human-reviewed viral-video cards */
+#page-radar .viral-item{display:flex;gap:12px;align-items:flex-start;cursor:default}
+#page-radar .viral-item.viral-selected{border-color:#5b97e8;background:rgba(74,130,220,.07)}
+#page-radar .radar-cover{width:94px;height:132px;object-fit:contain;flex:none;border-radius:9px;background:#192432;border:1px solid #343d4c}
+#page-radar .radar-no-cover{display:flex;align-items:center;justify-content:center;color:#71859a}
+#page-radar .viral-main{flex:1;min-width:0}
+#page-radar .viral-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:10px}
+#page-radar .viral-actions button{padding:5px 9px;font-size:12px;min-height:30px}
+#page-radar .viral-actions a{font-size:12px;color:#8ebcf7;margin-right:7px}
+#page-radar .radar-item-head{align-items:start;flex-wrap:wrap}
+#page-radar .radar-item-head b{overflow-wrap:anywhere}
+@media(max-width:600px){#page-radar .radar-cover{width:68px;height:100px}#page-radar .viral-actions button{padding:5px 7px}}
+
+/* V4.2.8.10 - manual collection first; expert settings hidden until needed */
+#page-radar .radar-product-first{margin-bottom:12px}
+#page-radar .radar-product-first .radar-panel{padding:14px 18px;gap:9px}
+#page-radar .radar-product-first .radar-panel>p{margin:0}
+#page-radar .radar-product-first select{max-width:740px}
+#page-radar .radar-advanced{margin-top:13px;border:1px solid #343d4c;border-radius:14px;padding:10px 14px;background:var(--card,#19202b)}
+#page-radar .radar-advanced>summary{font-weight:600;cursor:pointer;color:#b7c9da;font-size:13px}
+#page-radar .radar-advanced>section{margin-top:12px;border:none;box-shadow:none;background:transparent;padding:4px 0}
+#page-radar .radar-secondary-columns{margin-top:6px}
+#page-radar .radar-product-first button{align-self:flex-start;width:auto;max-width:100%}

@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Seedance Studio V5.0.0｜本地视频工作台</title>
+  <link rel="stylesheet" href="/static/style.css?v=4.2.8.8" />
+  <link rel="stylesheet" href="/static/hot_radar.css?v=3.9.8.9" />
+  <link rel="stylesheet" href="/static/product_memory.css?v=3.9.8.21" />
+  <link rel="stylesheet" href="/static/prompt_library.css?v=2.1" />
+<link rel="stylesheet" href="/static/audio_reference.css?v=5.0.0">
+  <link rel="stylesheet" href="/static/assistant_bright.css?v=4.2.8.8" />
+  <link rel="stylesheet" href="/static/gpt_v4.css?v=4.0" />
+  <link rel="stylesheet" href="/static/v42_ui.css?v=4.2.0" />
+  <link rel="stylesheet" href="/static/v421_header_nav.css?v=4.2.1" />
+  <link rel="stylesheet" href="/static/v422_header_center.css?v=4.2.2" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">S</div><div><b>Seedance Studio</b><span>本地视频工作台</span></div></div>
+    <nav>
+      <button class="nav active" data-page="video">🎬 视频创作</button>
+      <button class="nav" data-page="replica">🧩 爆款复刻</button>
+      <button class="nav" data-page="image">🖼️ 图片生成</button>
+      <button class="nav" data-page="assistant">✨ GPT 对话</button>
+      <button class="nav" data-page="products">📦 商品知识中心</button>
+      <button class="nav" data-page="radar">📡 热点收集</button>
+      <button class="nav" data-page="ads">🎞️ 智能视频制作</button>
+      <button class="nav" data-page="assets">📚 本地素材库</button>
+      <button class="nav" data-page="history">🕘 历史与成本</button>
+      <button class="nav" data-page="settings">⚙️ 状态与设置</button>
+      <div class="nav-divider"></div>
+      <button class="task-center-nav" id="taskCenterNav" type="button"><span>📥 任务中心</span><span class="task-center-nav-right"><b id="taskCenterBadge">0/10</b><i id="taskCenterUnread" class="task-unread hidden">0</i></span></button>
+    </nav>
+    <div class="side-status" id="sideStatus">正在读取状态…</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-page-label-hidden" aria-hidden="true"><h1 id="pageTitle">视频创作</h1></div>
+      <div class="top-center-stack">
+        <div class="model-pill">实际请求模型：<b id="actualModelTop">读取中…</b> <button id="modelSettingsShortcut" class="mini-link">设置模型 / 路由</button></div>
+        <div class="cost-hud" id="costHud" title="优先使用 OpenLux 实时模型报价 + Seedance 官方 Token 公式；价格接口失败时才使用 ¥1/秒 + CNY→USD 汇率备用公式。最终以 OpenLux 实际账单为准">
+          <span class="cost-hud-item"><small>账户余额</small><b id="costBalanceTop">读取中…</b></span>
+          <i></i>
+          <span class="cost-hud-item"><small>模型 Token 报价</small><b id="costModelPriceTop">读取中…</b></span>
+          <i></i>
+          <span class="cost-hud-item"><small>视频预计消耗</small><b id="costEstimateTop">计算中…</b></span>
+          <i></i>
+          <span class="cost-hud-item cost-hud-secondary"><small>预计可生成</small><b id="costRemainingTop">--</b></span>
+        </div>
+      </div>
+      <div class="top-actions"><span id="draftStatus" class="draft-status">本地草稿</span><button class="ghost" id="openOutput">打开输出目录</button><button class="ghost" id="refreshAll">刷新</button></div>
+    </header>
+
+
+
+    <section class="page" id="page-assistant">
+      <div class="gpt-shell">
+        <aside class="gpt-side">
+          <button class="primary" id="aiNew" type="button">＋ 新建对话</button>
+          <p class="tiny muted">历史对话</p>
+          <div class="gpt-conversations" id="aiConversationList"></div>
+          <button type="button" class="secondary" id="aiGotoSettings">⚙ 模型接口设置</button>
+        </aside>
+        <div class="gpt-main">
+          <div class="gpt-heading"><div><h2>GPT 对话</h2><p class="tiny muted">独立通用聊天，不读取商品库，不操作视频任务。</p></div>
+            <div class="gpt-model-area">
+              <select id="aiModel" aria-label="选择 GPT 模型"><option value="gpt-6-astra">GPT-6 Astra · 高性能（需核验）</option><option value="gpt-5.6-sol">GPT-5.6 Sol · 均衡速度</option><option value="gpt-6.1-sol">GPT-6.1 Sol · 原版模型</option><option value="custom">自定义模型编号</option></select>
+              <input id="aiCustomModel" placeholder="请输入 OpenLux 账户中的实际模型编号" hidden>
+              <button id="aiSyncModels" type="button" class="secondary">同步账户模型</button>
+              <button id="aiDiagnose" type="button" class="secondary">检测接口</button>
+              <details class="gpt-advanced"><summary>高级选项：推理强度 / 联网搜索</summary><div class="gpt-chat-options">
+                <label>思考强度 <select id="aiThinking"><option value="default">默认·模型自行选择</option><option value="low">低·速度优先</option><option value="medium">中·平衡</option><option value="high">高·质量优先</option><option value="xhigh">极高·复杂任务</option></select></label>
+                <label class="gpt-search-switch"><input type="checkbox" id="aiWebSearch"> 联网搜索（需通道支持）</label>
+              </div>
+              </details><div class="tiny muted" id="aiDiagnostics">默认高性能模型，实际权限以当前 OpenLux 账户为准。</div>
+            </div>
+          </div>
+          <div class="gpt-messages" id="aiMessages" role="log"><div class="gpt-empty"><h3>有什么可以帮你？</h3><p>多轮聊天 · 联网查询（需权限）· 图片/文件理解 · 本地记忆。</p></div></div>
+          <div class="gpt-composer"><div id="aiFileList" class="gpt-attachment-list"></div><textarea rows="2" id="aiPrompt" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"></textarea><div class="gpt-actions"><label class="gpt-upload-btn">＋ 图片 / 文档<input type="file" id="aiFiles" multiple hidden accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx,.txt,.md,.csv,.json,image/*"></label><span class="tiny muted">强模型优先 · 回复逐步显示 · 付费请求不自动重试</span><button class="primary" id="aiSend" type="button">发送 ↑</button></div><p id="aiStatus" class="tiny muted"></p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="page-products">
+      <div class="pm-head"><div><div class="section-kicker">商品知识中心 · 先证据，后关键词</div><h2>商品知识中心</h2><p class="muted">创建空白商品 → 上传官网链接 / 说明书 / 实拍图片 → GPT 解读商品 → 自动提取美区 TikTok 热点搜索词 → 审核关键事实 → 手动采集真实 TikTok 视频。</p></div><div class="pm-actions"><button class="secondary" id="pmToVideo">引用商品事实到视频创作 ↗</button><button class="secondary" id="pmToRadar">查看热点收集 ↗</button></div></div>
+      <div class="pm-view-tabs" role="group" aria-label="商品知识中心视图">
+        <button type="button" id="pmCatalogTab" class="pm-tab is-active">商品档案</button>
+        <button type="button" id="pmEditorTab" class="pm-tab">编辑商品</button>
+      </div>
+      <section id="pmCatalogPanel" class="pm-catalog-panel" aria-label="已保存商品档案">
+        <div class="pm-catalog-header"><div><h3>商品档案</h3><p class="pm-sub">选择商品查看和编辑；原有文档、关键词、知识版本与审核记录保持不变。</p></div><button type="button" class="primary" id="pmCatalogNew">＋ 新建商品</button></div>
+        <div id="pmCatalogCards" class="pm-catalog-cards" aria-live="polite"></div>
+      </section>
+      <div id="pmEditorPanel" hidden>
+      <div class="pm-notice" id="pmCurrentNotice">请选择商品或创建一个新商品。</div>
+      <div class="pm-grid">
+        <section class="card pm-card"><h3>01 · 新建商品并上传资料</h3>
+          <label>当前商品（新建后立即切换到独立空白档案）<select id="pmProduct"></select></label>
+          <div class="pm-actions"><button type="button" id="pmNew" class="primary">＋ 新建空白商品</button><button type="button" id="pmSave" class="secondary">保存商品资料</button></div>
+          <label>商品名称（可先空着，GPT 识别后自动补充）<input id="pmName" maxlength="100" placeholder="上传资料后自动识别；也可自行填写"></label>
+          <label>商品公开网页链接（优先品牌官网）<input type="url" id="pmUrl" placeholder="https://example.com/products/item"></label>
+          <button class="secondary" id="pmUrlAdd">读取并保存网页资料</button>
+          <p class="pm-sub">仅访问公开 HTTPS 页面，不突破登录或反爬。若 TikTok 页面无法读取，可上传官方说明书或粘贴文字。</p>
+          <label>上传商品图片、说明书和产品文档<input type="file" id="pmFiles" multiple accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.jpg,.jpeg,.png,.webp"></label>
+          <p class="pm-sub">支持 PDF、Word、Excel、文本及 JPG/PNG/WEBP，单文件 ≤12MB。图片需要单独授权视觉分析；扫描版 PDF 可能无法提取文字。</p>
+          <details><summary>＋ 粘贴商品详情（无法读取网页时）</summary><label>资料标题<input id="pmTextTitle" placeholder="官网商品介绍"></label><label>资料内容<textarea id="pmText" rows="6" placeholder="粘贴带来源的产品说明"></textarea></label><button class="secondary" id="pmTextAdd">保存文字资料</button></details>
+          <h3>已归档资料</h3><div class="pm-sources" id="pmSources"></div>
+        </section>
+        <section class="card pm-card"><h3>02 · GPT 理解商品与生成关键词</h3>
+          <p class="pm-sub">自动提取产品用途、使用场景、潜在消费者、广告禁忌，并生成美区 TikTok 相关检索词。产品性能声明保留待验证状态。</p>
+          <label>商品理解模型（默认最新优质推理模型）<select id="pmModel"><option value="gpt-6.1-sol">GPT-6.1 Sol｜复杂商品理解（推荐）</option><option value="gpt-6-astra">GPT-6 Astra｜最高质量候选（高成本）</option><option value="gpt-6-luna">GPT-6 Luna｜轻量整理（不建议独立审核）</option><option value="custom">其他已验证模型</option></select></label>
+          <label id="pmCustomModelWrap" hidden>自定义 OpenLux 实际模型编号<input id="pmCustomModel" placeholder="经 OpenLux 核验的模型ID"></label>
+          <div class="pm-actions"><button type="button" class="secondary" id="pmSaveModel">确认并保存所选模型</button><button type="button" class="secondary" id="pmCheckModel">自动核验 OpenLux 价格</button></div><div id="pmModelStatus" class="pm-sub">选择实际模型并保存；系统自动从 OpenLux 计费接口核验，无需手填报价。</div><div id="pmPriceStatus" class="pm-estimate">等待读取 OpenLux 自动报价。<a href="https://www.openlux.ai/pricing" target="_blank" rel="noopener noreferrer">官方价格页 ↗</a></div>
+          <label class="pm-check"><input type="checkbox" id="pmCheckImages" checked> 将选中的产品图交给多模态模型视觉理解（最多3张）</label>
+          <label>每日 GPT 分析与脚本总预算（美元，0表示禁用付费）<input type="number" id="pmDailyBudget" min="0" step="0.05" placeholder="例如 1.00"></label>
+          <div class="pm-actions"><button type="button" class="primary" id="pmPreview">检查资料与预估费用</button><button type="button" class="secondary" id="pmAnalyze">单次确认并用 GPT 分析</button></div>
+          <div id="pmEstimate" class="pm-estimate"></div><div class="pm-actions"><button type="button" class="secondary" id="pmReparseAnalysis">尝试恢复已保存的模型响应（不扣费）</button><button type="button" class="secondary" id="pmRefreshAnalysisStatus">查询最近分析状态（不重新扣费）</button></div><div id="pmSaveFeedback" class="pm-save-feedback" aria-live="polite">尚未更改商品资料。</div><h3>历史分析</h3><div id="pmHistory"></div>
+        </section>
+      </div>
+      <div class="pm-grid">
+        <section class="card pm-card"><h3>03 · 自动生成的美区热点关键词</h3>
+          <div class="pm-sub">GPT 整理后，关键词自动写入该商品的雷达检索配置。它们只用于发现趋势，不是商品真实性证据。未获得关键词时，需先完善检索词；不会自动采集。</div>
+          <div id="pmRadarState" class="pm-sub"></div>
+          <label>热点追踪英文关键词（每行一条，可人工编辑）<textarea id="pmKeywords" rows="7" placeholder="上传资料并执行 GPT 分析后，这里会自动填入关键词。无需先手动填写。"></textarea></label>
+          <label class="pm-check"><input id="pmActive" type="checkbox" checked> 有有效关键词后启用每天热点跟踪</label>
+          <div class="pm-actions"><button class="secondary" id="pmSaveKeywords">保存关键词与商品状态</button></div>
+          <details open><summary>人工补充与编辑事实、禁止宣传内容（默认展开）</summary>
+            <label>商品事实（状态|内容|来源）<textarea id="pmFacts" rows="5" placeholder="待验证|产品参数|官网"></textarea></label>
+            <label>禁止宣传的功能/用途<textarea id="pmRestrictions" rows="3" placeholder="例如：不能用于汽车轮胎充气"></textarea></label>
+            <button type="button" class="secondary" id="pmSaveAdvanced">保存事实与限制</button>
+          </details>
+        </section>
+        <section class="card pm-card"><h3>04 · 商品记忆和事实审核</h3><p id="pmMemoryVersion" class="pm-sub"></p><div id="pmSummary" class="pm-sub"></div><div id="pmInsights"></div><h3>商品事实审核</h3><p class="pm-sub">GPT 新提取的产品事实不会自动成为“已确认”。人工核验后才能用于正式带货视频。</p><div class="pm-facts" id="pmFactCards"></div></section>
+      </div>
+      <div class="pm-sticky-save"><button id="pmSaveBottom" class="primary" type="button">保存产品信息</button><span>保存后会回读校验；上传的资料独立归档</span></div>
+      <section class="card pm-after-analysis" id="pmAfterAnalysis">
+        <h3>05 · 分析后的自动衔接流程</h3>
+        <p class="pm-sub">商品资料 → GPT 商品画像与关键词 → 人工核实商品事实 → 人工手动采集 → 选定真实视频 → 单次授权 GPT 双语脚本 → 引用到视频创作。Bright Data 采集可能产生平台费用；关键词预览和视频人工选择不扣 GPT 费用，也不会自动启动视频生成。</p>
+        <div class="pm-workflow" id="pmWorkflow"></div>
+        <div class="pm-next" id="pmNextGuide" aria-live="polite">请先上传商品资料并分析。</div>
+        <div class="pm-actions"><button type="button" class="secondary" id="pmScanNow">前往手动采集热点 ↗</button><button type="button" class="primary" id="pmViewRadar">查看热点视频并拆解 ↗</button></div>
+      </section>
+      </div><!-- pmEditorPanel -->
+    </section>
+
+    <section class="page" id="page-radar">
+      <div class="radar-head"><div><div class="section-kicker">智能带货 · 美区市场情报</div><h2>热点收集</h2><p class="muted">Bright Data 手动寻找热点视频 → 人工复查 → 真实视频拆解 → 改写商品脚本 → 视频制作。</p></div><div class="radar-lock">视频生成：默认禁止自动付费</div></div>
+      <div class="radar-product-first"><section class="card radar-panel"><h3>① 选择商品</h3><p class="tiny muted">商品图、说明书、链接、产品事实已统一搬到独立的“商品知识中心”。此处只选择要追踪热点的商品。</p><label>当前商品<select id="radarProduct"></select></label><button class="secondary" id="radarGoProduct" type="button">管理商品资料与 AI 商品记忆 ↗</button><div class="radar-capabilities">仅已确认的产品事实可作为正式广告功能依据。</div></section></div>
+      <div class="card bd-panel"><h3>Bright Data · TikTok 手动热点</h3><p class="tiny muted">仅人工触发，默认20条、所有关键词共享上限；采集仅提供热点线索，不能证明成交。免费余额与计费单位需要人工核实。</p>
+        <div class="row gap bd-manual-actions"><label>本次采集总量<select id="bdCount"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></label><button type="button" class="secondary" id="bdPreview">预览关键词与额度</button><button type="button" class="primary" id="bdSubmit">确认并手动采集</button><button type="button" class="secondary" id="bdToSettings">设置接口</button></div>
+        <div id="bdStatus" class="tiny muted" role="status" aria-live="polite">正在读取本地采集记录…</div>
+        <div id="bdCurrent" class="bd-live" aria-live="polite"><b>正在读取采集任务状态…</b></div>
+        <details class="bd-history"><summary>展开历史采集任务与错误记录</summary><div id="bdJobs" class="bd-jobs"></div></details>
+      </div>
+      <div class="radar-stats" id="radarStats"></div>
+<details class="radar-advanced"><summary>GPT 模型、费用和预算设置（按需展开）</summary><section class="card radar-panel"><h3>GPT模型及预算</h3><p class="tiny muted">仅在人工确认视频拆解后调用 GPT；未核实报价和预算时禁止付费。</p><div id="radarCapabilities" class="radar-capabilities"></div><input type="checkbox" id="radarAutoScan" disabled hidden><input id="radarScanHour" type="number" value="9" hidden><label>GPT 实际模型编号<input id="radarModel" list="radarVisionModelOptions" value="gpt-6.1-sol" placeholder="请选择 OpenLux 模型编号"></label>
+<datalist id="radarVisionModelOptions"><option value="gpt-6.1-sol"><option value="gpt-6-astra"><option value="gpt-5.6-sol"><option value="gpt-5.5"><option value="gpt-4o"></datalist><div class="radar-actions"><button id="radarCheckPrice" class="secondary" type="button">自动核验模型价格</button><button id="radarCheckModels" class="secondary" type="button">只读检查可用视觉模型</button></div><div id="radarModelCatalog" class="tiny muted"></div><div id="radarPriceStatus" class="radar-estimate">价格将由 OpenLux 自动读取，无需填写输入/输出报价。</div><label>每日 GPT 预算上限（美元）<input id="radarDailyBudget" type="number" step="0.01" min="0" value="0"></label><div class="radar-actions"><button id="radarSaveOptions" class="secondary">保存设置</button></div><p id="radarScanStatus" class="tiny muted"></p><div id="radarWindowStatus" class="radar-estimate tiny muted">列表按当前日期动态区分近7天、第8—14天与历史参考；不代表 Bright Data 已执行服务端日期过滤。</div></section></details>
+      <div class="radar-columns radar-secondary-columns">
+        <section class="card radar-panel"><div class="radar-title-row"><h3>② 人工复查爆款视频</h3><span class="tiny muted">逐条确认参考价值，一次选一条；获取原视频后才能拆解</span></div><input type="file" id="radarVideoFile" accept="video/*,.mp4,.mov,.m4v" hidden><div id="radarItems" class="radar-items"></div><details class="radar-import"><summary>＋ 手动导入 TikTok 视频</summary><label>来源类型<select id="radarImportKind"><option value="video">热门视频</option></select></label><label>原始链接<input id="radarImportUrl" placeholder="https://www.tiktok.com/@.../video/..."></label><label>内容标题<input id="radarImportTitle" placeholder="真实来源标题"></label><label>摘要或备注<textarea id="radarImportSummary" rows="2" placeholder="输入能够核验的事实，不要捏造播放量"></textarea></label><button class="secondary" id="radarImportSubmit">保存来源</button><div class="radar-batch"><p class="tiny muted">批量导入授权的 TikTok 数据（本地粘贴 JSON 数组，不会自动抓取或扣费）</p><textarea id="radarBatchJson" rows="4" placeholder='[{"url":"https://www.tiktok.com/@creator/video/123","title":"Camping gear","published_at":"2026-10-12T09:00:00Z","viewCount":5000}]'></textarea><button class="secondary" id="radarBatchSubmit" type="button">批量导入 TikTok 记录</button></div></details></section>
+        <section class="card radar-panel"><h3>③ GPT 真实视频拆解 + 商品脚本</h3><p class="muted tiny">先预检费用，明确单次授权才调用。无法从 OpenLux 自动核实模型报价时禁止付费提交。</p><div id="radarSelected" class="tiny muted">未选择热点证据</div><div class="radar-actions"><button id="radarPreviewScript" class="primary">检查视频并预览费用</button><button id="radarGenerateScript" class="secondary" disabled>确认拆解并生成脚本</button></div><div id="radarEstimate" class="radar-estimate"></div><div id="radarScripts" class="radar-scripts"></div><p class="tiny muted">生成脚本后点击「编辑并确认」，确认后交给视频创作；视频生成仍须单次费用确认。</p></section>
+      </div>
+    </section>
+
+
+    <section class="page" id="page-ads">
+      <div class="radar-head"><div><div class="section-kicker">商品创意 · 人工审核 · 模型测试</div><h2>智能视频制作</h2><p class="muted">编辑和确认商品脚本 → 选择视频模型 → 发送视频创作并人工确认付费 → 审核成片。</p></div><div class="radar-lock">低成本候选：Vidu Q3 Turbo</div></div>
+      <div class="card radar-panel"><h3>01 · 选择已生成的热点脚本</h3><p class="tiny muted">脚本由热点收集产生；此处负责制作审批，不会未经授权创建视频。</p><div class="radar-actions"><label style="flex:1;min-width:260px">可选脚本<select id="adsScriptSelect"></select></label><label style="flex:1;min-width:220px">测试视频模型<select id="adsPreferredModel"><option value="auto">智能自动选择（默认）</option><option value="viduq3-turbo">Vidu Q3 Turbo（低成本候选）</option><option value="minimax-video-h3">MiniMax H3（效果对照）</option><option value="doubao-seedance-2-5-260628">Seedance 2.5（原有高质量）</option></select></label><button class="primary" id="adsNewJob" type="button">创建制作审核任务</button></div><div id="adsNotice" class="radar-estimate"></div></div>
+      <div class="card radar-panel"><h3>02 · 脚本及制作审核队列</h3><div id="adsJobs"></div></div>
+      <div class="card radar-panel"><h3>03 · 所选模型的费用与接口安全约束</h3><p class="tiny muted">下拉框仅保存模型选择，不构成付费授权。实际请求模型必须与选定模型一致；Vidu / H3 的接口能力及费用未验证前不能直接付费。</p><div class="radar-actions"><button type="button" class="secondary" id="adsCheckH3">检查当前模型是否一致</button><button type="button" class="secondary" id="adsH3Settings">打开模型设置</button></div><p class="tiny muted" id="adsH3Status">尚未核对实际请求模型</p></div>
+
+    </section>
+
+    <section class="page active" id="page-video">
+      <div class="studio-layout video-layout-v32">
+        <section class="card video-compose-card">
+          <div class="compose-head"><div><div class="section-kicker">创建视频</div><h2>视频创作</h2><p class="muted">提示词是主操作区；参考素材与生成参数集中到右侧辅助区。生成状态单独放到紧凑工作台，不再抢占页面。</p></div><div class="capacity-chip"><span>共享并发</span><b data-task-center-inline-usage>0/10</b></div></div>
+          <div class="simple-model-line"><label>本次视频模型<select id="videoModelChoice"><option value="">使用全局默认模型</option><option value="doubao-seedance-2-5-260628">Seedance 2.5 · 复杂创作与多素材</option><option value="viduq3-turbo">Vidu Q3 Turbo · 简单低成本短片</option><option value="minimax-video-h3">MiniMax H3 · 高清参考视频</option></select></label><button id="checkVideoModel" type="button" class="secondary" title="只读检查模型权限，不扣费">检查模型权限</button><span class="simple-model-note" id="videoModelCheckText"></span></div>
+          <label class="mode-hero compact-mode">视频模式<select id="videoMode"><option value="auto" selected>智能参考（自动选择）</option><option value="text">文生视频</option><option value="image_reference">图片参考生视频</option><option value="first_frame">首帧图生视频</option><option value="first_last">首尾帧生视频</option><option value="reference">全能参考</option><option value="edit">视频编辑</option><option value="extend">视频延长</option></select></label>
+          <div id="modeRule" class="rule-box compact-rule"></div>
+          <div class="video-compose-grid">
+            <div class="prompt-zone">
+              <div class="field-title-row"><label>视频提示词</label><span>描述你真正想得到的画面与动作</span></div>
+              <textarea id="videoPrompt" data-mention-scope="video" class="video-prompt-primary" rows="15" placeholder="描述你希望生成、编辑或延长的视频内容。
+
+输入 @ 选择素材。例如：@image 1 做首帧，@image 2 做尾帧；或 @image 1 模仿 @video 1 的动作，音色参考 @audio 1。"></textarea>
+            </div>
+            <div class="video-side-tools">
+              <div class="tool-block">
+                <div class="field-title-row"><label>参考素材</label><span>可选</span></div>
+                <label class="upload-zone upload-zone-compact" id="videoRefsZone" for="videoRefs" tabindex="0" data-upload-zone="video"><input id="videoRefs" type="file" multiple accept="image/*,video/*,audio/*" hidden><b>点击 / 拖入 / Ctrl+V</b><span>最多 50 个参考素材。输入 @ 会立即弹出图片 / 视频 / 音频选择器；也可点击素材卡片上的 @标签直接插入。</span></label>
+                <div class="audio-ref-action"><button id="addVideoAudio" type="button" class="secondary">♫ 添加 @audio</button><span class="tiny muted">本地上传 / 裁剪试听 / 使用已保存音频</span></div><div id="videoRefList" class="asset-grid compact-assets"></div>
+                <div id="videoAudioUse" class="audio-use-mode" hidden aria-label="音频使用方式">
+                  <b>音频使用方式</b>
+                  <label class="audio-use-option"><input type="radio" name="videoAudioUse" value="timbre" checked><span>参考音色（仅使用上传音频的音色）</span></label>
+                  <label class="audio-use-option"><input type="radio" name="videoAudioUse" value="content"><span>使用上传音频的内容，保持上传音频的音色</span></label>
+                  <small>仅在添加音频后可选；参考音色使用你的新台词，未指定时由视频模型自动生成台词。</small>
+                  <small class="audio-role-tip">多人说话请用 @ 指定人物，例如：@image 1 中右边的男生使用 @audio 1 的音色。未指定时先提示，不猜测。</small>
+                </div>
+              </div>
+              <div class="tool-block parameter-block">
+                <div class="field-title-row"><label>生成参数</label><span>常用设置</span></div>
+                <div class="form-grid dense-form"><label>比例<select id="videoRatio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:3</option><option>3:4</option><option>21:9</option><option>adaptive</option></select></label><label>成片清晰度<select id="videoResolution"><option selected value="720p">720P</option><option value="480p">480P</option><option value="1080p">1080P</option><option value="2K">2K</option></select><small class="tiny muted" id="videoResolutionHint" role="status">选择模型后显示匹配档位，1080P若需缩放会明确提示。</small></label><label>时长（秒）<input id="videoDuration" type="number" min="4" max="30" value="10"></label></div><p class="tiny muted">未添加音频时沿用原有视频音频生成规则；添加音频后才显示音频使用方式。请确保音频具备使用授权。</p>
+              </div>
+            </div>
+          </div>
+          <button id="previewVideo" class="primary wide main-cta">预览本次调用</button>
+        </section>
+        <section class="card workspace-card compact-workspace" id="videoWorkspaceCard">
+          <div class="workspace-head compact-workspace-head"><div><div class="section-kicker">生成状态</div><h2>工作台</h2><p class="tiny muted">只看预览、当前任务与全局任务。</p></div></div>
+          <div class="workspace-tabs video-tabs" data-workspace-tabs="video"><button class="workspace-tab active" data-workspace-tab="video:preview">调用预览</button><button class="workspace-tab" data-workspace-tab="video:task">当前任务 <span id="videoTaskTabDot" class="tab-dot hidden"></span></button><button class="workspace-tab" data-workspace-tab="video:global">全局任务</button></div>
+          <div class="workspace-panels compact-panels"><section class="workspace-panel active" data-workspace-panel="video:preview"><div id="videoPreviewBox" class="workspace-empty compact-preview-empty"><b>等待预览</b><span>点击左侧“预览本次调用”后，这里显示模型、模式、时长、素材和费用。</span></div><button id="generateVideo" class="danger wide main-cta" disabled>确认并生成视频</button></section><section class="workspace-panel" data-workspace-panel="video:task"><div id="videoTaskBox" class="task-box"><div class="workspace-empty compact-preview-empty"><b>暂无视频任务</b><span>提交后显示真实任务阶段；刷新或切页不会丢任务。</span></div></div></section><section class="workspace-panel" data-workspace-panel="video:global"><div class="inline-task-center-head"><div><b>全局视频任务</b><span>视频创作与爆款复刻共享 10 个名额</span></div><strong data-task-center-inline-usage>0/10</strong></div><div class="global-task-list inline-global-list" data-global-task-inline><div class="workspace-empty compact"><b>当前没有运行中的视频任务</b></div></div></section></div>
+        </section>
+      </div>
+    </section>
+
+    
+
+<section class="page" id="page-replica">
+  <div class="replica-page-shell replica-v34">
+    <div class="page-intro-row replica-intro-v34">
+      <div>
+        <div class="section-kicker">结果导向复刻</div>
+        <h2>爆款复刻</h2>
+        <p class="muted">你只需要给参考视频、可选产品图和最终效果要求。镜头、节拍、动作约束和生成策略全部由后台自动处理。 API 技术参数和参考素材尺寸限制也由系统自动适配，无需填写。</p>
+      </div>
+      <div class="principle-chip">你定义结果 · 系统负责实现</div>
+    </div>
+
+    <div class="replica-input-v33 replica-input-v34">
+      <section class="card replica-reference-v33">
+        <div class="card-topline">
+          <div><span class="step-chip">步骤 1</span><h3>参考爆款视频</h3></div>
+          <span class="tiny muted">核心输入</span>
+        </div>
+
+        <div class="reference-main-v33">
+          <label class="upload-zone replica-video-drop-v33" id="replicaVideoZone" for="replicaVideo" tabindex="0" data-upload-zone="replica-video">
+            <input id="replicaVideo" type="file" accept="video/*" hidden>
+            <b>点击 / 拖入 / Ctrl+V 上传参考视频</b>
+            <span>上传后直接预览；后台自动读取时长、画幅、真实切镜、动作节奏、音频与关键帧。</span>
+          </label>
+          <div id="replicaVideoInfo" class="asset-grid replica-reference-preview-v33"></div>
+        </div>
+
+        <div class="reference-note reference-note-v33">
+          <div>
+            <span>默认目标</span>
+            <b>动作顺序 · 节奏 · 镜头关系 · 视频结构尽量保持</b>
+          </div>
+          <small>这些约束只在后台使用，不需要你手动编辑或确认。</small>
+        </div>
+      </section>
+
+      <section class="card replica-command-v33">
+        <div class="card-topline">
+          <div><span class="step-chip">步骤 2</span><h3>最终效果要求</h3></div>
+          <span class="tiny muted">你只操作这里</span>
+        </div>
+
+        <div class="product-inline-v33">
+          <div class="product-copy-v33">
+            <b>产品参考图</b>
+            <span>可选；用于锁定产品外观、颜色和结构。</span>
+          </div>
+          <label class="upload-zone product-drop-v33" id="replicaProductsZone" for="replicaProducts" tabindex="0" data-upload-zone="replica-product">
+            <input id="replicaProducts" type="file" multiple accept="image/*" hidden>
+            <b>＋ 添加产品图</b>
+            <span>点击 / 拖入 / 粘贴</span>
+          </label>
+        </div>
+        <div id="replicaProductList" class="asset-grid replica-product-strip-v33"></div><div class="audio-ref-action audio-replica-box"><div><b>♫ 音频参考（可选）</b><span class="tiny muted">上传音频后选择“参考音色”或“保留原音频内容”；可用 @audio 1 引用</span></div><button type="button" class="secondary" id="addReplicaAudio">＋ 添加 @audio</button></div><div id="replicaAudioList" class="asset-grid replica-product-strip-v33"></div>
+        <div id="replicaAudioUse" class="audio-use-mode" hidden aria-label="音频使用方式">
+          <b>音频使用方式</b>
+          <label class="audio-use-option"><input type="radio" name="replicaAudioUse" value="timbre" checked><span>参考音色（仅使用上传音频的音色）</span></label>
+          <label class="audio-use-option"><input type="radio" name="replicaAudioUse" value="content"><span>使用上传音频的内容，保持上传音频的音色</span></label>
+          <small>仅在添加音频后可选；参考音色不复制原台词和背景声音。</small>
+          <small class="audio-role-tip">多人对话需在“你想要的最终结果”中指定角色，例如：右边的男生使用 @audio 1 的音色。</small>
+        </div>
+
+<label>复刻成片清晰度<select id="replicaResolution"><option value="720p">720P</option><option value="480p">480P</option><option value="1080p">1080P</option><option value="2K">2K</option></select><small class="tiny muted" id="replicaResolutionHint" role="status">根据选择的模型列出支持档位</small></label><p class="tiny muted">未添加音频时按原有复刻音频规则处理；添加后选择音频使用方式。</p><div class="simple-model-line replica-model-line"><label>本次复刻模型<select id="replicaModelChoice"><option value="">使用全局默认模型</option><option value="doubao-seedance-2-5-260628">Seedance 2.5 · 视频编辑</option><option value="minimax-video-h3">MiniMax H3 · 视频参考重制</option><option value="viduq3-turbo">Vidu Q3 Turbo · 不支持此处的视频编辑</option></select></label><button type="button" class="secondary" id="checkReplicaModel">检查模型权限</button><span class="simple-model-note" id="replicaModelCheckText"></span></div><div class="field-title-row replica-instruction-title-v33">
+          <label>你想要的最终结果</label>
+          <span>只写需要改变的内容</span>
+        </div>
+        <textarea id="replicaInstruction" data-mention-scope="replica" class="replica-instruction-v33" rows="8" placeholder="例如：把产品换成 AIR3，人物换成美国男性，场景改成美国公路边加油站；其它动作、节奏和镜头关系尽量保持原视频。"></textarea>
+
+        <div class="replica-command-footer-v33">
+          <button id="analyzeReplica" class="primary wide main-cta">分析并准备生成</button>
+          <p class="tiny muted action-note">这一步只做本地分析、后台策略选择和生成参数准备，不触发 Seedance 付费视频创建。</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="card replica-result-workspace-v34" id="replicaWorkspaceCard">
+      <div class="workspace-head">
+        <div>
+          <div class="section-kicker">生成区</div>
+          <h2>准备与结果</h2>
+          <p class="tiny muted">不展示内部蓝图。系统只告诉你是否准备完成、这次会怎么调用，以及生成任务和最终结果。</p>
+        </div>
+        <span class="capacity-chip small"><span>视频并发</span><b data-task-center-inline-usage>0/10</b></span>
+      </div>
+
+      <div class="workspace-tabs replica-result-tabs-v34" data-workspace-tabs="replica">
+        <button class="workspace-tab active" data-workspace-tab="replica:ready">生成准备</button>
+        <button class="workspace-tab" data-workspace-tab="replica:task">当前任务 <span id="replicaTaskTabDot" class="tab-dot hidden"></span></button>
+        <button class="workspace-tab" data-workspace-tab="replica:global">全局任务</button>
+      </div>
+
+      <div class="workspace-panels replica-result-panels-v34">
+        <section class="workspace-panel active" data-workspace-panel="replica:ready">
+          <div id="replicaReadyState" class="replica-ready-state-v34 idle">
+            <div class="ready-icon-v34">○</div>
+            <div>
+              <b>等待准备</b>
+              <span>上传参考视频并填写最终效果要求后，点击“分析并准备生成”。</span>
+            </div>
+          </div>
+
+          <div id="replicaPreviewBox" class="preview-mini replica-preview-box-v34"></div>
+
+          <div id="replicaPreviewHint" class="replica-ready-note-v34">
+            后台会自动完成视频结构分析、动作节拍、约束判断和生成策略选择，但这些技术过程不会显示在主界面。
+          </div>
+
+          <button id="generateReplica" class="danger wide main-cta" disabled>确认并生成复刻视频</button>
+        </section>
+
+        <section class="workspace-panel" data-workspace-panel="replica:task">
+          <div id="replicaTaskBox" class="task-box">
+            <div class="workspace-empty hero-empty">
+              <b>暂无复刻任务</b>
+              <span>开始生成后自动切到这里；刷新网页或重开浏览器后仍会恢复任务。</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace-panel" data-workspace-panel="replica:global">
+          <div class="inline-task-center-head">
+            <div><b>全局视频任务</b><span>视频创作与爆款复刻共享 10 个名额</span></div>
+            <strong data-task-center-inline-usage>0/10</strong>
+          </div>
+          <div class="global-task-list inline-global-list" data-global-task-inline>
+            <div class="workspace-empty compact"><b>当前没有运行中的视频任务</b></div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- V3.4：以下元素仅保留给后台兼容逻辑使用，不在主界面展示。 -->
+    <div class="replica-internal-hidden-v34" aria-hidden="true">
+      <div id="analysisSummary"></div>
+      <div id="anchorStrip"></div>
+      <div id="workflowVersions"></div>
+      <div id="blueprintHero"></div>
+      <div id="blueprintStrategy"></div>
+      <div id="blueprintContracts"></div>
+      <div id="blueprintRisks"></div>
+      <div id="blueprintTimeline"></div>
+      <textarea id="workflowEditor"></textarea>
+      <button id="saveWorkflow" disabled></button>
+      <button id="confirmWorkflow" disabled></button>
+      <button id="previewReplica" disabled></button>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="page-image">
+  <div class="image-studio-v33">
+    <section class="card image-input-v33">
+      <div class="image-input-head-v33">
+        <div>
+          <div class="section-kicker">图片输入</div>
+          <h2>图片生成</h2>
+          <p class="tiny muted">输入区是主工作区：提示词、图生图起始图和参数都在这里完成。</p>
+        </div>
+        <button id="deepModeBtn" class="deep-btn">✨ 深度生成</button>
+      </div>
+
+      
+<section class="vp-shell" id="vpMount" aria-label="视觉指令库">
+ <div class="vp-toolbar">
+  <div class="vp-toolbar-title"><span class="vp-star">✦</span><div><strong>图片视觉指令</strong><small>在图片生成内选择、收藏或导入模板</small></div><span class="vp-count" id="vpCount">加载中</span></div>
+  <button type="button" class="secondary vp-small" id="vpToggle" aria-expanded="false">浏览图片指令 ▾</button>
+ </div>
+ <div class="vp-panel hidden" id="vpPanel">
+  <div class="vp-filter-row">
+    <input id="vpSearch" placeholder="搜索中文名称、快捷码、场景或用途…" aria-label="搜索指令" />
+    <select id="vpCategory" aria-label="按分类筛选"><option value="">全部分类</option></select>
+    <label class="vp-inline-check"><input type="checkbox" id="vpFavoritesOnly">只看收藏</label>
+  </div>
+  <div class="vp-body">
+   <div class="vp-list-side"><div class="vp-list-head"><span id="vpShown">选择一个指令</span><button type="button" id="vpNew" class="secondary vp-small">+ 新增</button></div><div id="vpList" class="vp-list" role="list"></div><button type="button" id="vpMore" class="secondary vp-small hidden">显示更多</button></div>
+   <div class="vp-detail-side">
+    <div class="vp-detail-head"><div><span id="vpSelectedCategory" class="vp-tag">选择指令</span><h3 id="vpSelectedName">从左侧选择一个模板</h3><code id="vpSelectedCode"></code></div><button type="button" id="vpFavorite" class="secondary vp-small" title="收藏 / 取消收藏" disabled>☆ 收藏</button></div>
+    <p id="vpSelectedDesc" class="vp-muted">选中后可以查看完整提示词，应用到现有图片生成输入框，并支持继续深度生成。</p>
+    <label class="vp-label">完整生成提示词<textarea id="vpPromptView" readonly rows="7" placeholder="在这里预览指令的完整生成提示词"></textarea></label>
+    <label class="vp-label">本次补充要求<textarea id="vpExtra" rows="2" placeholder="例如：9:16 竖屏，适配美国消费者；产品型号以实物图为准"></textarea></label>
+    <div class="vp-actions"><button type="button" id="vpApply" class="primary" disabled>应用到图片生成</button><button type="button" id="vpCopy" class="secondary" disabled>复制提示词</button><button type="button" id="vpEdit" class="secondary" disabled>编辑</button><button type="button" id="vpDelete" class="ghost" disabled>删除</button></div>
+    <p class="vp-notice">提示：斜杠快捷码是本地指令库定义，不是生图模型自带的隐藏命令。选择后会展开完整提示词。内部结构、真实尺寸等未提供的数据不自动编造。</p>
+   </div>
+  </div>
+  <div class="vp-management">
+   <details id="vpEditorDetails"><summary>新增 / 修改单条指令</summary>
+    <div class="vp-form-grid"><label>快捷码<input id="vpEditCode" placeholder="/my-ad" maxlength="48"></label><label>中文名称<input id="vpEditName" placeholder="我的广告图" maxlength="90"></label><label>分类<input id="vpEditCategory" placeholder="个人自定义"></label><label>推荐模式<select id="vpEditMode"><option value="image">图生图</option><option value="either">文生图 / 图生图</option><option value="text">文生图</option></select></label></div>
+    <label class="vp-label">用途说明<input id="vpEditDesc" placeholder="指令能产生什么效果"></label><label class="vp-label">完整提示词<textarea id="vpEditPrompt" rows="6" placeholder="描述目标画面、参考产品一致性要求、构图与禁用条件"></textarea></label>
+    <div class="vp-actions"><button type="button" id="vpSave" class="primary">保存指令</button><button type="button" id="vpCancelEdit" class="secondary">取消</button></div>
+   </details>
+   <details id="vpImportDetails"><summary>手动导入 / 批量管理 · JSON / CSV / TXT</summary>
+    <div class="vp-import-row"><label class="vp-file-btn" for="vpImportFile">选择本地指令库文件 <input type="file" id="vpImportFile" accept=".json,.csv,.txt,application/json,text/csv,text/plain" hidden></label><span id="vpImportFilename" class="vp-muted">或者在下面直接粘贴指令内容</span></div>
+    <div class="vp-form-grid"><label>文件格式<select id="vpImportFormat"><option value="json">JSON（结构化数据）</option><option value="csv">CSV（表格）</option><option value="txt">TXT（每行一条）</option></select></label><label>重复指令处理<select id="vpConflict"><option value="skip">跳过已有指令（默认、安全）</option><option value="overwrite">用新指令覆盖同名指令</option></select></label></div>
+    <textarea id="vpImportText" rows="5" placeholder='示例：[{"code":"/myhero","name":"产品主图","category":"产品主图","prompt":"请以真实产品照片为基准..."}]'></textarea>
+    <div class="vp-actions"><button type="button" class="secondary" id="vpPreviewImport">预览导入检查</button><button type="button" class="primary" id="vpConfirmImport" disabled>确认导入</button><button type="button" class="secondary" id="vpDownloadTemplate">下载示例模板</button><button type="button" class="secondary" id="vpExportJson">导出完整 JSON</button><button type="button" class="secondary" id="vpExportCsv">导出完整 CSV</button></div>
+    <div class="vp-import-feedback" id="vpImportFeedback">导入前会检查字段、重复快捷码、文件大小和格式。首次导入建议选择「跳过已有」。最多单次 1000 条，每次最大 3MB。</div>
+   </details>
+  </div>
+ </div>
+</section>
+
+<div class="image-mode-tabs image-mode-tabs-v33" id="imageModeTabs">
+        <button class="image-mode-tab active" data-image-mode="text">文生图</button>
+        <button class="image-mode-tab" data-image-mode="image">图生图</button>
+      </div>
+
+      <div id="imageModeHint" class="mode-hero image-mode-hint-v33">当前模式：<b>文生图</b>。写完整提示词即可。</div>
+
+      <div id="imageSourceWrap" class="hidden image-source-wrap-v33">
+        <div class="field-title-row"><label>图生图起始图片</label><span>1 张主图</span></div>
+        <label class="upload-zone image-source-drop-v33" id="imageSourceZone" for="imageSourceInput" tabindex="0" data-upload-zone="image-source">
+          <input id="imageSourceInput" type="file" accept="image/*" hidden>
+          <b>点击 / 拖入 / Ctrl+V 上传起始图片</b>
+          <span>这里会保留更大的输入空间，便于确认起始图是否正确。</span>
+        </label>
+        <div id="imageSourceList" class="asset-grid image-source-grid image-source-grid-v33"></div>
+      </div>
+
+      <div class="field-title-row image-prompt-title-v33"><label>提示词 / 修改要求</label><span>这是主要输入</span></div>
+      <textarea id="imagePrompt" data-mention-scope="image" class="image-prompt-v33" rows="15" placeholder="文生图：写完整提示词。
+
+图生图：写希望如何修改起始图片。
+
+深度生成：只写本轮修改要求。"></textarea>
+
+      <div class="image-settings-v33">
+        <label>图片比例
+          <select id="imageRatio">
+            <option value="auto">自动</option><option value="1:1">1:1</option><option value="4:5">4:5</option><option value="3:4">3:4</option><option value="9:16" selected>9:16</option><option value="16:9">16:9</option>
+          </select>
+        </label>
+        <label id="deepLevelWrap" class="hidden">修改幅度
+          <select id="deepLevel"><option value="light">轻微</option><option value="medium" selected>中等</option><option value="strong">明显</option></select>
+        </label>
+        <label id="changeRatioWrap" class="check hidden"><input id="changeImageRatio" type="checkbox"> 本轮允许改画幅</label>
+      </div>
+
+      <div id="deepSourceBox" class="deep-source hidden"></div>
+      <button id="generateImage" class="primary wide main-cta image-generate-v33">生成 1 张图片</button>
+    </section>
+
+    <section class="card image-preview-v33">
+      <div class="workspace-head">
+        <div>
+          <div class="section-kicker">结果预览</div>
+          <h2>当前结果</h2>
+          <p class="tiny muted">预览缩到合理尺寸，只承担确认结果，不再占掉页面最大面积。</p>
+        </div>
+      </div>
+
+      <div id="imageResult" class="image-stage empty-state image-stage-v33">暂无结果</div>
+
+      <div class="image-result-actions-v33">
+        <button id="addImageToVideo" class="secondary" disabled>加入视频参考素材</button>
+        <button id="addImageToReplica" class="secondary" disabled>加入爆款产品图</button>
+        <button id="useCurrentAsImageSource" class="secondary" disabled>作为图生图起点</button>
+      </div>
+    </section>
+
+    <aside class="card image-history-v33">
+      <div class="section-kicker">版本树</div>
+      <h2>历史版本</h2>
+      <p class="tiny muted">查看、继续深度生成，或设为新的图生图起点。</p>
+      <div id="imageVersions" class="version-list image-version-list-v33"></div>
+    </aside>
+  </div>
+</section>
+
+
+<section class="page" id="page-assets">
+  <div class="settings-banner">
+    <div><b>本地素材库</b><span>上传过的图片、视频、音频统一保存在本机 data/assets。刷新网页、切换页面或重开浏览器后仍可直接复用。</span></div>
+    <div class="row gap"><button id="refreshAssetLibrary" class="ghost">刷新素材库</button></div>
+  </div>
+  <div class="card full-card">
+    <div class="asset-library-toolbar">
+      <label>类型<select id="assetLibraryKind"><option value="">全部</option><option value="image">图片</option><option value="video">视频</option><option value="audio">音频</option></select></label>
+      <label class="asset-library-search">搜索<input id="assetLibrarySearch" placeholder="按文件名搜索"></label>
+      <span id="assetLibraryCount" class="muted tiny">0 个素材</span>
+    </div>
+    <div id="assetLibraryGrid" class="asset-library-grid"><div class="workspace-empty"><b>正在读取本地素材库…</b></div></div>
+  </div>
+</section>
+
+<section class="page" id="page-history">
+      <div class="grid two">
+        <div class="card"><h2>调用成本汇总</h2><div id="costSummary"></div></div>
+        <div class="card"><h2>任务恢复中心</h2><p class="tiny muted">这里只处理“继续查询 / 重新下载”，不会重新创建付费视频任务。</p><div id="taskRecovery" class="history-list compact"></div></div>
+      </div>
+      <div class="card full-card"><h2>任务历史</h2><div id="taskHistory" class="history-list"></div></div>
+    </section>
+
+    <section class="page" id="page-settings">
+      <div class="card bd-panel"><h3>数据接口 → Bright Data / TikTok</h3><p class="tiny muted">使用专用数据集 <code>gd_lu702nij2f790tmv9h</code>，只允许手动触发。API Key（密钥）保存在当前 Windows 用户加密凭据中，跨版本自动继承。</p>
+        <label>API Key（留空代表不更换）<input id="bdApiKey" type="password" autocomplete="new-password" placeholder="填写密钥后保存；已有密钥不重复输入"></label>
+        <label>本月剩余免费记录数（必须从 Bright Data 后台核验）<input id="bdFreeRemaining" type="number" min="0" max="5000" value="0"></label>
+        <label class="check"><input id="bdConfirmedBilling" type="checkbox">我已核对本月免费额度与超额付费限制</label>
+        <p class="tiny muted">本机4500安全停止线；不会自动充值或主动采集。资金余额不等于免费采集额度。</p>
+        <div class="row gap"><button class="primary" id="bdSaveSettings" type="button">保存接口及额度</button><button class="secondary" id="bdBalanceCheck" type="button">只读检查账户资金余额</button></div>
+        <div id="bdSettingsStatus" class="tiny muted"></div>
+      </div>
+      <div class="settings-banner">
+        <div><b>设置中心</b><span>所有设置保存到本地 SQLite；保存后立即生效，不需要改代码。</span></div>
+        <div class="row gap"><button id="resetSettings" class="ghost">恢复推荐默认值</button></div>
+      </div>
+
+      <div class="card full-card system-health-card">
+        <div class="row between health-head">
+          <div><div class="section-kicker">本地生产系统</div><h2>系统体检与安全安装</h2><p class="tiny muted">检查视频解析、镜头检测、语音、文字、姿态、目标追踪、数据库和磁盘。增强组件失败不会阻断核心视频生成。</p></div>
+          <div class="row gap"><button id="runSystemHealth" class="secondary">重新体检</button><button id="repairSystem" class="primary">查看安全安装方法</button></div>
+        </div>
+        <div id="systemHealthSummary" class="health-summary">正在读取系统状态…</div>
+        <div id="systemHealthGrid" class="health-grid"></div>
+        <div id="repairProgress" class="repair-progress tiny muted"></div>
+        <div class="row gap backup-row"><button id="createBackup" class="ghost">创建迁移备份</button><button id="createBackupWithOutputs" class="ghost">备份并包含生成结果</button><span id="backupResult" class="tiny muted"></span></div>
+      </div>
+
+      <div class="grid two">
+        <div class="card">
+          <h2>视频模型与 OpenLux 路由控制</h2>
+          <p class="tiny muted">基础视频模型与路由控制是两件事：模型可以手动设置；路由控制严格按 OpenLux 的 3 种方式执行。默认采用“模型名后缀 + 成功率最高”，优先保证生成成功率。</p>
+
+          <label>全局默认视频模型<select id="setVideoModelChoice"><option value="doubao-seedance-2-5-260628">Seedance 2.5｜复杂参考与编辑</option><option value="viduq3-turbo">Vidu Q3 Turbo｜低成本测试</option><option value="minimax-video-h3">MiniMax H3｜高清短视频对照</option><option value="custom">自定义实际模型 ID（高级）</option></select></label>
+          <label id="setVideoCustomModelWrap" hidden>自定义实际模型 ID<input id="setVideoBaseModel" placeholder="OpenLux 已核验的模型编号"></label>
+          <p class="tiny muted">这里选定全局默认模型；「视频创作」「爆款复刻」和「智能视频制作」均可覆盖。保存后重新读取确认。选择不代表当前渠道已开放该模型，更不会自动发起付费任务。</p>
+
+          <label class="mode-hero">路由控制方式
+            <select id="setVideoRouteControl">
+              <option value="model_suffix">① 模型名后缀（推荐，优先级最高）</option>
+              <option value="provider_sort">② provider.sort 字段</option>
+              <option value="token_default">③ Token 级默认</option>
+            </select>
+          </label>
+
+          <label id="routePreferenceWrap">路由目标
+            <select id="setVideoRoutePreference">
+              <option value="success_rate">成功率最高（默认 / 推荐）</option>
+              <option value="speed">速度最快</option>
+              <option value="price">价格最低</option>
+            </select>
+          </label>
+
+          <div class="route-explain">
+            <div><b>① 模型名后缀</b><span>成功率最高 → :stable；速度最快 → :nitro；价格最低 → :floor。优先级最高，默认使用。</span></div>
+            <div><b>② provider.sort</b><span>模型名不加后缀，请求体写 provider.sort = success_rate / speed / price。</span></div>
+            <div><b>③ Token 默认</b><span>请求中不写后缀，也不写 provider.sort；完全继承 OpenLux API Token 设置页的 routing_priority。</span></div>
+          </div>
+          <p class="tiny warn">OpenLux 优先级：模型名后缀 ＞ provider.sort ＞ Token 级默认 ＞ 系统全局权重。选择 Token 级默认时，本地工作台不会覆盖你在 OpenLux 控制台里的设置。</p>
+
+          <details class="advanced-settings">
+            <summary>高级接口设置</summary>
+            <div class="form-grid">
+              <label>接口策略<select id="setEndpointStrategy"><option value="recommended">推荐接口（默认）</option><option value="custom">手动指定接口</option></select></label>
+              <label class="advanced-endpoint">创建接口<input id="setVideoCreatePath" placeholder="/api/v3/contents/generations/tasks"></label>
+              <label class="advanced-endpoint">查询接口<input id="setVideoQueryPath" placeholder="/api/v3/contents/generations/tasks/{task_id}"></label>
+            </div>
+          </details>
+          <div id="effectiveRoute" class="route-preview"></div>
+        </div>
+        <div class="card"><h2>当前状态</h2><div id="settingsStatus"></div><div class="row gap"><button id="testTunnel" class="secondary">公网素材自检</button><button id="testOSS" class="ghost">测试 OSS 配置</button></div><div id="tunnelTestResult" class="tiny muted"></div></div>
+      </div>
+
+      <div class="grid two">
+        <div class="card"><h2>常用默认设置</h2><div class="form-grid">
+          <label>默认视频模式<select id="setVideoMode"><option value="auto">智能参考（自动选择）</option><option value="text">文生视频</option><option value="image_reference">图片参考生视频</option><option value="first_frame">首帧图生视频</option><option value="first_last">首尾帧生视频</option><option value="reference">全能参考</option><option value="edit">视频编辑</option><option value="extend">视频延长</option></select></label>
+          <label>默认视频比例<select id="setVideoRatio"><option>9:16</option><option>16:9</option><option>1:1</option><option>4:3</option><option>3:4</option><option>21:9</option></select></label>
+          <label>默认成片清晰度<select id="setResolution"><option value="720p">720P</option><option value="1080p">1080P</option><option value="480p">480P</option></select><small class="tiny muted" id="settingsResolutionHint">依全局默认模型显示支持档位</small></label>
+          <label>默认时长（秒）<input id="setDuration" type="number" min="4" max="30"></label>
+          <label>默认图片比例<select id="setImageRatio"><option value="auto">自动</option><option>1:1</option><option>4:5</option><option>3:4</option><option>9:16</option><option>16:9</option></select></label>
+          <label>图片质量<select id="setImageQuality"><option value="auto">自动</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+        </div>
+        <p class="tiny muted">图片比例是构图目标；后台会自动映射到 OpenLux 当前支持的最近尺寸，不再让你手动选择死像素。</p></div>
+
+        <div class="card"><h2>成本与稳定性</h2>
+        <div class="subcard cost-settings-card"><h3>全局成本系统</h3>
+          <div class="cost-auto-direct"><b>模型价格：OpenLux 实时读取</b><span>优先读取 /api/ratio_config 的 Token 倍率；再扫描 /api/pricing 的全部同名 Token 记录。当前 Seedance 2.5 已核验价格为 6.955 / 1M Tokens，异常的 0.01/次记录会被自动拒绝。</span></div>
+          <div class="subcard" id="credentialStorePanel">
+          <h3>本机凭据自动保存</h3>
+          <p class="tiny muted">已填写的 OpenLux 密钥、账户令牌及阿里云存储凭据会自动迁移并长期保存在本机。Windows 使用当前用户加密；升级版本无需重新填写，压缩包中不包含任何私人密钥。</p>
+          <div class="form-grid"><label>OpenLux 接口密钥（仅首次配置或更换时填写）<input id="setOpenLuxApiKey" type="password" autocomplete="new-password" placeholder="已有密钥将自动继承，留空保持现有"></label></div>
+          <div class="row gap"><button id="saveLocalCredentials" class="secondary" type="button">保存到本机并立即生效</button><span id="localCredentialsStatus" class="tiny muted">正在检查本机凭据…</span></div>
+        </div>
+        <div class="cost-account-bind">
+            <div><b>账户钱包余额</b><span>系统优先直接复用当前 OpenLux API Key 请求 /api/user/self，同步 data.quota 账户余额；只有当前 Key 没有账户权限时，才需要一次性绑定账号访问令牌。</span></div>
+            <div class="form-grid">
+              <label>备用账号访问令牌（仅 API Key 无账户权限时需要）<input id="setOpenLuxAccountToken" type="password" autocomplete="new-password" placeholder="留空表示保持现有"></label>
+              <label>账号用户 ID（通常可留空）<input id="setOpenLuxAccountUserId" autocomplete="off" placeholder="仅部分部署需要"></label>
+            </div>
+            <div class="row gap"><button id="bindOpenLuxAccount" class="secondary" type="button">绑定并测试余额</button><button id="clearOpenLuxAccount" class="ghost" type="button">清除账号绑定</button></div>
+            <div id="openLuxAccountStatus" class="tiny muted"></div>
+          </div>
+          <div class="form-grid">
+            <label>账户额度折算基数<input id="setCostQuotaPerUsd" type="number" min="1" step="1" placeholder="500000"></label>
+            <label>OpenLux 价格读取失败时备用单价（人民币/秒）<input id="setCostFallbackCnyPerSecond" type="number" min="0.01" max="100" step="0.01" value="1"></label>
+            <label>汇率刷新间隔（分钟）<input id="setCostFxRefreshMinutes" type="number" min="5" max="1440" step="5" value="30"></label>
+            <label class="hidden">兼容余额<input id="setCostManualBalance" type="number" value="0"></label>
+            <label class="hidden">旧每秒下限<input id="setCost720Low" type="number" value="0"></label>
+            <label class="hidden">旧每秒上限<input id="setCost720High" type="number" value="0"></label>
+            <label class="hidden">旧480系数<input id="setCost480Multiplier" type="number" value="1"></label>
+            <label class="hidden">旧1080系数<input id="setCost1080Multiplier" type="number" value="1"></label>
+          </div>
+          <div class="cost-fallback-note"><b>备用公式</b><span>仅当 OpenLux 实时模型价格读取失败时启用：视频输出时长 × ¥1.00/秒 × CNY→USD 最新可用汇率。正常情况下优先使用 OpenLux 的真实 Token 报价。</span></div>
+          <div id="costSettingsStatus" class="tiny muted">正在同步 /api/user/self 账户余额与 /api/pricing 实时模型价格…</div>
+        </div>
+        <div class="form-grid">
+          <label>重复提交拦截（秒）<input id="setDedupeSeconds" type="number" min="1" max="120"></label>
+          <label>视频最大并发数<input id="setMaxConcurrent" type="number" min="1" max="10"></label>
+          <label>接口超时（秒）<input id="setHttpTimeout" type="number" min="30" max="300"></label>
+          <label>免费状态查询重试次数<input id="setQueryRetries" type="number" min="0" max="5"></label>
+        </div>
+        <p class="tiny ok">视频创作与爆款复刻共享同一个全局任务池，最多同时运行 10 个视频任务。付费视频生成固定执行“预览 → 确认 → 提交”，此保护不可关闭。</p>
+        <p class="tiny muted">视频创建接口仍固定 0 次自动重试；网络超时后不会自动再提交，避免重复扣费。</p></div>
+      </div>
+
+      <div class="grid two">
+        <div class="card"><h2>爆款复刻 / Hypit 本地分析</h2><div class="form-grid"><label>镜头检测灵敏度<input id="setSceneThreshold" type="number" step="0.05" min="0.1" max="0.8"></label><label>最大镜头数<input id="setMaxScenes" type="number" min="5" max="60"></label><label>逐词转写<select id="setTranscript"><option value="if_installed">已安装逐词组件时启用</option><option value="off">关闭</option></select></label><label>关键帧文字识别<select id="setOcr"><option value="if_installed">已安装文字识别时启用</option><option value="off">关闭</option></select></label></div><label class="check"><input id="setInheritDuration" type="checkbox"> 默认继承原视频时长</label><label class="check"><input id="setInheritRatio" type="checkbox"> 默认继承原视频比例</label><label class="check"><input id="setAnalysisGate" type="checkbox"> 本地证据不足时禁止付费生成</label><label class="check"><input id="setWordAnchorGate" type="checkbox"> 首次付费测试强制要求逐词锚点（口播视频推荐）</label><label class="check"><input id="setSpatialAnalysis" type="checkbox"> 启用人体姿态 + 目标追踪增强（已安装时自动使用）</label><label class="check"><input id="setAutoQualityCheck" type="checkbox"> 视频生成完成后自动执行本地质量检查</label><p class="tiny muted">真实镜头切分 + 关键帧 + 音频结构为基础；安装逐词组件后升级为词锚点工作流。</p></div>
+        <div class="card"><h2>公网素材与稳定性</h2>
+          <label>公网素材策略<select id="setPublicStrategy"><option value="oss_auto">阿里云 OSS 优先（推荐）→ 固定 HTTPS 备用</option><option value="oss_only">只使用阿里云 OSS</option><option value="fixed_only">只使用固定 HTTPS</option><option value="quick_only">只使用 Quick Tunnel（仅调试）</option></select></label>
+          <div class="subcard"><h3>阿里云 OSS（推荐主通道）</h3>
+            <div class="form-grid">
+              <label>Endpoint（公网节点）<input id="setOSSEndpoint" placeholder="例如 https://oss-ap-southeast-1.aliyuncs.com"></label>
+              <label>Bucket（存储桶）<input id="setOSSBucket" placeholder="你的私有 Bucket 名称"></label>
+              <label>AccessKey ID（访问密钥 ID）<input id="setOSSAccessKey" autocomplete="off" placeholder="留空表示保持现有"></label>
+              <label>AccessKey Secret（访问密钥 Secret）<input id="setOSSSecretKey" type="password" autocomplete="new-password" placeholder="留空表示保持现有"></label>
+              <label>对象前缀<input id="setOSSPrefix" placeholder="seedance-studio"></label>
+              <label>临时链接有效期（分钟）<input id="setAssetTtl" type="number" min="5" max="10080"></label>
+              <label>OSS 对象自动删除（小时）<input id="setOSSDeleteHours" type="number" min="1" max="720"></label>
+              <label class="check"><input id="setOSSAutoCleanup" type="checkbox"> 自动清理过期 OSS 临时素材</label>
+            </div>
+            <div id="ossCredentialStatus" class="tiny muted"></div>
+            <div class="row gap"><button id="cleanupOSS" class="ghost">立即清理过期素材</button></div>
+            <p class="tiny muted">请使用公网 Endpoint，不要使用带 <code>-internal</code> 的内网 Endpoint。Bucket 建议保持私有。为避免排队期间链接过期，付费视频任务会自动保证参考素材签名链接至少 12 小时有效。</p>
+          </div>
+          <details class="advanced-settings"><summary>备用 / 调试公网通道</summary>
+            <label>固定公网素材地址（正式 Tunnel / 自建 HTTPS）<input id="setFixedPublicUrl" placeholder="https://www.tiktok.com/@.../video/..."></label>
+            <label class="check"><input id="setTunnelSelftest" type="checkbox"> 付费提交前强制实际素材 GET 自检</label>
+            <p class="tiny muted">Quick Tunnel 不再参与默认付费主链路，只保留调试用途。</p>
+            <div class="row gap"><button id="startTunnel" class="secondary">启动 Quick Tunnel（调试）</button><button id="stopTunnel" class="ghost">停止 Quick Tunnel</button></div>
+          </details>
+          <p class="tiny muted">默认流程：本地素材 → 私有阿里云 OSS Bucket → 临时签名 GET 链接 → OpenLux / Seedance。链接到期自动失效；对象按设置定期清理。</p>
+        </div>
+      </div>
+      <button id="saveSettings" class="primary wide">保存全部设置并立即应用</button>
+      <div class="card full-card"><div class="row between"><h2>后台任务状态</h2><span class="muted tiny">只展示任务状态和实际模型，不显示密钥</span></div><div id="activityLog" class="history-list compact"></div></div>
+    </section>
+  </main>
+</div>
+<div id="taskCenterBackdrop" class="task-center-backdrop hidden"></div>
+<aside id="taskCenterDrawer" class="task-center-drawer" aria-hidden="true">
+  <div class="task-center-head">
+    <div><span class="eyebrow">GLOBAL TASK CENTER</span><h2>全局任务中心</h2><p>视频创作与爆款复刻共享同一个 10 任务池。全部模块统一提供进度反馈；切换页面、刷新或关闭浏览器都不会停止后台任务。</p></div>
+    <button id="closeTaskCenter" class="ghost task-center-close" type="button">✕</button>
+  </div>
+  <div class="task-capacity-card">
+    <div class="task-capacity-icon">▱</div>
+    <div class="task-capacity-main"><span>视频任务</span><b id="taskCenterUsage">0/10</b><small id="taskCenterBreakdown">视频创作 0 · 爆款复刻 0 · 空闲 10</small></div>
+    <div class="task-capacity-track"><span id="taskCenterCapacityBar" style="width:0%"></span></div>
+  </div>
+  <div class="task-center-section-head"><b>跨模块任务状态</b><span>商品分析 · GPT 脚本 · 图片 · 视频</span></div>
+  <div id="taskHealthRows" class="task-health-list"><p class="muted">正在读取后台任务状态…</p></div>
+  <div class="task-health-actions"><button id="taskHealthRefresh" type="button" class="secondary">更新任务状态（不扣费）</button><button id="taskHealthCopy" type="button" class="secondary">复制脱敏诊断报告</button></div>
+  <div class="task-center-section-head"><b>正在运行</b><span id="taskCenterActiveLabel">0 个任务</span></div>
+  <div id="taskCenterActive" class="global-task-list"><div class="workspace-empty compact"><b>当前没有运行中的视频任务</b><span>提交视频创作或爆款复刻后会出现在这里。</span></div></div>
+  <div class="task-center-section-head recent"><b>最近结束</b><span>仅用于查看结果，不占并发名额</span></div>
+  <div id="taskCenterRecent" class="global-task-list recent-list"></div>
+  <div class="task-center-legend"><span><i class="legend-dot waiting"></i>排队/提交</span><span><i class="legend-dot running"></i>生成中</span><span><i class="legend-dot sync"></i>结果同步</span><span><i class="legend-dot done"></i>已完成</span><span><i class="legend-dot failed"></i>失败/待核对</span></div>
+</aside>
+<div id="audioRefBackdrop" class="audio-ref-backdrop hidden" aria-hidden="true">
+ <section class="audio-ref-dialog" role="dialog" aria-modal="true" aria-labelledby="audioRefTitle">
+  <div class="audio-ref-title"><div><h3 id="audioRefTitle">添加音频参考</h3><p>上传音频或选择已保存音频，裁剪后可用于音色参考或保留原音频内容。</p></div><button type="button" id="audioRefClose" class="ghost">✕</button></div>
+  <div class="audio-ref-tabs"><button type="button" id="audioRefTabNew" class="active">从本地添加</button><button type="button" id="audioRefTabSaved">已保存音频</button></div>
+  <div id="audioRefNew">
+   <label class="audio-ref-picker">＋ 选择本地音频文件<input type="file" id="audioRefFile" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg" hidden></label>
+   <div id="audioRefSourceName" class="tiny muted">支持 WAV / MP3 / M4A 等常见音频格式</div>
+   <audio id="audioRefPlayer" controls preload="metadata" class="audio-ref-player"></audio>
+   <canvas id="audioRefWave" width="700" height="78"></canvas>
+   <div class="audio-ref-trim-row"><label>起点（秒）<input type="number" step="0.1" min="0" id="audioRefStart" value="0"></label><label>终点（秒）<input type="number" step="0.1" min="0" id="audioRefEnd" value="5"></label><button type="button" id="audioRefPlayClip" class="secondary">▶ 试听片段</button></div>
+   <p class="tiny muted">剪出需要的人声片段。只有选择“使用上传音频的内容”时，才会把原音频合成为最终音轨；总长度不超过 30 秒。</p>
+   <label class="audio-ref-field">主体名称<input type="text" maxlength="40" id="audioRefName" placeholder="例如：温暖男声 / 美式女声 / 人声参考"></label>
+   <label class="audio-ref-field">描述（可选）<textarea id="audioRefDescription" rows="2" maxlength="500" placeholder="例如：参考音色与语速，不照搬原文案"></textarea></label>
+   <button type="button" class="primary" id="audioRefSave">保存主体并添加 @audio</button>
+  </div>
+  <div id="audioRefSaved" class="hidden"><div id="audioRefSavedList" class="audio-ref-saved-list"></div></div>
+  <div id="audioRefMessage" role="status" class="tiny muted"></div>
+ </section>
+</div>
+<div id="toast"></div>
+<script src="/static/app.js?v=5.0.0"></script>
+<script src="/static/hot_radar.js?v=4.2.8.11"></script>
+<script src="/static/creative_production.js?v=4.2.8.11"></script>
+<script src="/static/product_memory.js?v=4.2.8.8"></script>
+  <script src="/static/prompt_library.js?v=3.0"></script>
+<script src="/static/audio_reference.js?v=5.0.0"></script>
+  <script src="/static/assistant_bright.js?v=4.1.1"></script>
+  <script src="/static/bright_tiktok.js?v=4.2.8.11"></script>
+  <script src="/static/gpt_v4.js?v=4.1"></script>
+  <script src="/static/v42_ui.js?v=4.2.8.8"></script>
+  <script src="/static/history_center_v423.js?v=4.2.8.8"></script>
+</body>
+</html>

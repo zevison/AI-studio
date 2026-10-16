@@ -1,0 +1,87 @@
+/* V4.2.2 UI only: modest navigation font reduction and TRUE main-workspace centering.
+   No OpenLux/Bright Data requests, account balance state, prices or polling are touched. */
+.sidebar .nav{
+  font-size:14px!important;
+  min-height:44px!important;
+  padding:10px 12px!important;
+  line-height:1.45!important;
+  font-weight:560;
+}
+.sidebar .nav.active{font-weight:650}
+.sidebar .task-center-nav{font-size:13px!important;min-height:44px!important}
+@media (min-width:1221px){
+  .topbar{
+    display:flex!important;
+    position:relative!important;
+    justify-content:flex-end!important;
+    align-items:center!important;
+    min-height:83px!important;
+    gap:0!important;
+  }
+  .topbar .topbar-page-label-hidden{display:none!important}
+  .topbar .top-center-stack{
+    position:absolute!important;
+    top:0!important;
+    left:50%!important;
+    transform:translateX(-50%)!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-self:auto!important;
+    grid-column:auto!important;
+    width:max-content!important;
+    max-width:calc(100% - 235px)!important;
+    min-width:0!important;
+    gap:6px!important;
+  }
+  .topbar .top-center-stack .model-pill{align-self:center!important}
+  .topbar .cost-hud{margin-left:auto!important;margin-right:auto!important}
+  .topbar .top-actions{
+    grid-column:auto!important;
+    margin-left:auto!important;
+    justify-self:auto!important;
+    align-self:center!important;
+    flex:none!important;
+  }
+}
+/* Mid-size window: center the entire stack independently; actions stay in the
+   upper-right corner and never take horizontal center-space away from the HUD. */
+@media (min-width:701px) and (max-width:1220px){
+  .topbar{
+    display:flex!important;
+    position:relative!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    min-height:86px!important;
+    gap:0!important;
+  }
+  .topbar .topbar-page-label-hidden{display:none!important}
+  .topbar .top-center-stack{
+    position:relative!important;
+    grid-column:auto!important;
+    width:max-content!important;
+    max-width:calc(100% - 10px)!important;
+    min-width:0!important;
+    justify-self:auto!important;
+    align-self:center!important;
+    align-items:center!important;
+    left:auto!important;
+    transform:none!important;
+    gap:6px!important;
+  }
+  .topbar .top-actions{
+    position:absolute!important;
+    right:0!important;
+    top:0!important;
+    grid-column:auto!important;
+    justify-self:auto!important;
+    gap:6px!important;
+  }
+  .topbar .top-actions button{font-size:11px!important;padding:7px 9px!important}
+  .topbar .top-center-stack .model-pill{max-width:calc(100% - 240px)!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (max-width:700px){
+  .sidebar .nav{font-size:14px!important;min-height:42px!important}
+  .sidebar .task-center-nav{font-size:13px!important;min-height:42px!important}
+}

@@ -1,0 +1,23 @@
+/* V4.0 GPT-only assistant: history delete controls and user-managed local memory */
+#page-assistant .gpt-conversations .gpt-history-row{display:flex;align-items:stretch;gap:4px;width:100%;min-width:0}
+#page-assistant .gpt-history-row .gpt-history{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-assistant .gpt-history-delete{border:1px solid transparent;background:transparent;color:#a7b4d2;border-radius:8px;cursor:pointer;padding:0 9px;flex:0 0 auto;min-width:33px;align-self:stretch}
+#page-assistant .gpt-history-delete:hover,#page-assistant .gpt-history-delete:focus-visible{color:#ffe0e0;background:#623047;border-color:#a55669}
+#page-assistant #gptMemoryManage{width:100%;margin-top:8px;flex:none;background:#29243f;color:#ecddff;border:1px solid #554479;border-radius:9px;padding:11px;cursor:pointer}
+#page-assistant .gpt-bubble.user .gpt-v4-save-memory{background:#503a78;border:1px solid #8565bf;color:#f0e8ff;border-radius:8px;margin-top:8px;font-size:11px;padding:5px 10px;cursor:pointer}
+#gpt-v4-layer[hidden]{display:none!important}
+#gpt-v4-layer{position:fixed;z-index:9999;inset:0;background:rgba(1,4,12,.76);display:flex;justify-content:center;align-items:center;padding:22px}
+#gpt-v4-layer .gpt-v4-window{width:min(660px,100%);max-height:88dvh;overflow:auto;background:#171f2c;color:#f3f6ff;border:1px solid #46516b;box-shadow:0 16px 60px #0008;border-radius:15px;padding:22px;display:flex;flex-direction:column;gap:12px}
+#gpt-v4-layer .gpt-v4-title{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#gpt-v4-layer h3{margin:0;font-size:19px;color:#fff}
+#gpt-v4-layer .gpt-v4-help{font-size:12px;color:#afbdd4;line-height:1.7}
+#gpt-v4-layer textarea{width:100%;resize:vertical;min-height:85px;background:#111827;color:#f5f8ff;border:1px solid #53617b;border-radius:9px;padding:12px;font:inherit}
+#gpt-v4-layer .gpt-v4-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#gpt-v4-layer button{background:#2c3650;color:#f5f7fc;padding:9px 14px;border:1px solid #51607a;border-radius:8px;cursor:pointer}
+#gpt-v4-layer button.primary{background:#8245ec;border-color:#8245ec;color:#fff}
+#gpt-v4-layer button:hover{filter:brightness(1.15)}
+#gpt-v4-layer .gpt-v4-list{display:flex;flex-direction:column;gap:9px;max-height:45dvh;overflow:auto}
+#gpt-v4-layer .gpt-v4-entry{padding:12px;background:#202c3d;border:1px solid #37465e;border-radius:9px;line-height:1.6;overflow-wrap:anywhere}
+#gpt-v4-layer .gpt-v4-entry .gpt-v4-row{display:flex;gap:8px;margin-top:8px}
+#gpt-v4-layer .gpt-v4-entry button{padding:6px 11px;font-size:12px}
+#gpt-v4-layer #gpt-v4-status{font-size:12px;color:#bbeac9;white-space:pre-wrap}

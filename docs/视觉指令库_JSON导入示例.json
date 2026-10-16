@@ -1,0 +1,16 @@
+{
+ "format": "seedance-prompt-library-v1",
+ "prompts": [
+  {
+   "code": "/myhero",
+   "name": "自定义电商主图",
+   "category": "产品主图",
+   "description": "真实产品的白底商业主图",
+   "prompt": "以用户上传的真实产品照片为准，保持外观、颜色与品牌标识。生成纯白背景电商主图，主体完整清晰，阴影自然。",
+   "mode": "image",
+   "tags": "电商,产品图",
+   "source": "用户自定义",
+   "compatibility": "待实际出图验证"
+  }
+ ]
+}

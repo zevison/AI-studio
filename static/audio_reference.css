@@ -1,0 +1,56 @@
+
+/* Audio reference panel. Respects current studio dark theme without heavy black utility popups. */
+.audio-ref-action{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:8px 0 12px}
+.audio-ref-action button{font-size:12px;white-space:nowrap;min-height:34px}
+.audio-replica-box{border:1px solid rgba(144,112,220,.3);border-radius:12px;padding:10px 12px;justify-content:space-between;background:rgba(117,83,187,.08)}
+.audio-replica-box>div{display:flex;flex-direction:column;gap:4px}.audio-replica-box b{font-size:13px}
+.audio-ref-backdrop{position:fixed;inset:0;background:rgba(8,13,27,.66);z-index:1400;display:flex;justify-content:center;align-items:center;padding:20px;box-sizing:border-box}
+.audio-ref-backdrop.hidden{display:none!important}
+.audio-ref-dialog{width:min(640px,96vw);max-height:90vh;overflow:auto;padding:20px;border-radius:18px;border:1px solid rgba(145,120,230,.4);background:#171f30;box-shadow:0 20px 70px rgba(0,0,0,.3);color:#e7e9fa}
+.audio-ref-title{display:flex;justify-content:space-between;align-items:flex-start;gap:15px}.audio-ref-title h3{font-size:18px;margin:0}.audio-ref-title p{color:#aeb8d0;font-size:12px;line-height:1.6;margin:6px 0}
+.audio-ref-tabs{display:flex;gap:6px;margin:14px 0}.audio-ref-tabs button{flex:1;min-height:34px;background:#293247;border:1px solid #41506e;color:#d9e2ff;border-radius:10px}.audio-ref-tabs button.active{background:#6946b5;border-color:#9e78f1;color:white}
+.audio-ref-picker{display:block;cursor:pointer;text-align:center;padding:12px;background:rgba(125,102,217,.18);border:1px dashed #9b7ee5;border-radius:10px;margin:8px 0}
+.audio-ref-player{width:100%;height:40px;margin:10px 0}.audio-ref-dialog canvas{width:100%;height:78px;background:#11192a;border:1px solid #3e4c68;border-radius:10px}
+.audio-ref-trim-row{display:grid;grid-template-columns:1fr 1fr auto;align-items:end;gap:8px;margin:12px 0}.audio-ref-trim-row label,.audio-ref-field{font-size:12px;display:flex;flex-direction:column;gap:6px}
+.audio-ref-dialog input[type=number],.audio-ref-dialog input[type=text],.audio-ref-dialog textarea{width:100%;box-sizing:border-box;background:#101827;color:#fff;border:1px solid #485673;border-radius:8px;padding:10px;font-size:13px;outline-color:#9b7ee5}
+.audio-ref-dialog .audio-ref-field{margin:10px 0}.audio-ref-dialog #audioRefSave{width:100%;margin-top:10px}.audio-ref-saved-list{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto}
+.audio-ref-subject{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #394864;padding:10px;border-radius:10px}.audio-ref-subject>div{display:flex;flex-direction:column;gap:5px;min-width:0}.audio-ref-subject small{font-size:11px;color:#adbad2}.audio-ref-subject b{font-size:13px}.audio-ref-subject button{white-space:nowrap}
+@media(max-width:640px){.audio-ref-trim-row{grid-template-columns:1fr 1fr}.audio-ref-trim-row button{grid-column:span 2}}
+
+/* V4.2.8.15 conditional, mutually exclusive sound-reference options */
+.audio-use-mode[hidden]{display:none!important}
+.audio-use-mode{display:flex;flex-direction:column;gap:9px;margin:10px 0 13px;padding:12px 13px;border:1px solid rgba(143,150,200,.30);border-radius:12px;background:rgba(100,116,170,.08)}
+.audio-use-mode>b{font-size:13px;font-weight:650}
+.audio-use-mode>label{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.5;cursor:pointer}
+.audio-use-mode input[type=radio]{flex:none;accent-color:#a48eff;margin:3px 0 0}
+.audio-use-mode>small{font-size:11px;line-height:1.55;color:var(--muted,#9facbf)}
+
+/* V4.2.8.16: The site's global `input { width:100%; padding:11px 12px }`
+   previously made each radio fill the entire row, forcing Chinese option text
+   into a one-character-wide vertical column. Define an explicit radio size. */
+.audio-use-mode{min-width:0;width:100%;overflow:hidden}
+.audio-use-mode > label.audio-use-option{
+  display:grid;grid-template-columns:18px minmax(0,1fr);align-items:start;
+  column-gap:10px;width:100%;min-width:0;max-width:100%;
+  margin:0;padding:10px 11px;box-sizing:border-box;
+  border:1px solid rgba(154,166,205,.19);border-radius:9px;
+  background:rgba(7,15,29,.28);cursor:pointer;
+  color:#e2eafb;font-size:12px;line-height:1.65;
+}
+.audio-use-mode > label.audio-use-option:has(input:checked){
+  border-color:rgba(162,127,243,.72);background:rgba(143,92,246,.10);
+}
+.audio-use-mode > label.audio-use-option > input[type="radio"]{
+  appearance:auto;display:block;
+  box-sizing:border-box !important;
+  width:16px !important;min-width:16px !important;max-width:16px !important;
+  height:16px !important;min-height:16px !important;max-height:16px !important;
+  padding:0 !important;margin:2px 0 0 0 !important;
+  flex:none;accent-color:#ad8dff;box-shadow:none;background:transparent;
+}
+.audio-use-mode > label.audio-use-option > span{
+  min-width:0;max-width:100%;display:block;
+  word-break:normal;overflow-wrap:break-word;
+  white-space:normal;writing-mode:horizontal-tb;
+}
+.audio-use-mode>small{display:block;min-width:0;overflow-wrap:break-word}
