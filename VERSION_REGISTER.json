@@ -2,7 +2,6 @@
   "date": "2026-10-16",
   "status": "development_checkpoint_not_stable",
   "assigned_release_version": null,
-  "application_version_unchanged": "5.0.0",
   "official_hypit": "0.3.1",
   "baseline_commit": "3d9588a275f9af75e302e717a6c8fa6dc949a70f",
   "paid_video_calls": 0,
@@ -10,5 +9,7 @@
   "actual_llm_successes": 3,
   "actual_llm_usd": "0.001338",
   "ui_merge_complete": false,
-  "live_video_backend_enabled": false
+  "live_video_backend_enabled": false,
+  "development_source_base": "5.0.0",
+  "installed_user_version": "not_inferred"
 }
