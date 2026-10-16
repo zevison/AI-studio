@@ -86,8 +86,17 @@ def _backup_before_migration(old_version:int):
     return dst
 
 
+class _ClosingConnection(sqlite3.Connection):
+    """sqlite3's built-in context commits/rolls back but does not close on Windows."""
+    def __exit__(self, *args):
+        try:
+            return super().__exit__(*args)
+        finally:
+            self.close()
+
+
 def connect():
-    c = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+    c = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False, factory=_ClosingConnection)
     c.row_factory = sqlite3.Row
     c.execute('PRAGMA journal_mode=WAL')
     c.execute('PRAGMA foreign_keys=ON')

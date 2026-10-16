@@ -34,6 +34,7 @@ def test_main_runs_every_phase_and_partial_is_explicit():
          patch.object(install, 'ensure_requirements', side_effect=lambda:record('core')), \
          patch.object(install, 'run', side_effect=lambda cmd:record('timezone',0)), \
          patch.object(install_analysis_stack, 'studio_is_running', return_value=False), \
+         patch.object(install_analysis_stack, 'install_ffmpeg_bundle', return_value=True), \
          patch.object(install, 'install_complete_analysis', side_effect=lambda:record('analysis',10)), \
          patch.object(install, 'install_original_post_downloader', side_effect=lambda:record('downloader',True)), \
          patch.object(install, 'prepare_cloudflared', side_effect=lambda:record('cloud')), \
@@ -52,6 +53,7 @@ def test_missing_required_is_failure():
          patch.object(install, 'ensure_requirements'), \
          patch.object(install, 'run', return_value=0), \
          patch.object(install_analysis_stack, 'studio_is_running', return_value=False), \
+         patch.object(install_analysis_stack, 'install_ffmpeg_bundle', return_value=True), \
          patch.object(install, 'install_complete_analysis', return_value=10), \
          patch.object(install, 'install_original_post_downloader', return_value=False), \
          patch.object(install, 'prepare_cloudflared'), \

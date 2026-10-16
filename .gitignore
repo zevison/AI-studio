@@ -1,0 +1,12 @@
+.env
+data/
+node_modules/
+__pycache__/
+*.pyc
+*.log
+*.pid
+.pytest_cache/
+.hypit/
+.hypit-development-backups/
+.hypit-development-install.lock
+tools/runtime/

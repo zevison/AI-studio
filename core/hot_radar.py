@@ -11,6 +11,7 @@ import hashlib
 import math
 import difflib
 from collections import Counter
+from contextlib import closing
 import json
 import os
 import re
@@ -67,7 +68,7 @@ def ensure_schema():
             if not present and config.DB_PATH.exists() and config.DB_PATH.stat().st_size > 0:
                 folder=config.DB_PATH.parent/'backups';folder.mkdir(parents=True,exist_ok=True)
                 dst=folder/('studio_pre_hotrader_'+dt.datetime.now().strftime('%Y%m%d_%H%M%S')+'.db')
-                with sqlite3.connect(config.DB_PATH) as source,sqlite3.connect(dst) as target:source.backup(target)
+                with closing(sqlite3.connect(config.DB_PATH)) as source,closing(sqlite3.connect(dst)) as target:source.backup(target)
         except Exception:
             # Backups are mandatory before modifying an existing on-disk database.
             raise RuntimeError('创建热点雷达数据库备份失败，已停止本次迁移')
@@ -79,11 +80,11 @@ def ensure_schema():
             if 'is_draft' not in old_cols and config.DB_PATH.exists():
                 bk=config.DB_PATH.parent/'backups';bk.mkdir(parents=True,exist_ok=True)
                 dest=bk/('studio_pre_products_3982_'+dt.datetime.now().strftime('%Y%m%d_%H%M%S')+'.db')
-                with sqlite3.connect(config.DB_PATH) as src, sqlite3.connect(dest) as dst:src.backup(dst)
+                with closing(sqlite3.connect(config.DB_PATH)) as src, closing(sqlite3.connect(dest)) as dst:src.backup(dst)
         if old_table and not db.one("SELECT name FROM sqlite_master WHERE type='table' AND name='radar_source_health'") and config.DB_PATH.exists():
             backup=config.DB_PATH.parent/'backups';backup.mkdir(parents=True,exist_ok=True)
             destination=backup/('studio_pre_quality_3987_'+dt.datetime.now().strftime('%Y%m%d_%H%M%S_%f')+'.db')
-            with sqlite3.connect(config.DB_PATH) as src,sqlite3.connect(destination) as dst:src.backup(dst)
+            with closing(sqlite3.connect(config.DB_PATH)) as src,closing(sqlite3.connect(destination)) as dst:src.backup(dst)
         with db.tx() as c:
             c.execute('''CREATE TABLE IF NOT EXISTS radar_products(
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, market TEXT DEFAULT 'US', keywords_json TEXT NOT NULL,

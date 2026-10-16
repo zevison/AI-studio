@@ -67,8 +67,8 @@ def test_ark_audio_role_and_positional_alias():
 
 
 def test_both_ui_modes_present_twice_and_conditional():
-    html=(ROOT/'static/index.html').read_text()
-    js=(ROOT/'static/app.js').read_text()
+    html=(ROOT/'static/index.html').read_text(encoding='utf-8')
+    js=(ROOT/'static/app.js').read_text(encoding='utf-8')
     assert html.count('参考音色（仅使用上传音频的音色）')==2
     assert html.count('使用上传音频的内容，保持上传音频的音色')==2
     assert 'id="videoAudioUse"' in html and 'id="replicaAudioUse"' in html
@@ -76,11 +76,11 @@ def test_both_ui_modes_present_twice_and_conditional():
     assert 'replicaUse.hidden=!replicaHasAudio' in js
     assert 'audio_reference_mode:selectedAudioReferenceMode(\'video\')' in js
     assert 'audio_reference_mode:selectedAudioReferenceMode(\'replica\')' in js
-    assert '作为最终音轨，替换参考视频的原声音轨' not in (ROOT/'static/audio_reference.js').read_text()
+    assert '作为最终音轨，替换参考视频的原声音轨' not in (ROOT/'static/audio_reference.js').read_text(encoding='utf-8')
 
 
 def test_backend_replicates_audio_in_model_specs_and_freezes_reference_prompt():
-    app=(ROOT/'app.py').read_text()
+    app=(ROOT/'app.py').read_text(encoding='utf-8')
     assert "'audio_reference_mode':audio_ref_mode" in app
     assert "'audio_bound_prompt':edit_prompt" in app
     assert "prompt=payload.get('audio_bound_prompt') or workflow.workflow_prompt(wf)" in app

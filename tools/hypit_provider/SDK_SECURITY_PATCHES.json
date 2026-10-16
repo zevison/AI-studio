@@ -1,0 +1,32 @@
+{
+  "hypit": "0.3.1",
+  "patches": [
+    {
+      "package": "@hypit/media-local",
+      "dependency": "sharp",
+      "upstream_requirement": "0.35.4",
+      "secured_requirement": "0.35.5",
+      "upstream_sha256": "37acbd523d037b2596909a46296c02218d0f95df3c69165dbe55ebb082fd522d",
+      "patched_sha256": "bb374b2d4f8f550f23a618f76f71831c91b3206af102659b338ae9d76b0537b1",
+      "scope": "dependency manifest only; executable source unchanged"
+    },
+    {
+      "package": "@hypit/browser-capture",
+      "dependency": "sharp",
+      "upstream_requirement": "0.35.4",
+      "secured_requirement": "0.35.5",
+      "upstream_sha256": "4407b3d54af91ec3ce5a22fa7ba44457ec187f9714a90d1bd774bfcb2fff57d4",
+      "patched_sha256": "3c34d4fb29f71f1f1323d59ee1903d7c93547015dbeb0a19915861562a1623e4",
+      "scope": "dependency manifest only; executable source unchanged"
+    },
+    {
+      "package": "tsx",
+      "dependency": "esbuild",
+      "upstream_requirement": "~0.27.0",
+      "secured_requirement": "0.28.1",
+      "upstream_sha256": "6e764b21991c21595441f82387c1451ccd10a3e7a3f0973cc5e3649a12dea7d2",
+      "patched_sha256": "2dfb3a28821728806789db657de108130cd5e703d0d58bb47d90d50e325ee0cb",
+      "scope": "dependency manifest only; executable source unchanged"
+    }
+  ]
+}

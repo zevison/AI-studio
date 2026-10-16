@@ -2,6 +2,7 @@
 One explicitly authorized background LLM call per analysis. Original evidence and human-approved facts are immutable by AI.
 """
 from __future__ import annotations
+from contextlib import closing
 import base64, datetime, hashlib, html, io, ipaddress, json, mimetypes, re, shutil, socket, sqlite3, threading, time, urllib.parse, urllib.request, urllib.error, uuid
 from html.parser import HTMLParser
 from pathlib import Path
@@ -31,7 +32,7 @@ def ensure_schema():
             if config.DB_PATH.exists() and config.DB_PATH.stat().st_size:
                 dest=config.DATA_DIR/'backups';dest.mkdir(parents=True,exist_ok=True)
                 suffix=datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-                with sqlite3.connect(config.DB_PATH) as s,sqlite3.connect(dest/f'pre_product_knowledge_{suffix}.db') as d:s.backup(d)
+                with closing(sqlite3.connect(config.DB_PATH)) as s,closing(sqlite3.connect(dest/f'pre_product_knowledge_{suffix}.db')) as d:s.backup(d)
         with db.tx() as c:
             c.execute('''CREATE TABLE IF NOT EXISTS product_sources(
               id TEXT PRIMARY KEY,product_id TEXT NOT NULL,kind TEXT NOT NULL,

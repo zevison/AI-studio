@@ -1,0 +1,37 @@
+{
+  "name": "@seedance-studio/openlux-provider",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build:offline": "npm run prepare:sdk && tsc -p tsconfig.json",
+    "test:offline": "npm run build:offline && node --import ./tests/sdk-bootstrap.mjs --test dist/tests/*.test.js",
+    "prepare:sdk": "node scripts/apply-sdk-security-patches.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.15.30"
+  },
+  "dependencies": {
+    "@hypit/hypit": "0.3.1",
+    "@hypit/generation": "0.1.0",
+    "@hypit/seedance": "0.2.0",
+    "@hypit/runtime-local": "0.1.1"
+  },
+  "hypit": {
+    "activation": "./dist/src/activation.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/official-provider.d.ts",
+      "import": "./dist/src/official-provider.js"
+    }
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "overrides": {
+    "sharp": "0.35.5",
+    "esbuild": "0.28.1"
+  }
+}
