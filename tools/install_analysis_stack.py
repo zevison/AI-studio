@@ -118,6 +118,16 @@ def _validate_ffmpeg_binary(path: Path) -> None:
     with path.open('rb') as stream:
         if stream.read(2)!=b'MZ':
             raise RuntimeError(f'Invalid Windows executable header: {path.name}')
+    try:
+        probe=subprocess.run([str(path),'-version'],stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=12,
+            creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    except (OSError,subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f'{path.name} cannot execute: {type(exc).__name__}') from exc
+    expected='ffprobe version' if path.stem.lower()=='ffprobe' else 'ffmpeg version'
+    output=(probe.stdout or b'').decode('utf-8','replace')
+    if probe.returncode or expected not in output.lower():
+        raise RuntimeError(f'{path.name} failed its real version probe')
 
 
 def _extract_windows_ffmpeg(archive: Path, dest_dir: Path, *, archive_type: str) -> dict:
@@ -179,8 +189,13 @@ def install_ffmpeg_bundle():
     if os.name != 'nt':
         return bool(shutil.which('ffmpeg') and shutil.which('ffprobe'))
     if shutil.which('ffmpeg') and shutil.which('ffprobe'):
-        print('[OK] FFmpeg and FFprobe found in system PATH; no download.',flush=True)
-        return True
+        try:
+            _validate_ffmpeg_binary(Path(shutil.which('ffmpeg')))
+            _validate_ffmpeg_binary(Path(shutil.which('ffprobe')))
+            print('[OK] FFmpeg and FFprobe found and executed in system PATH; no download.',flush=True)
+            return True
+        except (OSError,RuntimeError):
+            print('[WARN] PATH contains unusable FFmpeg tools; trying managed installation.',flush=True)
     copy_previous_asset('tools/ffmpeg/bin/ffmpeg.exe', ff, min_bytes=100_000)
     copy_previous_asset('tools/ffmpeg/bin/ffprobe.exe', fp, min_bytes=100_000)
     if not fp.exists():copy_previous_asset('tools/runtime/bin/ffprobe.exe',fp,min_bytes=100_000)
@@ -193,15 +208,22 @@ def install_ffmpeg_bundle():
             return True
         except (OSError,RuntimeError):pass
     FFDIR.mkdir(parents=True,exist_ok=True)
-    print('[FFmpeg] Missing tools. First trying official 34 MB 7z (109 MB ZIP only as fallback).',flush=True)
+    if (ROOT/'installers/ffmpeg-9.0.2-essentials_build.zip').is_file():
+        print('[FFmpeg] Missing tools. Using the bundled verified ZIP; network and tar.exe are not required.',flush=True)
+    else:
+        print('[FFmpeg] Missing tools. First trying official 34 MB 7z (109 MB ZIP only as fallback).',flush=True)
     print('[FFmpeg] No manual extraction or 7-Zip installation is required.',flush=True)
     errors=[]
-    for idx,(name,url,kind,expected_hash) in enumerate(FF_SOURCES,1):
+    sources=list(FF_SOURCES)
+    if (ROOT/'installers/ffmpeg-9.0.2-essentials_build.zip').is_file():
+        # The full bundle must also work on Windows editions without tar.exe.
+        sources.sort(key=lambda item:0 if item[2]=='zip' else 1)
+    for idx,(name,url,kind,expected_hash) in enumerate(sources,1):
         try:
             with tempfile.TemporaryDirectory(prefix='seedance_ffmpeg_') as tmp:
                 work=Path(tmp)
                 archive=work/('ffmpeg.'+kind)
-                print(f'[FFmpeg] Source {idx}/{len(FF_SOURCES)}: {name}',flush=True)
+                print(f'[FFmpeg] Source {idx}/{len(sources)}: {name}',flush=True)
                 # Support a future larger offline bundle without modifying the installer:
                 # only an archive whose published digest matches can be reused.
                 local=ROOT/'installers'/('ffmpeg-9.0.2-essentials_build.'+kind)
@@ -228,7 +250,7 @@ def install_ffmpeg_bundle():
         except (Exception,OSError) as exc:
             errors.append(f'{name}: {type(exc).__name__}: {str(exc)[:200]}')
             print(f'[WARN] FFmpeg source {idx} failed: {exc}',flush=True)
-            if idx<len(FF_SOURCES):print('[FFmpeg] Trying the next official source automatically...',flush=True)
+            if idx<len(sources):print('[FFmpeg] Trying the next official source automatically...',flush=True)
     print('[ERROR] All official FFmpeg sources failed. Already installed Python packages are retained.',flush=True)
     print('[ERROR] Try another network and rerun 01_INSTALL.cmd. No separate manual installers required.',flush=True)
     print('[ERROR] '+ ' | '.join(errors),flush=True)

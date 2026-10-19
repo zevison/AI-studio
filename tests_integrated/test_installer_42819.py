@@ -38,7 +38,8 @@ def test_verified_sha256_rejects_corrupt_archive(tmp_path):
         mod._validate_sha256(p,mod.FF_SEVEN_SHA256)
     mod._validate_sha256(p,hashlib.sha256(p.read_bytes()).hexdigest())
 
-def test_zip_fallback_extracts_only_two_windows_tools(tmp_path):
+def test_zip_fallback_extracts_only_two_windows_tools(tmp_path,monkeypatch):
+    monkeypatch.setattr(mod.subprocess,'run',lambda args,**kwargs:subprocess.CompletedProcess(args,0,stdout=(Path(args[0]).stem+' version fixture').encode(),stderr=b''))
     z=tmp_path/'ffmpeg.zip'
     with zipfile.ZipFile(z,'w') as archive:
         archive.writestr('ffmpeg-test/bin/ffmpeg.exe',b'MZ'+b'F'*200_000)
@@ -47,6 +48,13 @@ def test_zip_fallback_extracts_only_two_windows_tools(tmp_path):
     selected=mod._extract_windows_ffmpeg(z,tmp_path/'scratch',archive_type='zip')
     assert set(selected)=={'ffmpeg.exe','ffprobe.exe'}
     assert not list((tmp_path/'scratch').rglob('suspicious.exe'))
+
+
+def test_pe_header_without_runnable_binary_cannot_pass(tmp_path,monkeypatch):
+    exe=tmp_path/'ffmpeg.exe';exe.write_bytes(b'MZ'+b'X'*200_000)
+    def denied(*args,**kwargs):raise OSError('missing DLL')
+    monkeypatch.setattr(mod.subprocess,'run',denied)
+    with pytest.raises(RuntimeError,match='cannot execute'):mod._validate_ffmpeg_binary(exe)
 
 @pytest.mark.parametrize('filename',('ffmpeg.exe','ffprobe.exe'))
 def test_invalid_windows_binary_rejected(tmp_path,filename):

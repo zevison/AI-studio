@@ -1,5 +1,7 @@
 # Seedance Studio V5.2.0
 
+本轮新增聊天附件与本地历史、商品脚本到 Hypit 的交接、界面字体与背景优化。详见 [Hypit 使用说明](docs/Hypit_使用说明.txt) 和 [新增验收记录](docs/USABILITY_AUDIT_20261019.json)。完整包附带校验过的 FFmpeg ZIP；其他首次安装依赖仍需联网。最终浏览器交互验收尚未完成。
+
 Windows 完整安装包：先运行 `01_INSTALL.cmd`，再运行 `00_START.cmd`。当前能力、费用保护和限制请以 [使用说明](README_NEW_PC_CN.txt) 与 [本版验收](docs/集成验收_20261019.md) 为准。
 
 以下保留的是 V5.0.0 基线历史说明，不代表当前版本的集成状态：

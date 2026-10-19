@@ -267,7 +267,7 @@ function Show-PythonCandidates {
 try {
     Draw-Phase 0 'Checking compatible Python and Windows environment'
     Log-Line '============================================================='
-    Log-Line 'Seedance Studio V5.0.0 | Windows new PC setup + PEP514 detection'
+    Log-Line 'Seedance Studio V5.2.0 | Windows new PC setup + PEP514 detection'
     Log-Line 'Single installer entry: 01_INSTALL.cmd. Existing Python is reused when verified.'
     $python=Detect-Python
     if (-not $python) {

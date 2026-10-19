@@ -1,0 +1,18 @@
+{
+  "passed": false,
+  "date": "2026-10-19",
+  "extracted_install_passed": true,
+  "javascript_syntax_passed": true,
+  "official_local_film_export_passed": true,
+  "official_studio_http_passed": true,
+  "installed_attachment_storage_passed": true,
+  "fresh_offline_ffmpeg_passed": true,
+  "browser_ui_passed": false,
+  "paid_calls_this_revision": 0,
+  "reason": "Installation, restart, free export, Studio HTTP, attachment storage and SDK reuse passed. Browser clipboard/drop/layout interaction remains unverified because tool still reports disabled. Online real-product campaign not performed.",
+  "pristine_windows_verified": false,
+  "current_audit": "USABILITY_AUDIT_20261019.json",
+  "sdk_reuse_after_real_studio_passed": true,
+  "completed_status_preserved_after_studio": true,
+  "source_python_tests_passed": 267
+}

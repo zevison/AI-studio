@@ -42,3 +42,23 @@ def test_bad_checksum_does_not_create_install_directory(tmp_path):
     target=tmp_path/'managed/runtime'
     with pytest.raises(RuntimeError):module.extract_verified(file,target,'0'*64)
     assert not target.parent.exists()
+
+
+def test_payload_excludes_generated_studio_cache_but_keeps_code_integrity(tmp_path):
+    spec=importlib.util.spec_from_file_location('build_hypit_payload',Path(__file__).parents[1]/'tools/build_hypit_payload.py')
+    builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+    root=tmp_path/'sdk';code=root/'node_modules/@hypit/studio/dist/start.js'
+    code.parent.mkdir(parents=True);code.write_text('export const version = 1;')
+    cache=root/'node_modules/@hypit/studio/node_modules/.vite/deps/recipe.js'
+    cache.parent.mkdir(parents=True);cache.write_text('generated optimizer cache')
+    (root/'.env').write_text('test-only credential placeholder')
+    bundle=tmp_path/'payload.zip';identity=builder.build_payload(root,bundle)
+    with zipfile.ZipFile(bundle) as zipped:
+        assert zipped.namelist()==['node_modules/@hypit/studio/dist/start.js']
+    target=tmp_path/'installed/sdk'
+    assert module.extract_verified(bundle,target,identity['sha256'])=='installed'
+    generated=target/'node_modules/@hypit/studio/node_modules/.vite/deps/recipe.js'
+    generated.parent.mkdir(parents=True);generated.write_text('fresh optimizer output')
+    assert module.extract_verified(bundle,target,identity['sha256'])=='reused'
+    (target/'node_modules/@hypit/studio/dist/start.js').write_text('tampered SDK code')
+    with pytest.raises(RuntimeError):module.extract_verified(bundle,target,identity['sha256'])

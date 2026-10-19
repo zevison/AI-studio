@@ -1,0 +1,36 @@
+/* Calm slate surfaces and familiar Chinese UI fonts. No external font requests. */
+:root{--bg:#111720;--card:#19222e;--panel:#19222e;--panel2:#202c3a;--line:#344252;--text:#e4eaf2;--muted:#a4b2c3;--accent:#8b7aee;color-scheme:dark}
+html,body,button,input,select,textarea{font-family:DengXian,"等线","Microsoft YaHei","微软雅黑",SimHei,"黑体",system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);font-size:14px;line-height:1.65}
+body .sidebar{background:#141c27;border-color:var(--line)}
+body main{min-width:0}
+body .card{background:var(--card);border-color:var(--line);box-shadow:0 8px 28px #00000012}
+body input:not([type=checkbox]):not([type=radio]),body textarea,body select{background:#131c28;color:var(--text);border-color:#405066;font-family:inherit;font-size:14px;line-height:1.6}
+body input[type=checkbox],body input[type=radio]{width:17px;height:17px;flex:0 0 17px;vertical-align:middle;accent-color:#9886f5}
+body button{font-family:inherit;font-size:13px;min-height:36px}
+body select[multiple]{height:auto;min-height:110px}
+body .muted,body .tiny.muted{color:var(--muted)}
+body :focus-visible{outline:2px solid #ae9eff;outline-offset:3px}
+body .nav{font-size:14px}
+body .nav.active{background:#34304c;color:#f6f3ff}
+body #costHud{display:none!important}
+body #page-assistant .gpt-heading{gap:18px;align-items:start}
+body #page-assistant .gpt-main{min-width:0;background:var(--bg)}
+body #page-assistant .gpt-bubble{font-size:15px;line-height:1.85;max-width:min(850px,90%);padding:18px 22px;background:#1d2836;color:#e4eaf2}
+body #page-assistant .gpt-bubble.user{background:#303249;max-width:min(760px,85%)}
+body #page-assistant .gpt-answer{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.85}
+body #page-assistant .gpt-messages{padding:24px max(16px,calc((100% - 1000px)/2));gap:20px}
+body #page-assistant .gpt-composer{background:#1b2634;border-color:#405066}
+.gpt-recovery{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0}
+.gpt-recovery [hidden]{display:none}
+.gpt-attach{display:inline-flex;align-items:center;gap:7px;max-width:100%;overflow-wrap:anywhere}
+.gpt-attach img{width:46px;height:46px;object-fit:cover;border-radius:6px}
+.gpt-saved-attachments{padding:10px 0;font-size:13px}
+.gpt-saved-attachments img{display:block;max-width:100%;max-height:340px;border-radius:8px;margin:8px 0}
+.gpt-saved-attachments pre{white-space:pre-wrap;max-height:280px;overflow:auto}
+.drag-active{outline:2px dashed #ae9eff;outline-offset:2px}
+.usage-help{background:#1b2634;border:1px solid #405066;padding:14px 20px;border-radius:12px;margin:0 0 20px;color:#cbd7e7;font-size:14px}
+.usage-help summary{cursor:pointer;font-weight:700;color:#eeeaff}
+.usage-help li{margin:10px 0}
+.page table{display:block;max-width:100%;overflow-x:auto}
+@media(max-width:850px){body #page-assistant .gpt-heading{flex-direction:column}body #page-assistant .gpt-model-area{width:100%;justify-content:start}body #page-assistant .gpt-bubble{max-width:96%;padding:14px}body #page-assistant .gpt-messages{padding:16px 8px}.gpt-actions{flex-wrap:wrap}}

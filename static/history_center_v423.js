@@ -13,9 +13,9 @@ function topLine(data){
  const c=data.summary||{},sources=data.sources||{},summary=byId('costSummary');if(!summary)return;
  const chips=[['video_image','视频/图片'],['gpt','GPT 对话'],['product','商品理解'],['script','创意脚本'],['brightdata','手动采集']]
    .map(([k,n])=>`<span class="hc-chip">${n} ${sources[k]?.rows||0}</span>`).join('');
- summary.innerHTML=`<div class="hc-stat-grid"><div class="hc-stat"><b>${c.total_records||0}</b><small>已保存的调用和任务</small></div><div class="hc-stat"><b>${money(c.estimated_usd)}</b><small>有记录的费用预估合计</small></div><div class="hc-stat"><b>${money(c.actual_usd,'actual')}</b><small>已存储的实际费用（可能不完整）</small></div></div>
- <div class="hc-chips">${chips}</div><div class="hc-note">费用仅汇总本地有依据的记录，绝不把未知金额当作0元或免费。实时账户余额不等于历史实际扣费。</div>
- <div class="hc-foot"><span>当前数据源：data/studio.db</span><button type="button" class="secondary" id="hcRefresh">只读刷新</button></div>`;
+ summary.innerHTML=`<div class="hc-stat-grid"><div class="hc-stat"><b>${c.total_records||0}</b><small>已保存的调用和任务</small></div></div>
+ <div class="hc-chips">${chips}</div><div class="hc-note">这里展示本地历史，不作为费用账单。生成前会单独读取报价；实际费用请到 OpenLux 控制台核对。</div>
+ <div class="hc-foot"><span>记录保存在本机 data/studio.db</span><button type="button" class="secondary" id="hcRefresh">刷新本地历史</button><a href="https://www.openlux.ai/console" target="_blank" rel="noopener noreferrer">查看 OpenLux 账单</a></div>`;
  byId('hcRefresh').onclick=()=>refreshUnifiedHistory();
 }
 function storedPrompt(task){
@@ -51,7 +51,7 @@ function historyRows(data){
  const rows=list.map(x=>`<div class="history-item hc-entry">
   <div class="hc-entry-header"><b>${safeText(x.label)}</b><span class="hc-status">${safeText(x.status||'未知')}</span><span class="hc-date">${stamp(x.created_at)}</span></div>
   <div class="hc-entry-meta">${x.model?`<span>模型：${safeText(x.model)}</span>`:''}<span>本地编号：${safeText(x.id)}</span>${x.provider_id?`<span>供应商任务编号：${safeText(x.provider_id)}</span>`:''}</div>
-  <div class="hc-entry-meta"><span>预估费用：${money(x.estimated_cost_usd)}</span><span>实际费用：${money(x.actual_cost_usd,'actual')}</span>${Number.isFinite(x.tokens)?`<span>词元数：${x.tokens}</span>`:''}${Number.isFinite(x.records)?`<span>采集记录：${x.records}</span>`:''}</div>
+  <div class="hc-entry-meta">${Number.isFinite(x.tokens)?`<span>词元数：${x.tokens}</span>`:''}${Number.isFinite(x.records)?`<span>采集记录：${x.records}</span>`:''}</div>
   ${x.error?`<div class="hc-error">${safeText(x.error)}</div>`:''}${x.source==='tasks'&&x.kind==='video'?`<div class="hc-prompt-controls"><button type="button" class="secondary" data-history-video-prompt="${escapeHtml(x.id)}">查看本次视频的历史提示词</button></div>`:''}</div>`).join('');
  const emptiness=(data.summary?.total_records||0)===0?
    '当前 data/studio.db 没有这些调用记录。如果旧版本确实产生过任务，请先检查历史数据库是否迁移到当前安装目录。':'所选条件下没有记录。';

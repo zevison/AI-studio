@@ -272,7 +272,8 @@ def capability_report(*, full_analysis_rc: int, downloader_ok: bool, ffmpeg_ok: 
             import_errors[key]=str(exc)
     required_missing=[x for x in required if not actual_imports.get(x)]
     if not ffmpeg_ok: required_missing.append('ffmpeg / ffprobe')
-    if not downloader_ok and 'yt_dlp' not in required_missing:required_missing.append('Bright Data downloader check')
+    if not downloader_ok and 'yt_dlp' not in required_missing:
+        required_missing.append('TikTok downloader check (see downloader diagnostics; FFprobe may be the shared cause)')
     pose_marker=Path(os.environ.get('LOCALAPPDATA',''))/'SeedanceStudio/runtime/pose111/pose-verified.json'
     modules['mediapipe']=pose_marker.is_file() or modules.get('mediapipe',False)
     optional_missing=[x for x in ('whisperx','ultralytics','mediapipe') if not modules.get(x)]
@@ -316,11 +317,15 @@ def prepare_cloudflared():
     if copy_previous_asset('tools/cloudflared.exe', CF, min_bytes=1_000_000):
         cache_asset('tools/cloudflared.exe',CF,min_bytes=1_000_000)
         return
-    print('[可选] 没有找到旧版 cloudflared；尝试首次下载（OSS 模式可跳过）。')
+    if os.environ.get('SEEDANCE_INSTALL_CLOUDFLARED')!='1':
+        print('[可选] Cloudflare 调试隧道未启用，跳过下载；OSS 主通道不需要它。')
+        return
+    print('[可选] 按显式配置准备 cloudflared；OSS 模式不需要此组件。')
     try:
         req=urllib.request.Request(CF_URL,headers={'User-Agent':'SeedanceStudio/'+APP_VERSION})
         tmp=CF.with_suffix('.download')
-        with urllib.request.urlopen(req,timeout=40) as r, open(tmp,'wb') as f:
+        from trusted_download import open_public_url
+        with open_public_url(req,timeout=40) as r, open(tmp,'wb') as f:
             shutil.copyfileobj(r,f)
         if tmp.stat().st_size < 1_000_000:
             raise RuntimeError('文件长度异常')
@@ -328,6 +333,7 @@ def prepare_cloudflared():
         cache_asset('tools/cloudflared.exe',CF,min_bytes=1_000_000)
         print('[OK] Cloudflare 调试隧道已准备完成')
     except Exception as exc:
+        CF.with_suffix('.download').unlink(missing_ok=True)
         print('[WARN] cloudflared 下载未完成，OSS 主通道不受影响：',exc)
 
 

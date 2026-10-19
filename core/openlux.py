@@ -3,6 +3,7 @@ import base64, json, mimetypes, time, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 from . import config, tunnel, settings
 from .utils import find_url
+from .network_trust import tls_context
 
 _ROUTE_AUTO = object()
 
@@ -26,6 +27,7 @@ def _url(path):
 
 
 def request_json(method, path, payload=None, timeout=None, retries=0, idempotency_key=None):
+    if method.upper() not in ('GET','HEAD'):retries=0
     if not config.OPENLUX_API_KEY:
         raise ApiError('未配置 OPENLUX_API_KEY。请先填写根目录 .env。')
     data=None; headers=_headers({'Content-Type':'application/json'})
@@ -35,7 +37,7 @@ def request_json(method, path, payload=None, timeout=None, retries=0, idempotenc
     for attempt in range(retries+1):
         try:
             req=urllib.request.Request(_url(path),data=data,headers=headers,method=method)
-            with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT) as r:
+            with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
                 raw=r.read(); txt=raw.decode('utf-8','replace')
                 return json.loads(txt) if txt.strip() else {}
         except urllib.error.HTTPError as e:
@@ -55,6 +57,7 @@ def request_json(method, path, payload=None, timeout=None, retries=0, idempotenc
 
 
 def request_json_with_token(method, path, auth_token, payload=None, timeout=None, retries=0, user_id=None):
+    if method.upper() not in ('GET','HEAD'):retries=0
     if not auth_token:
         raise ApiError('未配置 OpenLux 账号访问令牌。')
     headers={
@@ -70,7 +73,7 @@ def request_json_with_token(method, path, auth_token, payload=None, timeout=None
     for attempt in range(retries+1):
         try:
             req=urllib.request.Request(_url(path),data=data,headers=headers,method=method)
-            with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT) as r:
+            with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
                 txt=r.read().decode('utf-8','replace')
                 return json.loads(txt) if txt.strip() else {}
         except urllib.error.HTTPError as e:
@@ -103,7 +106,7 @@ def multipart_request(path, fields:dict, file_fields:list[tuple[str,Path,str]], 
     if idempotency_key: headers['Idempotency-Key']=idempotency_key
     try:
         req=urllib.request.Request(_url(path),data=body,headers=headers,method='POST')
-        with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT) as r:
+        with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
             txt=r.read().decode('utf-8','replace'); return json.loads(txt) if txt.strip() else {}
     except urllib.error.HTTPError as e:
         b=e.read().decode('utf-8','replace')

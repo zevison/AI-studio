@@ -53,7 +53,7 @@
       controls.append(button(row.status==='prepared'?'开始 AI 编排':'让 AI 调整方案', async () => {
         if (!el('hypitConsent').checked) throw new Error('请先勾选第 3 步的编排费用授权');
         selectedProject = row.id;
-        await write('author', {id:row.id, approve_token_charges:true, limit_usd:el('hypitBudget').value,
+        await write('author', {id:row.id, approve_token_charges:true,auto_build_local:true, limit_usd:el('hypitBudget').value,
           max_calls:Number(el('hypitCalls').value)});
         el('hypitConsent').checked = false; message('AI 已开始编排。可在下方查看进度，刷新页面不会停止任务。'); await refreshProjects();
       }, active.has(row.status) || ['blocked','interrupted'].includes(row.status)));

@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/static/v421_header_nav.css?v=4.2.1" />
   <link rel="stylesheet" href="/static/v422_header_center.css?v=4.2.2" />
   <link rel="stylesheet" href="/static/hypit_studio.css?v=20261019" />
+  <link rel="stylesheet" href="/static/usability.css?v=20261019b" />
 </head>
 <body>
 <div class="app-shell">
@@ -29,7 +30,7 @@
       <button class="nav" data-page="radar">📡 热点收集</button>
       <button class="nav" data-page="ads">🎞️ 智能视频制作</button>
       <button class="nav" data-page="assets">📚 本地素材库</button>
-      <button class="nav" data-page="history">🕘 历史与成本</button>
+      <button class="nav" data-page="history">🕘 历史记录</button>
       <button class="nav" data-page="settings">⚙️ 状态与设置</button>
       <div class="nav-divider"></div>
       <button class="task-center-nav" id="taskCenterNav" type="button"><span>📥 任务中心</span><span class="task-center-nav-right"><b id="taskCenterBadge">0/10</b><i id="taskCenterUnread" class="task-unread hidden">0</i></span></button>
@@ -58,6 +59,13 @@
 
 
     <section class="page" id="page-hypit">
+      <details id="hypitHelp" class="usage-help"><summary>使用方法：从素材到成片</summary>
+        <ol><li><b>添加素材：</b>上传并勾选视频，按需添加商品图片或音频。先用无人物短视频测试。</li>
+        <li><b>说明目标：</b>写清商品、镜头、时长、字幕与用途，例如“把这段杯子视频剪成 8 秒竖屏广告，开头特写，结尾展示卖点”。</li>
+        <li><b>保存并编排：</b>保存任务，读取账号报价，设置 AI 编排预算与次数，再点击任务卡片中的“开始 AI 编排”。这一步调用 LLM 写工程，不会直接生成付费视频。</li>
+        <li><b>检查和导出：</b>只使用现有素材时，AI 编排通过后会自动本地合成；需要新视频时，先读取视频报价，再单独确认生成。完成后预览、下载；高级选项可打开官方编辑器。</li></ol>
+        <p>LLM 编排与视频生成分别计费。断网或结果不明时先刷新原任务，不重复提交。已验证：本地合成、文生视频、单个非人物参考视频编辑；延长及其他混合参考仍为实验功能。真人脸直接参考与音色克隆未支持。</p>
+      </details>
       <div class="hypit-shell">
         <div class="hypit-heading"><div><span class="hypit-eyebrow">由官方 Hypit 驱动</span>
           <h2>AI 视频制作</h2><p>选好素材，说明你想怎么改。AI 先编排，确认视频费用后再生成。</p></div>
@@ -102,21 +110,21 @@
           <button type="button" class="secondary" id="aiGotoSettings">⚙ 模型接口设置</button>
         </aside>
         <div class="gpt-main">
-          <div class="gpt-heading"><div><h2>GPT 对话</h2><p class="tiny muted">独立通用聊天，不读取商品库，不操作视频任务。</p></div>
+          <div class="gpt-heading"><div><h2>GPT 对话</h2><p class="tiny muted">聊天记录和已发送附件保存在本机；模型推理通过 OpenLux。支持粘贴截图、拖放文件。</p></div>
             <div class="gpt-model-area">
-              <select id="aiModel" aria-label="选择 GPT 模型"><option value="gpt-6-astra">GPT-6 Astra · 高性能（需核验）</option><option value="gpt-5.6-sol">GPT-5.6 Sol · 均衡速度</option><option value="gpt-6.1-sol">GPT-6.1 Sol · 原版模型</option><option value="custom">自定义模型编号</option></select>
+              <select id="aiModel" aria-label="选择 GPT 模型"><option value="gpt-6-astra">GPT-6 Astra · 高性能（需核验）</option><option value="gpt-5.6-sol">GPT-5.6 Sol · 均衡速度</option><option value="gpt-6.1-sol">GPT-6.1 Sol · 通用任务候选</option><option value="custom">自定义模型编号</option></select>
               <input id="aiCustomModel" placeholder="请输入 OpenLux 账户中的实际模型编号" hidden>
               <button id="aiSyncModels" type="button" class="secondary">同步账户模型</button>
               <button id="aiDiagnose" type="button" class="secondary">检测接口</button>
               <details class="gpt-advanced"><summary>高级选项：推理强度 / 联网搜索</summary><div class="gpt-chat-options">
-                <label>思考强度 <select id="aiThinking"><option value="default">默认·模型自行选择</option><option value="low">低·速度优先</option><option value="medium">中·平衡</option><option value="high">高·质量优先</option><option value="xhigh">极高·复杂任务</option></select></label>
+                <label>思考强度 <select id="aiThinking"><option value="default">默认·模型自行选择</option><option value="low">低·速度优先</option><option value="medium">中·平衡</option><option value="high" selected>高·质量优先</option><option value="xhigh">极高·复杂任务</option></select></label>
                 <label class="gpt-search-switch"><input type="checkbox" id="aiWebSearch"> 联网搜索（需通道支持）</label>
               </div>
               </details><div class="tiny muted" id="aiDiagnostics">默认高性能模型，实际权限以当前 OpenLux 账户为准。</div>
             </div>
           </div>
           <div class="gpt-messages" id="aiMessages" role="log"><div class="gpt-empty"><h3>有什么可以帮你？</h3><p>多轮聊天 · 联网查询（需权限）· 图片/文件理解 · 本地记忆。</p></div></div>
-          <div class="gpt-composer"><div id="aiFileList" class="gpt-attachment-list"></div><textarea rows="2" id="aiPrompt" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"></textarea><div class="gpt-actions"><label class="gpt-upload-btn">＋ 图片 / 文档<input type="file" id="aiFiles" multiple hidden accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx,.txt,.md,.csv,.json,image/*"></label><span class="tiny muted">强模型优先 · 回复逐步显示 · 付费请求不自动重试</span><button class="primary" id="aiSend" type="button">发送 ↑</button></div><p id="aiStatus" class="tiny muted"></p></div>
+          <div class="gpt-recovery"><button type="button" id="aiRefresh" class="secondary">刷新本地记录</button><button type="button" id="aiContinue" class="secondary" hidden>保留旧请求，继续新问题</button><span class="tiny muted">刷新不会再次调用模型</span></div><div class="gpt-composer"><div id="aiFileList" class="gpt-attachment-list"></div><textarea rows="2" id="aiPrompt" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"></textarea><div class="gpt-actions"><label class="gpt-upload-btn">＋ 图片 / 文档<input type="file" id="aiFiles" multiple hidden accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx,.txt,.md,.csv,.json,image/*"></label><span class="tiny muted">Ctrl+V 粘贴截图 · 拖放文件 · 本地保存</span><button class="primary" id="aiSend" type="button">发送 ↑</button></div><p id="aiStatus" class="tiny muted"></p></div>
         </div>
       </div>
     </section>
@@ -541,7 +549,7 @@
 
 <section class="page" id="page-history">
       <div class="grid two">
-        <div class="card"><h2>调用成本汇总</h2><div id="costSummary"></div></div>
+        <div class="card"><h2>本地记录概览</h2><div id="costSummary"></div></div>
         <div class="card"><h2>任务恢复中心</h2><p class="tiny muted">这里只处理“继续查询 / 重新下载”，不会重新创建付费视频任务。</p><div id="taskRecovery" class="history-list compact"></div></div>
       </div>
       <div class="card full-card"><h2>任务历史</h2><div id="taskHistory" class="history-list"></div></div>

@@ -716,6 +716,7 @@ def script_preview(payload):
     rates=options(); model=_clean(payload.get('model') or rates['script_model'],90)
     if not re.fullmatch(r'[a-zA-Z0-9_.:/@+-]{2,90}',model):raise ValueError('模型编号不合法')
     fact_verified=[x for x in product['facts'] if x['status']=='verified']
+    if not fact_verified:raise ValueError('请先在商品知识中心核实至少一条商品事实，再付费生成商品脚本')
     constraints=product['restrictions']+[x['text'] for x in product['facts'] if x['status']=='prohibited']
     # Reuse the standalone Product Knowledge Center's summary for creative context,
     # but NEVER elevate AI-inferred audiences or selling points to verified claims.
@@ -747,12 +748,15 @@ def script_preview(payload):
       '发现来源相关性低、未验证的产品用途或无购买动机时，必须在风险提示中说明，不得为了凑热点编造。'
       '所有创意仅针对 TikTok Shop 美区商品短视频；强制考虑美区3秒开头钩子、真人UGC风格、9:16、真实产品展示与明确购买动机，不能把观看量视为订单或转化率。' '美国日期与季节是硬规则，不可省略。必须以JSON对象返回字段：market_country(必须US),as_of_us(必须与提供日期一致),season(必须与美国日历一致),seasonal_fit_cn,title_cn,reason_cn,hook_en,hook_zh,script_segments'
       '(数组元素字段为duration_s,narration_en,narration_zh,visual_cn,source_ids),'
-      'risk_notes_cn(数组),hypothesis_cn，另须提供video_breakdown数组，每项time_seconds、visual_cn、creative_insight_cn；仅分析有真实证据的画面。美国不同地区气候不可臆测，不得照搬原视频人物或版权内容。')
+      'risk_notes_cn(数组),hypothesis_cn，另须提供video_breakdown数组，每项time_seconds、visual_cn、creative_insight_cn；仅分析有真实证据的画面。'
+      '还必须提供product_match对象：verdict取suitable/needs_changes/unsuitable，reason_cn说明参考视频与当前商品的购买需求和使用场景是否匹配，'
+      'verified_claims_used为数组，只能逐字选择提供的已核实商品事实text；transferable_elements_cn为可迁移的镜头创意数组。'
+      '不相关或必须虚构商品功能才能套用时，verdict必须unsuitable，不能硬写成可用广告。美国不同地区气候不可臆测，不得照搬原视频人物或版权内容。')
     user_text=_json(prompt)
     # Conservative budget preview; provider-specific token usage is checked after the call.
     # Includes conservative extra visual-token allowance for up to seven JPEG frames.
-    in_tokens=max(600,int((len(system)+len(user_text))/2.5)+350)+2600
-    out_tokens=2600
+    in_tokens=max(600,int((len(system)+len(user_text))/2.5)+350)+12*1600
+    out_tokens=4500 if model.startswith(('gpt-6','gpt-5.6','gpt-5.5','o1','o3','o4')) else 1900
     price=model_pricing.get(model)
     ir=price.get('input_usd_per_million');orr=price.get('output_usd_per_million')
     estimate=(in_tokens*ir+out_tokens*orr)/1e6 if ir is not None and orr is not None else None
@@ -762,6 +766,22 @@ def script_preview(payload):
             'price_verified':bool(price.get('available')),'price':price,'source_count':len(selected),'evidence_warnings':selected_warnings,'visual_source_confirmed':True,
             'market_context':market,'video_asset_id':asset['id'],
             'warning':price.get('warning','费用按 OpenLux 自动获取的参考价估算，实际以账号账单为准。')+' 本次视觉分析需要模型支持图片消息，未实测时不可视为已兼容。'}
+
+
+def validate_product_match(document,product):
+    match=document.get('product_match')
+    if not isinstance(match,dict):return ['缺少来源视频与当前商品的匹配分析']
+    errors=[]
+    if match.get('verdict')!='suitable':errors.append('商品匹配尚未通过，需人工调整或另选视频')
+    if not isinstance(match.get('reason_cn'),str) or not match['reason_cn'].strip():errors.append('缺少商品匹配依据')
+    verified={f.get('text') for f in product.get('facts',[]) if f.get('status')=='verified'}
+    claims=match.get('verified_claims_used')
+    if not isinstance(claims,list) or not claims or any(not isinstance(x,str) or x not in verified for x in claims):
+        errors.append('脚本使用的商品声明未绑定到已核实事实')
+    elements=match.get('transferable_elements_cn')
+    if not isinstance(elements,list) or not elements or any(not isinstance(x,str) or not x.strip() for x in elements):
+        errors.append('缺少可迁移的镜头创意说明')
+    return errors
 
 
 def generate_script(payload):
@@ -774,7 +794,8 @@ def generate_script(payload):
     if estimate is None:raise ValueError('无法自动核实模型报价，未知成本禁止自动提交')
     maximum=float(payload.get('max_cost_usd') or 0)
     limit=options()['daily_llm_usd_limit']
-    if maximum<=0 or estimate>maximum:raise ValueError('本次预估费用超出单次授权上限')
+    import math
+    if not math.isfinite(maximum) or maximum<=0 or estimate>maximum:raise ValueError('本次预估费用超出单次授权上限')
     if limit is None or limit<=0:raise ValueError('请先设置每日 GPT 预算上限')
     today=dt.datetime.now(_BJ)
     start=dt.datetime.combine(today.date(), dt.time.min,tzinfo=_BJ).timestamp()
@@ -785,13 +806,14 @@ def generate_script(payload):
     visual=viral_review.visual_evidence(preview['source_ids'][0],max_frames=12)
     prompt_hash=hashlib.sha256((model+'|'+user_text+'|video_sha256='+str(visual['sha256'])).encode()).hexdigest()
     with _lock,db.tx() as c:
-        daily=c.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) FROM radar_scripts WHERE created_at>=? AND status IN ('running','completed','submission_unknown','reconciled_charged')",(start,)).fetchone()
+        c.execute('BEGIN IMMEDIATE')
+        daily=c.execute("SELECT COALESCE(SUM(estimated_cost_usd),0) FROM radar_scripts WHERE created_at>=? AND status IN ('running','completed','needs_review','submission_unknown','reconciled_charged')",(start,)).fetchone()
         other=0
         if c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='product_analysis_runs'").fetchone():
-            previous=c.execute("SELECT COALESCE(SUM(estimated_usd),0) FROM product_analysis_runs WHERE created_at>=? AND status IN ('running','completed','submission_unknown','reconciled_charged')",(start,)).fetchone()
+            previous=c.execute("SELECT COALESCE(SUM(estimated_usd),0) FROM product_analysis_runs WHERE created_at>=? AND status IN ('running','completed','parse_failed','submission_unknown','reconciled_charged')",(start,)).fetchone()
             other=float(previous[0] or 0)
         if float(daily[0] or 0)+other+estimate>limit:raise ValueError('商品资料分析与热点脚本合计将超出今日 GPT 预算')
-        existing=c.execute("SELECT id,status FROM radar_scripts WHERE prompt_hash=? AND status IN ('running','completed','submission_unknown','reconciled_charged') ORDER BY created_at DESC LIMIT 1",(prompt_hash,)).fetchone()
+        existing=c.execute("SELECT id,status FROM radar_scripts WHERE prompt_hash=? AND status IN ('running','completed','needs_review','submission_unknown','reconciled_charged') ORDER BY created_at DESC LIMIT 1",(prompt_hash,)).fetchone()
         if existing:raise ValueError('相同输入已存在有效或结果未知的付费任务，禁止重复扣费。请修改来源或核对历史结果。')
         sid=_uid('script');now=_now()
         c.execute('''INSERT INTO radar_scripts(id,product_id,source_ids_json,model,prompt_hash,status,estimated_cost_usd,created_at,updated_at)
@@ -807,8 +829,8 @@ def generate_script(payload):
         user_parts.extend(visual['parts'])
         request={'model':model,'messages':[{'role':'system','content':system},{'role':'user','content':user_parts}],
                  'response_format':{'type':'json_object'}}
-        if model.startswith(('gpt-6','gpt-5.6','gpt-5.5','o1','o3','o4')):request['max_completion_tokens']=4500
-        else:request.update({'temperature':0.55,'max_tokens':1900})
+        if model.startswith(('gpt-6','gpt-5.6','gpt-5.5','o1','o3','o4')):request['max_completion_tokens']=preview['max_output_tokens']
+        else:request.update({'temperature':0.55,'max_tokens':preview['max_output_tokens']})
         task_observability.record('script',sid,'等待 OpenLux 同步响应','running','模型 '+model)
         response=openlux.request_json('POST',PAID_SCRIPT_PATH,request,retries=0,timeout=70)
         choice=(response.get('choices') or [{}])[0]
@@ -817,6 +839,10 @@ def generate_script(payload):
         if not isinstance(doc,dict) or not isinstance(doc.get('script_segments'),list) or not isinstance(doc.get('video_breakdown'),list) or not doc['video_breakdown']:
             raise RuntimeError('模型未返回真实视频拆解或完整分镜，原结果需复核，禁止自动重新付费调用')
         market_check=us_marketing.validate_script(doc,preview['market_context'])
+        product=next((p for p in products() if p['id']==preview['product_id']),None)
+        fit_errors=validate_product_match(doc,product or {})
+        if fit_errors:
+            market_check=dict(market_check,ok=False,errors=[*market_check.get('errors',[]),*fit_errors])
         if not market_check['ok']:
             with db.tx() as c:
                 c.execute('UPDATE radar_scripts SET status=?,error=?,content_json=?,updated_at=? WHERE id=?',

@@ -570,7 +570,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.ok({'version':config.APP_VERSION,'root_dir':str(config.ROOT),'port':config.PORT,'pid':os.getpid()})
         if path=='/api/gpt-v41/models':return self.ok(gpt_pro_v41.models(force=(qs.get('force') or ['0'])[0]=='1'))
         if path=='/api/assistant/conversations':return self.ok(ai_assistant.conversations())
-        if path=='/api/assistant/messages':return self.ok(ai_assistant.messages((qs.get('conversation_id') or [''])[0]))
+        if path=='/api/assistant/messages':return self.ok(ai_assistant.messages((qs.get('conversation_id') or [''])[0],(qs.get('before_id') or [None])[0]))
+        if path=='/api/assistant/attachment':
+            self._hypit_guard()
+            return self.ok(ai_assistant.attachment((qs.get('message_id') or [''])[0],(qs.get('index') or [''])[0]))
+        if path=='/api/assistant/call-state':return self.ok(ai_assistant.call_state((qs.get('conversation_id') or [''])[0]))
         if path=='/api/assistant/diagnostics':return self.ok(ai_assistant.diagnostics((qs.get('model') or ['gpt-6.1-sol'])[0]))
         if path=='/api/gpt-v4/memory':return self.ok(gpt_memory_v4.list_memories())
         if path=='/api/bright-tiktok/settings':return self.ok(bright_tiktok.cfg())
@@ -700,8 +704,8 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/openlux/account-status':
             return self.ok(secrets_store.status())
         if path=='/api/cost/summary':
-            total=db.one('SELECT COUNT(*) n, COALESCE(SUM(estimated_cost_usd),0) est, COALESCE(SUM(actual_cost_usd),0) actual FROM usage_events')
-            by=db.all_('SELECT kind,model,COUNT(*) calls,COALESCE(SUM(estimated_cost_usd),0) est FROM usage_events GROUP BY kind,model ORDER BY calls DESC')
+            total=db.one('SELECT COUNT(*) n, SUM(estimated_cost_usd) est, SUM(actual_cost_usd) actual, COUNT(actual_cost_usd) actual_known FROM usage_events')
+            by=db.all_('SELECT kind,model,COUNT(*) calls,SUM(estimated_cost_usd) est FROM usage_events GROUP BY kind,model ORDER BY calls DESC')
             return self.ok({'total':total,'by_kind':by,'pricing_configured':{'image':config.IMAGE_ESTIMATED_COST_USD>0,'video':config.VIDEO_ESTIMATED_COST_PER_SECOND_USD>0}})
         if path=='/api/activity':
             rows=db.all_("SELECT id,kind,status,provider_task_id,created_at,updated_at,error FROM tasks ORDER BY updated_at DESC LIMIT 30")
@@ -769,12 +773,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post(self):
         path=urllib.parse.urlparse(self.path).path
+        if path.startswith(('/api/assistant/','/api/gpt-v41/','/api/gpt-v4/')):
+            self._hypit_guard()
         if path.startswith('/api/hypit/'):
             self._hypit_guard(write=True)
             request=self.json_in()
             if not isinstance(request,dict):return self.err('JSON object required',400)
             pid=request.get('id')
             if path=='/api/hypit/create':return self.ok(hypit_service.create(request))
+            if path=='/api/hypit/from-approved-script':return self.ok(creative_production.hypit_handoff(request,hypit_service))
             if path=='/api/hypit/quote':return self.ok(hypit_service.quote())
             if path=='/api/hypit/video-quote':return self.ok(hypit_service.video_quote(pid,request))
             if path=='/api/hypit/build-paid':return self.ok(hypit_service.build_paid(pid,request))
@@ -786,6 +793,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.err('Not found',404)
         if path=='/api/gpt-v41/chat/stream':return self._gpt_v41_stream()
         if path=='/api/assistant/new':return self.ok(ai_assistant.new_conversation())
+        if path=='/api/assistant/acknowledge':return self.ok(ai_assistant.acknowledge_unknown(self.json_in()))
         if path=='/api/assistant/chat':return self.ok(ai_assistant.send(self.json_in()))
         if path=='/api/gpt-v4/conversation/delete':return self.ok(gpt_memory_v4.delete_conversation(self.json_in()))
         if path=='/api/gpt-v4/memory/save':return self.ok(gpt_memory_v4.save(self.json_in()))

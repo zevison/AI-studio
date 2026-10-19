@@ -537,7 +537,8 @@ class HypitStudio:
                     **({'provider_task_id':remote['task_id']} if remote.get('task_id') else {}))
             finally:
                 with self.lock:
-                    self.threads.pop(pid, None)
+                    if self.threads.get(pid) is threading.current_thread():
+                        self.threads.pop(pid, None)
         thread = threading.Thread(target=worker, name='hypit-' + pid, daemon=True)
         with self.lock:
             self.threads[pid] = thread
@@ -670,6 +671,9 @@ class HypitStudio:
             db.task_update(tid, status='completed' if checks['ok'] or checks.get('requires_video_approval') else 'failed',
                            result_json={'project_id': pid, 'agent_status': result['status']},
                            error=None if checks['ok'] or checks.get('requires_video_approval') else '工程未通过 check/plan；未执行任何视频生成')
+            if checks['ok'] and request.get('auto_build_local') is True:
+                self._cancelled(pid)
+                self.build(pid)
         return self._spawn(pid, tid, perform)
 
     def validate(self, pid, *, update_state=True):
@@ -705,6 +709,17 @@ class HypitStudio:
                   'local_only': local_only, 'source_hash': before, 'checked_at': time.time()}
         if update_state:
             target='ready' if result['ok'] else ('awaiting_video_approval' if awaiting else 'needs_revision')
+            artifact=row['metadata'].get('result') or {}
+            previous=row['metadata'].get('validation') or {}
+            exported=Path(artifact['local_path']) if isinstance(artifact.get('local_path'),str) else None
+            exported_ok=False
+            if result['ok'] and row['status']=='completed' and previous.get('source_hash')==before and exported:
+                try:
+                    exported_ok=(exported.resolve().is_relative_to(config.OUTPUT_DIR.resolve())
+                        and exported.is_file() and _digest(exported)==artifact.get('sha256'))
+                except OSError:pass
+            if exported_ok:
+                target='completed'
             self.update(pid, status=target, metadata={'validation': result})
         return result
 
@@ -764,7 +779,7 @@ class HypitStudio:
         row = self.get(pid)
         if row['status'] in ACTIVE:
             raise PermissionError('Wait for the active project operation to finish')
-        validation = self.validate(pid)
+        validation = self.validate(pid, update_state=False)
         if not validation['ok']:
             raise PermissionError('Studio requires a validated local project')
         with self.lock:

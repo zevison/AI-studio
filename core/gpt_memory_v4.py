@@ -91,12 +91,14 @@ def delete_conversation(payload):
         if 'ai_conversations' not in tables:raise ValueError('无法定位 GPT 会话表；未删除任何内容')
         existing=c.execute('SELECT 1 FROM ai_conversations WHERE id=?',(cid,)).fetchone()
         if not existing:raise ValueError('会话不存在，可能已经删除')
+        if 'ai_calls' in tables and c.execute("SELECT 1 FROM ai_calls WHERE conversation_id=? AND status='submission_unknown' LIMIT 1",(cid,)).fetchone():
+            raise ValueError('此对话仍有结果不确定的请求，请先刷新记录或确认保留旧请求，再删除对话')
         counts={}
-        for table in ('ai_messages','ai_calls','ai_video_drafts','ai_attachments'):
+        for table in ('ai_messages','ai_video_drafts','ai_attachments'):
             if table not in tables:continue
             cols={x[1] for x in c.execute(f'PRAGMA table_info({table})')}
             if 'conversation_id' in cols:
                 counts[table]=c.execute(f'DELETE FROM {table} WHERE conversation_id=?',(cid,)).rowcount
         counts['ai_conversations']=c.execute('DELETE FROM ai_conversations WHERE id=?',(cid,)).rowcount
     return {'deleted':True,'counts':counts,
-            'note':'此操作仅删除所选聊天会话及其会话记录。用户手动保存的长期记忆需要单独管理。'}
+            'note':'已删除所选聊天内容。调用与费用审计记录、手动保存的长期记忆分别保留。'}

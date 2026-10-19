@@ -33,7 +33,10 @@ def download_file(url: str, path: Path, *, label: str, max_seconds: int = 1200,
     path=Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     now = now or time.monotonic
-    opener = open_url or urllib.request.urlopen
+    if open_url is None:
+        from trusted_download import open_public_url
+        opener=open_public_url
+    else:opener=open_url
     bytes_read=0
     begin=now()
     last=begin-progress_interval

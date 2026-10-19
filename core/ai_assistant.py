@@ -1,7 +1,9 @@
 """Independent general GPT chat. Never reads product/video/tasks nor invokes Studio tools."""
 from __future__ import annotations
+from contextlib import closing
 import json, hashlib, time, uuid
 from . import db,config,openlux,secrets_store,gpt_memory_v4
+from .network_trust import tls_context,network_error_message
 
 
 def schema():
@@ -10,6 +12,11 @@ def schema():
         c.execute('''CREATE TABLE IF NOT EXISTS ai_messages (id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,role TEXT NOT NULL,content TEXT NOT NULL,created_at REAL NOT NULL)''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages(conversation_id,created_at)')
         c.execute('''CREATE TABLE IF NOT EXISTS ai_calls (id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL,model TEXT NOT NULL,status TEXT NOT NULL,error TEXT,created_at REAL NOT NULL,updated_at REAL NOT NULL)''')
+        columns={r[1] for r in c.execute('PRAGMA table_info(ai_messages)')}
+        if 'payload_json' not in columns:c.execute("ALTER TABLE ai_messages ADD COLUMN payload_json TEXT NOT NULL DEFAULT '[]'")
+        columns={r[1] for r in c.execute('PRAGMA table_info(ai_calls)')}
+        if 'request_id' not in columns:c.execute('ALTER TABLE ai_calls ADD COLUMN request_id TEXT')
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_calls_request ON ai_calls(request_id) WHERE request_id IS NOT NULL')
     gpt_memory_v4.ensure_schema()
 
 def conversations():
@@ -21,10 +28,57 @@ def new_conversation():
     db.execute('INSERT INTO ai_conversations(id,title,created_at,updated_at) VALUES(?,?,?,?)',(cid,'新对话',t,t))
     return {'id':cid,'title':'新对话'}
 
-def messages(cid):
+def messages(cid,before_id=None):
     schema()
     if not db.one('SELECT id FROM ai_conversations WHERE id=?',(cid,)):raise ValueError('会话不存在')
-    return db.all_('SELECT id,role,content,created_at FROM ai_messages WHERE conversation_id=? ORDER BY created_at,id LIMIT 1000',(cid,))
+    # Read payloads one at a time; opening history must not load every image into RAM.
+    rows=[]
+    cutoff=None
+    if before_id:
+        cutoff=db.one('SELECT created_at,id FROM ai_messages WHERE id=? AND conversation_id=?',(str(before_id),cid))
+        if not cutoff:raise ValueError('历史分页位置不存在，请刷新会话')
+    clause=' AND (created_at,id)<(?,?)' if cutoff else ''
+    params=(cid,cutoff['created_at'],cutoff['id']) if cutoff else (cid,)
+    with closing(db.connect()) as connection:
+        for record in connection.execute('SELECT id,role,content,created_at,payload_json FROM (SELECT * FROM ai_messages WHERE conversation_id=?'+clause+' ORDER BY created_at DESC,id DESC LIMIT 200) ORDER BY created_at,id',params):
+            row=dict(record)
+            try:attachments=json.loads(row.pop('payload_json') or '[]')
+            except (ValueError,TypeError):attachments=[]
+            row['attachments']=[{'kind':f.get('kind'),'name':f.get('name'),
+                'local_url':'/api/assistant/attachment?message_id='+row['id']+'&index='+str(i)} for i,f in enumerate(attachments)]
+            rows.append(row)
+    return rows
+
+
+def attachment(message_id,index):
+    schema()
+    row=db.one('SELECT payload_json FROM ai_messages WHERE id=?',(str(message_id),))
+    if not row:raise ValueError('附件记录不存在')
+    try:
+        number=int(index)
+        if not 0<=number<3:raise ValueError()
+        return json.loads(row['payload_json'])[number]
+    except (ValueError,TypeError,IndexError):raise ValueError('附件编号无效') from None
+
+
+def call_state(cid):
+    schema()
+    return db.one('SELECT id,status,error,created_at,updated_at FROM ai_calls WHERE conversation_id=? ORDER BY created_at DESC LIMIT 1',(str(cid),))
+
+
+def acknowledge_unknown(payload):
+    """Release a conversation, never retry or assert that an unknown charge is zero."""
+    schema()
+    if payload.get('acknowledge_possible_charge') is not True:raise ValueError('请确认旧请求可能已扣费；此操作不会重发旧请求')
+    with db.tx() as c:
+        c.execute('BEGIN IMMEDIATE')
+        row=c.execute('SELECT * FROM ai_calls WHERE id=? AND conversation_id=?',(str(payload.get('call_id') or ''),str(payload.get('conversation_id') or ''))).fetchone()
+        if not row:raise ValueError('请求记录不存在')
+        if row['status']=='submission_unknown' and time.time()-row['updated_at']<240:
+            raise ValueError('原请求可能仍在运行，请等待至少4分钟并刷新记录')
+        if row['status'] not in ('submission_unknown','partial','interrupted_acknowledged'):raise ValueError('该请求无需解除等待')
+        c.execute("UPDATE ai_calls SET status='interrupted_acknowledged',updated_at=? WHERE id=?",(time.time(),row['id']))
+    return {'preserved':True,'resubmitted':False,'possible_charge':True}
 
 def diagnostics(model):
     from urllib import request,error
@@ -33,14 +87,14 @@ def diagnostics(model):
     t=time.monotonic()
     try:
         req=request.Request(openlux._url('/v1/models'),headers={'Authorization':'Bearer '+key,'Accept':'application/json'},method='GET')
-        with request.urlopen(req,timeout=12) as r: raw=r.read(300000)
+        with request.urlopen(req,timeout=12,context=tls_context()) as r: raw=r.read(300000)
         obj=json.loads(raw);data=obj.get('data',[]) if isinstance(obj,dict) else []
         names=[str(x.get('id')) for x in data if isinstance(x,dict) and x.get('id')]
         return {'status':'reachable','model_listed':model in names if names else None,'count':len(names),'seconds':round(time.monotonic()-t,2),'paid_calls':0}
     except error.HTTPError as e:
         return {'status':'http_error','http_status':e.code,'message':'HTTP '+str(e.code),'paid_calls':0}
     except Exception as e:
-        return {'status':'connection_error','message':type(e).__name__,'seconds':round(time.monotonic()-t,2),'paid_calls':0}
+        return {'status':'connection_error','message':network_error_message(e),'seconds':round(time.monotonic()-t,2),'paid_calls':0}
 
 def send(payload):
     schema()

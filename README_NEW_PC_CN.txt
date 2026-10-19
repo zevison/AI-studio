@@ -24,3 +24,5 @@ Seedance Studio V5.2.0 完整安装包｜2026-10-19
 
 完整源码、官方依赖、浏览器与 Node 载荷在本包内。安装器统一处理运行环境；本包不是纯补丁，也不包含用户密钥、历史数据库或用户素材。
 详细版本和验收证据见 VERSION_REGISTER.json、docs/集成验收_20261019.md。遇到安装问题查看 install_logs；无需反复下载另一个补丁。
+
+本轮补充：FFmpeg/ffprobe 的官方校验 ZIP 已随包提供，缺失时优先离线安装；其余首次依赖仍可能需要网络。Hypit 使用方法见 docs/Hypit_使用说明.txt。

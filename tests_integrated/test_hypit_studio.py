@@ -35,6 +35,30 @@ def product(tmp_path, monkeypatch):
     return instance
 
 
+def test_chained_local_build_keeps_child_worker_registered(product,monkeypatch):
+    pid='hp_worker_fixture'
+    monkeypatch.setattr(product,'get',lambda _: {'id':pid,'metadata':{}})
+    advance=threading.Event();started=threading.Event();release=threading.Event()
+    def child():
+        started.set()
+        assert release.wait(3)
+    def parent():
+        assert advance.wait(3)
+        product._spawn(pid,'child',child)
+    product._spawn(pid,'parent',parent)
+    owner=product.threads[pid]
+    advance.set()
+    try:
+        assert started.wait(3)
+        owner.join(3)
+        assert not owner.is_alive()
+        next_worker=product.threads[pid]
+        assert next_worker is not owner and next_worker.is_alive()
+    finally:
+        release.set()
+        for worker in list(product.threads.values()):worker.join(3)
+
+
 def create(product):
     return product.create({'objective':'Keep first second', 'asset_ids':['asset_test']})
 
@@ -43,6 +67,25 @@ def test_material_fingerprint_binds_copy(product):
     row=create(product)
     copied=product.path(row['id'])/'assets/material-1.mp4'
     assert hashlib.sha256(copied.read_bytes()).hexdigest()==row['metadata']['inventory'][0]['sha256']
+
+
+def test_rechecking_unchanged_finished_project_preserves_completed_status(product,monkeypatch):
+    from core.hypit_production_gate import source_digest
+    row=create(product);pid=row['id'];source=product.path(pid)/'main.svml'
+    source.write_text('<svml/>')
+    class Tools:
+        def call(self,*args):
+            return {'ok':True,'document':{'providers':[{'use':'@hypit/media-local'}]}}
+    monkeypatch.setattr(product,'tools',lambda _:Tools())
+    monkeypatch.setattr(product,'generation_source_preflight',lambda _:{'ok':True})
+    output=config.OUTPUT_DIR/'finished.mp4';output.write_bytes(b'local rendered fixture')
+    product.update(pid,status='completed',metadata={'validation':{'source_hash':source_digest(product.path(pid))},
+        'result':{'local_path':str(output),'sha256':hashlib.sha256(output.read_bytes()).hexdigest()}})
+    assert product.validate(pid)['ok']
+    assert product.get(pid)['status']=='completed'
+    source.write_text('<svml><!-- changed --></svml>')
+    assert product.validate(pid)['ok']
+    assert product.get(pid)['status']=='ready'
 
 
 def test_paid_reference_preflight_requires_explicit_audio_semantics(product):

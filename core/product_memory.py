@@ -345,20 +345,22 @@ def _today_spend(c):
     bj=datetime.timezone(datetime.timedelta(hours=8))
     start=datetime.datetime.now(bj).replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
     # Use the same paid GPT daily cap as radar scripts, not two independent budgets.
-    s=c.execute('SELECT COALESCE(SUM(estimated_cost_usd),0) FROM radar_scripts WHERE created_at>=? AND status IN (\'running\',\'completed\',\'submission_unknown\')',(start,)).fetchone()[0]
-    p=c.execute('SELECT COALESCE(SUM(estimated_usd),0) FROM product_analysis_runs WHERE created_at>=? AND status IN (\'running\',\'completed\',\'submission_unknown\')',(start,)).fetchone()[0]
+    s=c.execute('SELECT COALESCE(SUM(estimated_cost_usd),0) FROM radar_scripts WHERE created_at>=? AND status IN (\'running\',\'completed\',\'needs_review\',\'submission_unknown\',\'reconciled_charged\')',(start,)).fetchone()[0]
+    p=c.execute('SELECT COALESCE(SUM(estimated_usd),0) FROM product_analysis_runs WHERE created_at>=? AND status IN (\'running\',\'completed\',\'parse_failed\',\'submission_unknown\',\'reconciled_charged\')',(start,)).fetchone()[0]
     return float(s or 0)+float(p or 0)
 
 def analyze(payload, *, async_mode=False):
     if payload.get('approve_paid') is not True:raise ValueError('请先确认本次付费分析')
     x=_plan(payload);estimated=x['estimate']; cap=float(payload.get('max_cost_usd') or 0)
-    if estimated is None or estimated<=0 or cap<=0 or estimated>cap:raise ValueError('报价未知或费用超限，拒绝提交')
+    import math
+    if estimated is None or not math.isfinite(estimated) or not math.isfinite(cap) or estimated<=0 or cap<=0 or estimated>cap:raise ValueError('报价未知或费用超限，拒绝提交')
     if not secrets_store.get('openlux_api_key'):raise ValueError('未配置 OpenLux 密钥')
     if payload.get('request_hash')!=x['request_hash'] or payload.get('state_hash')!=x['state_hash']:raise ValueError('商品资料或参数已变化，请重新预检费用')
     opts=hot_radar.options();limit=opts['daily_llm_usd_limit']
     with db.tx() as c:
+        c.execute('BEGIN IMMEDIATE')
         if not limit or _today_spend(c)+estimated>limit:raise ValueError('预计消耗超过每日 GPT 预算，已停止提交')
-        old=c.execute("SELECT id FROM product_analysis_runs WHERE product_id=? AND request_hash=? AND status IN ('running','completed','submission_unknown','reconciled_charged') LIMIT 1",(x['product_id'],x['request_hash'])).fetchone()
+        old=c.execute("SELECT id FROM product_analysis_runs WHERE product_id=? AND request_hash=? AND status IN ('running','completed','parse_failed','submission_unknown','reconciled_charged') LIMIT 1",(x['product_id'],x['request_hash'])).fetchone()
         if old:raise ValueError('相同商品资料已有完成或结果未知的付费任务，禁止重复提交')
         id='pa_'+uuid.uuid4().hex[:17];t=_now()
         c.execute('INSERT INTO product_analysis_runs(id,product_id,request_hash,model,status,estimated_usd,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',

@@ -16,3 +16,5 @@ install_logs/
 tools/node/node.exe
 tools/hypit_browser/
 tools/*-payload.zip
+installers/ffmpeg-*.zip
+installers/ffmpeg-*.7z

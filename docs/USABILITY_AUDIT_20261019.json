@@ -1,0 +1,136 @@
+{
+  "date": "2026-10-19",
+  "final_release_passed": false,
+  "paid_calls_this_revision": 0,
+  "regression": {
+    "python_passed": 267,
+    "python_skipped": 1,
+    "reason_for_skip": "Windows symbolic-link privilege scenario; not counted as passed"
+  },
+  "python_ast_files": 174,
+  "html_duplicate_ids": [],
+  "local_static_references_resolve": true,
+  "implemented": [
+    "Screenshot paste, file drag/drop, saved attachments with lazy previews and cross-turn context",
+    "Persistent SQLite chat, draft text, 200-message history paging, bounded attachment context",
+    "Explicit unknown-request acknowledgement; no paid replay; retain partial/completed replies after browser disconnect",
+    "Chat deletion preserves financial audit, concurrent request admission and request-id dedupe",
+    "High reasoning default, account-scoped model catalog cache, actual returned model distinguished from request",
+    "Hypit inline help and local guide; approved product script/evidence/assets linked to one official project",
+    "Automatic local build after successful authoring; new video generation still requires separate quote approval",
+    "Product matching and exact verified-claim gate; correct frame/output reserves; parse/review failures retain budget reservation",
+    "History only UI; removed unverified cost dashboard, unknown totals remain null",
+    "Slate background and DengXian/YaHei/SimHei fonts, readable chat width and attachment previews",
+    "Actual FFmpeg version execution check, trusted CA supplement, optional Cloudflare opt-in",
+    "Bundled publisher-checksummed FFmpeg ZIP installs and encodes without PATH/cache/tar/network",
+    "Studio-generated Vite cache excluded from pinned SDK archive; every non-cache SDK file byte unchanged",
+    "Opening Studio no longer resets completed status; unchanged validated export retains completion"
+  ],
+  "red_team": [
+    {
+      "risk": "Duplicate fees / concurrency / interrupted request",
+      "result": "Offline tests pass: one reservation for four concurrent submissions; POST transport cannot retry; unknown call needs acknowledgement; partial response retained; deletion retains audit"
+    },
+    {
+      "risk": "Hostile material / false product claims / trust weakening",
+      "result": "Offline tests pass: fake image rejected, Office archive expansion bounded, unverified product claim and unsuitable match rejected, TLS hostname and certificate verification remain enabled"
+    }
+  ],
+  "not_verified": [
+    "New browser UI, clipboard and drag/drop interaction: user enabled browser, but tool still reports disabled in Work settings after reset",
+    "Affected user PC and pristine Windows installation beyond the FFmpeg isolation test",
+    "New GPT image/document online conversations and full real-product TikTok-to-video campaign; no new paid tests"
+  ],
+  "remaining_product_limits": [
+    "OpenLux inference is cloud hosted; this is not offline model-weight deployment",
+    "TikTok acquisition, script, LLM authoring and new video each have explicit spending authorization; not unattended unlimited automation",
+    "Direct real-person face reference and verified voice cloning unsupported; other reference modes and extend experimental",
+    "Cannot certify all possible bugs absent or general advertising conversion/product fidelity"
+  ],
+  "code_baseline_commit": "69c77e6a6fb66ced23e9a071ffab835d98c4476f",
+  "verified_this_revision": {
+    "javascript_syntax": {
+      "date": "2026-10-19",
+      "passed": true,
+      "method": "Bundled Node.js --check, each nonzero exit fails the verification",
+      "files": [
+        "static/assistant_bright.js",
+        "static/creative_production.js",
+        "static/hypit_studio.js",
+        "static/history_center_v423.js",
+        "static/app.js",
+        "static/hot_radar.js"
+      ],
+      "paid_calls": 0,
+      "earlier_approval_service_failure_resolved": true
+    },
+    "installation_status": "COMPLETE",
+    "real_official_film_and_studio": {
+      "duration": 1.0,
+      "sha256": "00fcf2307ed490934197ae8310f5e409aa2d14cf4d9a68cbfd9bdfdd7ccb851c",
+      "completed_status_preserved_after_studio": true,
+      "paid_calls": 0
+    },
+    "real_installed_chat_storage": {
+      "passed": true,
+      "installed_root": "C:\\Users\\Administrator\\Documents\\Codex\\SeedanceUsabilityInstallTest\\SeedanceStudio_5.2.0_Full",
+      "real_png_validation": true,
+      "docx_paragraph_and_table_extraction": true,
+      "local_sqlite_persistence": true,
+      "http_lazy_attachment_retrieval": true,
+      "repeated_history_read_identical": true,
+      "cross_origin_chat_write_rejected": true,
+      "no_consent_sse_rejected_before_submission": true,
+      "test_conversation_removed": true,
+      "paid_calls": 0,
+      "clipboard_browser_interaction_tested": false
+    },
+    "fresh_offline_ffmpeg": {
+      "passed": true,
+      "no_preinstalled_binaries": true,
+      "no_system_path_tools": true,
+      "tar_not_used": true,
+      "network_download_calls": 0,
+      "real_bundled_zip_installed": true,
+      "real_h264_encoding_and_probe": true,
+      "duration": 0.25,
+      "width": 64,
+      "paid_calls": 0
+    },
+    "sdk_cache_packaging_repair": {
+      "passed": true,
+      "old_sdk_sha256": "05d3efdfd801afe36e286bb111ea47a3091bdfb0c33387c052422a85c6beb470",
+      "new_sdk": {
+        "file": "sdk-payload.zip",
+        "sha256": "8f09c490efc61594d3835efdc4a6545e741f3c81e30bde5fe9556383fbd86dcb",
+        "bytes": 45221324
+      },
+      "all_non_cache_file_hashes_unchanged": true,
+      "removed_generated_cache_files": [
+        "node_modules/@hypit/studio/node_modules/.vite/deps/@hypit_hypit_recipe.js",
+        "node_modules/@hypit/studio/node_modules/.vite/deps/@hypit_hypit_recipe.js.map",
+        "node_modules/@hypit/studio/node_modules/.vite/deps/_metadata.json",
+        "node_modules/@hypit/studio/node_modules/.vite/deps/package.json"
+      ],
+      "original_runtime_preserved": true,
+      "integrity_checks_not_disabled": true,
+      "paid_calls": 0
+    },
+    "sdk_reuse_after_real_studio": {
+      "passed": true,
+      "result": {
+        "sdk": "reused",
+        "browser": "reused"
+      },
+      "sdk_sha256": "8f09c490efc61594d3835efdc4a6545e741f3c81e30bde5fe9556383fbd86dcb",
+      "verified_code_files": 4844,
+      "generated_vite_cache_present": true,
+      "generated_cache_not_in_pinned_code_manifest": true,
+      "old_project_and_output_preserved": true,
+      "new_sdk_real_film_and_studio_passed": true,
+      "paid_calls": 0
+    },
+    "payload_builder_reproduces_sdk_sha256": true
+  },
+  "source_provenance": "See delivery source commit receipt; this report preserves the prior code baseline separately."
+}
