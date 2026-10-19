@@ -1,6 +1,6 @@
 {
   "date": "2026-10-19",
-  "final_release_passed": false,
+  "final_release_passed": true,
   "paid_calls_this_revision": 0,
   "regression": {
     "python_passed": 267,
@@ -24,7 +24,10 @@
     "Actual FFmpeg version execution check, trusted CA supplement, optional Cloudflare opt-in",
     "Bundled publisher-checksummed FFmpeg ZIP installs and encodes without PATH/cache/tar/network",
     "Studio-generated Vite cache excluded from pinned SDK archive; every non-cache SDK file byte unchanged",
-    "Opening Studio no longer resets completed status; unchanged validated export retains completion"
+    "Opening Studio no longer resets completed status; unchanged validated export retains completion",
+    "Paste all supported clipboard files instead of images only",
+    "Preserve ordinary text paste; report unreadable clipboard file data",
+    "Prevent mobile sidebar buttons from squeezing chat history to zero height"
   ],
   "red_team": [
     {
@@ -34,10 +37,21 @@
     {
       "risk": "Hostile material / false product claims / trust weakening",
       "result": "Offline tests pass: fake image rejected, Office archive expansion bounded, unverified product claim and unsuitable match rejected, TLS hostname and certificate verification remain enabled"
+    },
+    {
+      "risk": "Attachment leaks between chats or a stale asynchronous file read",
+      "result": "Logic tests passed; real browser new-chat attachment isolation passed"
+    },
+    {
+      "risk": "Unknown paid request is resubmitted by recovery action",
+      "result": "Synthetic browser recovery retained one call and two messages; status acknowledged; no provider submission"
+    },
+    {
+      "risk": "Mobile navigation looks present but history is unclickable",
+      "result": "Reproduced zero-height history, fixed flex sizing, real browser click and131.28px height passed"
     }
   ],
   "not_verified": [
-    "New browser UI, clipboard and drag/drop interaction: user enabled browser, but tool still reports disabled in Work settings after reset",
     "Affected user PC and pristine Windows installation beyond the FFmpeg isolation test",
     "New GPT image/document online conversations and full real-product TikTok-to-video campaign; no new paid tests"
   ],
@@ -130,7 +144,13 @@
       "new_sdk_real_film_and_studio_passed": true,
       "paid_calls": 0
     },
-    "payload_builder_reproduces_sdk_sha256": true
+    "payload_builder_reproduces_sdk_sha256": true,
+    "browser_ui": {
+      "passed": true,
+      "report": "BROWSER_UI_ACCEPTANCE_20261019.json",
+      "frontend_logic_tests_passed": 11,
+      "paid_calls": 0
+    }
   },
   "source_provenance": "See delivery source commit receipt; this report preserves the prior code baseline separately."
 }

@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-19",
+  "paid_calls": 0,
+  "frontend_logic_tests_passed": 11,
+  "chat_backend_regression_passed": 9,
+  "javascript_syntax_passed": true,
+  "real_browser_acceptance_passed": true,
+  "fixes": [
+    "Single admission before asynchronous first-send preparation",
+    "Single concurrent conversation creation",
+    "Stale history response isolation",
+    "Clear pending attachments when switching existing chats",
+    "Reject file reads completed after a chat switch",
+    "Storage-denial isolation and UI lock recovery",
+    "Paste all supported clipboard files instead of images only",
+    "Preserve ordinary text paste; report unreadable clipboard file data",
+    "Prevent mobile sidebar buttons from squeezing chat history to zero height"
+  ],
+  "red_team": [
+    {
+      "risk": "Rapid double-clicks causing extra conversation/request preparation",
+      "result": "Injected asynchronous delays; one admission and one new conversation"
+    },
+    {
+      "risk": "Private attachment leaking to a different conversation",
+      "result": "Delayed file read and reversed history responses isolated; no attachment crossed chats"
+    }
+  ],
+  "permission_diagnosis": "Resolved through account Work preference localBrowserUse. Actual browser navigation and reviewed workflows now passed.",
+  "installed_static_http_hashes_match_source": true,
+  "browser_report": "BROWSER_UI_ACCEPTANCE_20261019.json"
+}

@@ -34,3 +34,6 @@ body #page-assistant .gpt-composer{background:#1b2634;border-color:#405066}
 .usage-help li{margin:10px 0}
 .page table{display:block;max-width:100%;overflow-x:auto}
 @media(max-width:850px){body #page-assistant .gpt-heading{flex-direction:column}body #page-assistant .gpt-model-area{width:100%;justify-content:start}body #page-assistant .gpt-bubble{max-width:96%;padding:14px}body #page-assistant .gpt-messages{padding:16px 8px}.gpt-actions{flex-wrap:wrap}}
+/* Sidebar action buttons must not squeeze the history list to zero height. */
+#page-assistant .gpt-conversations .gpt-history-row{flex-shrink:0}
+@media(max-width:700px){body #page-assistant .gpt-side{max-height:none;flex:none}body #page-assistant .gpt-conversations{flex:0 0 auto;min-height:44px;max-height:140px}}

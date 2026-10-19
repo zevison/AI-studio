@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-19",
+  "browser_access_restored": true,
+  "permission_control": "Settings > Configuration > Work > Local browser use > On",
+  "paid_calls": 0,
+  "uploads_to_external_services": 0,
+  "automated_real_browser_passed": [
+    "Screenshot clipboard paste displays PNG preview",
+    "File chooser displays synthetic TXT attachment",
+    "New conversation clears attachments from previous conversation",
+    "Draft survives conversation switch and browser reload",
+    "Persisted synthetic PNG and TXT reopen from SQLite history",
+    "Unknown synthetic request acknowledged without creating another call or message",
+    "Hypit guide expands and empty-material save is rejected",
+    "Product, radar, creative-production and local-history pages render",
+    "390px chat history has height131.28px and responds to click after CSS fix",
+    "390px/800px/1280px selected pages have no page horizontal overflow",
+    "Hypit checkboxes render17x17px and legacy replica menu is absent",
+    "Three existing1s local exports have readyState4 and no video decode errors",
+    "No console warnings or errors captured during reviewed flows"
+  ],
+  "user_confirmed_real_browser_passed": [
+    "Image dragged into input shows attachment",
+    "Windows Explorer copied TXT pasted with Ctrl+V shows attachment after fix"
+  ],
+  "new_fixes": [
+    "Paste all supported clipboard files instead of images only",
+    "Preserve ordinary text paste; report unreadable clipboard file data",
+    "Prevent mobile sidebar buttons from squeezing chat history to zero height"
+  ],
+  "tests": {
+    "python_passed": 267,
+    "python_skipped": 1,
+    "frontend_logic_passed": 11,
+    "sdk_typescript_previous_baseline_passed": 40,
+    "sdk_code_changed": false
+  },
+  "red_team": [
+    {
+      "risk": "Attachment leaks between chats or a stale asynchronous file read",
+      "result": "Logic tests passed; real browser new-chat attachment isolation passed"
+    },
+    {
+      "risk": "Unknown paid request is resubmitted by recovery action",
+      "result": "Synthetic browser recovery retained one call and two messages; status acknowledged; no provider submission"
+    },
+    {
+      "risk": "Mobile navigation looks present but history is unclickable",
+      "result": "Reproduced zero-height history, fixed flex sizing, real browser click and131.28px height passed"
+    }
+  ],
+  "screenshots": [
+    "ui-chat-recovery-accepted.png",
+    "ui-hypit-accepted.png",
+    "ui-mobile-history-accepted.png"
+  ],
+  "limitations": [
+    "No new online GPT generation or full real-product TikTok-to-video campaign in this revision",
+    "Pristine Windows installation not verified; previous isolated install reused Python/Tesseract",
+    "Direct real-face reference and verified voice cloning unsupported; extend/mixed-reference experimental",
+    "Cloud inference through OpenLux, not offline model weights",
+    "No claim that all possible bugs are absent; paid stages retain explicit authorization gates"
+  ]
+}
