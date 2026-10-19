@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Seedance Studio V5.0.0 - Setup
+title Seedance Studio V5.2.0 - Setup
 rem One-click Windows setup with verified progress steps
 color 0B
 setlocal EnableExtensions
@@ -17,7 +17,7 @@ if not exist "tools\install_new_pc.ps1" (
 )
 echo.
 echo  ==============================================================
-echo   SEEDANCE STUDIO  ^|  V5.0.0  ^|  FIRST-TIME INSTALL
+echo   SEEDANCE STUDIO  ^|  V5.2.0  ^|  FIRST-TIME INSTALL
  echo   Complete application + voice binding + video workflow
  echo  ==============================================================
 echo.

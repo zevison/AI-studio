@@ -114,4 +114,4 @@ def test_new_pc_install_single_files_progress_labels_and_no_keys():
 
 def test_new_version_in_all_primary_sources():
     for relative in ('core/config.py','static/index.html','tools/bootstrap_install.py'):
-        assert '5.0.0' in (ROOT/relative).read_text('utf-8')
+        assert '5.2.0' in (ROOT/relative).read_text('utf-8')

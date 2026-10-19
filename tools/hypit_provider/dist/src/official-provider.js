@@ -14,6 +14,7 @@ export class OperationLedger {
         this.withDb(db => db.exec(`CREATE TABLE IF NOT EXISTS operations (
       operation TEXT PRIMARY KEY, fingerprint TEXT NOT NULL UNIQUE, state TEXT NOT NULL,
       remote TEXT, created REAL NOT NULL)`));
+        this.withDb(db => db.exec('CREATE TABLE IF NOT EXISTS operation_aliases (alias TEXT PRIMARY KEY, original TEXT NOT NULL)'));
     }
     withDb(fn) {
         const db = new DatabaseSync(this.path);
@@ -26,8 +27,19 @@ export class OperationLedger {
         }
     }
     read(operation) {
-        return this.withDb(db => db.prepare('SELECT fingerprint,state,remote,created FROM operations WHERE operation=?')
-            .get(operation));
+        return this.withDb(db => db.prepare(`SELECT fingerprint,state,remote,created FROM operations
+      WHERE operation=COALESCE((SELECT original FROM operation_aliases WHERE alias=?),?)`)
+            .get(operation, operation));
+    }
+    resumeKnown(operation, fingerprint) {
+        return this.withDb(db => {
+            const row = db.prepare("SELECT operation,fingerprint,state,remote,created FROM operations WHERE fingerprint=? AND remote IS NOT NULL AND state IN ('pending','ready','collected')")
+                .get(fingerprint);
+            if (!row)
+                return undefined;
+            db.prepare('INSERT OR IGNORE INTO operation_aliases VALUES(?,?)').run(operation, row.operation);
+            return row;
+        });
     }
     reserve(operation, fingerprint, now) {
         // Commit BEFORE remote I/O. A crash at any later point must never imply permission to resubmit.
@@ -35,7 +47,8 @@ export class OperationLedger {
             .run(operation, fingerprint, 'submitting', now));
     }
     update(operation, state, remote) {
-        this.withDb(db => db.prepare('UPDATE operations SET state=?,remote=? WHERE operation=?').run(state, remote, operation));
+        this.withDb(db => db.prepare(`UPDATE operations SET state=?,remote=?
+      WHERE operation=COALESCE((SELECT original FROM operation_aliases WHERE alias=?),?)`).run(state, remote, operation, operation));
     }
     close() { }
 }
@@ -50,7 +63,7 @@ function id(value) {
     return value;
 }
 /** Only verified scalar mapping is currently supported; unsupported media is refused before I/O. */
-export function officialPayload(request) {
+export function officialPayload(request, references, taskType = 'reference') {
     if (request.capability.module.name !== model.capability.module.name ||
         request.capability.module.version !== model.capability.module.version ||
         request.capability.name !== model.capability.name ||
@@ -62,19 +75,21 @@ export function officialPayload(request) {
         throw new Error('Media/unfinished inputs require a verified account mapping');
     model.validateRequest(request.constraints);
     const ports = record(record(request.constraints).ports);
-    const allowed = new Set(['prompt', 'duration', 'resolution', 'aspectRatio', 'generateAudio', 'webSearch']);
+    const allowed = new Set(['prompt', 'duration', 'resolution', 'aspectRatio', 'generateAudio', 'webSearch',
+        ...(references ? ['referenceImage', 'referenceVideo', 'referenceAudio'] : [])]);
     if (Object.keys(ports).some(key => !allowed.has(key)))
         throw new Error('Media/edit/extend/motion mapping unverified');
     const first = (key) => ports[key][0];
     if (first('webSearch') !== false)
         throw new Error('OpenLux web search mapping unverified');
     const prompt = first('prompt');
-    return buildOpenLuxVideoPayload({ prompt, taskType: 'text', references: [],
+    return buildOpenLuxVideoPayload({ prompt, taskType: references?.length ? taskType : 'text', references: references ?? [],
         duration: first('duration'), ratio: first('aspectRatio'), resolution: first('resolution'),
-        generateAudio: first('generateAudio') });
+        generateAudio: first('generateAudio') }, Boolean(references));
 }
 export function createOfficialProvider(options) {
     const clock = options.clock ?? Date.now;
+    const activationTime = clock();
     const timeout = options.timeoutMs ?? 30 * 60_000;
     const actionTimeout = options.actionTimeoutMs ?? 120_000;
     if (!Number.isSafeInteger(timeout) || timeout < 1000 || timeout > 3600_000)
@@ -95,7 +110,29 @@ export function createOfficialProvider(options) {
     }
     const support = (request) => {
         try {
-            officialPayload(request);
+            if (options.allowReferences && options.backend?.resolveReference) {
+                // Draft inputs are real future artifact edges, never fabricated URLs.
+                // The complete exact model validation runs again at execution.
+                if (request.capability.name !== model.capability.name || request.capability.module.name !== model.capability.module.name
+                    || request.capability.module.version !== model.capability.module.version
+                    || request.returns.name !== model.returns.name || request.returns.module.name !== model.returns.module.name
+                    || request.returns.module.version !== model.returns.module.version)
+                    throw new Error('Exact model mismatch');
+                model.validateDraft(request.constraints);
+                const ports = record(record(request.constraints).ports);
+                const allowed = new Set(['prompt', 'duration', 'resolution', 'aspectRatio', 'generateAudio', 'webSearch',
+                    'referenceImage', 'referenceVideo', 'referenceAudio']);
+                if (Object.keys(ports).some(k => !allowed.has(k)) || ports.webSearch?.[0] !== false)
+                    throw new Error('Unsupported reference mapping');
+                for (const port of ['referenceImage', 'referenceVideo']) {
+                    for (const item of (ports[port] ?? [])) {
+                        if (record(record(item).fields).personReference !== false)
+                            throw new Error('Person-reference permission unverified');
+                    }
+                }
+            }
+            else
+                officialPayload(request);
             if (!options.backend)
                 return { status: 'unsupported', reason: 'OpenLux account protocol and spending authority unverified' };
             return { status: 'supported' };
@@ -104,6 +141,44 @@ export function createOfficialProvider(options) {
             return { status: 'unsupported', reason: 'Exact OpenLux request/asset mapping is unsupported or unverified' };
         }
     };
+    async function payloadFor(request, resources) {
+        const ports = record(record(request.constraints).ports);
+        const mappings = [['referenceImage', 'reference_image'], ['referenceVideo', 'reference_video'], ['referenceAudio', 'reference_audio']];
+        if (!mappings.some(([port]) => port in ports))
+            return officialPayload(request);
+        if (!options.allowReferences || !options.backend?.resolveReference)
+            throw new Error('Reference mapping is disabled');
+        model.validateRequest(request.constraints);
+        const references = [];
+        let totalBytes = 0;
+        const hashes = new Map();
+        for (const [port, role] of mappings) {
+            for (const raw of (ports[port] ?? [])) {
+                const item = record(raw), artifact = record(item.artifact), fields = item.fields === undefined ? {} : record(item.fields);
+                const visual = role !== 'reference_audio';
+                if (visual && fields.personReference !== false)
+                    throw new Error('Person-reference transport and permission unverified');
+                if (Object.keys(fields).some(k => k !== 'personReference') || (!visual && Object.keys(fields).length))
+                    throw new Error('Unsupported reference fields');
+                if (typeof artifact.resource !== 'string' || !artifact.resource.startsWith('res_') || typeof artifact.size !== 'number' || artifact.size > 400 * 1024 * 1024)
+                    throw new Error('Invalid reference artifact');
+                let sha256 = hashes.get(artifact.resource);
+                if (!sha256) {
+                    totalBytes += artifact.size;
+                    if (totalBytes > 1024 * 1024 * 1024)
+                        throw new Error('Reference artifacts exceed bounded project size');
+                    const bytes = await resources.get(artifact.resource);
+                    if (!bytes || bytes.length !== artifact.size || bytes.length > 400 * 1024 * 1024)
+                        throw new Error('Reference artifact bytes mismatch');
+                    sha256 = createHash('sha256').update(bytes).digest('hex');
+                    hashes.set(artifact.resource, sha256);
+                }
+                const url = await options.backend.resolveReference({ sha256, role, ...(visual ? { personReference: false } : {}) });
+                references.push({ url, role, ...(visual ? { personReference: false } : {}) });
+            }
+        }
+        return officialPayload(request, references, options.taskType);
+    }
     const failure = (code) => ({ status: 'failed', failure: { code, message: code } });
     const persisted = (operation, handle) => {
         const h = record(handle), row = options.ledger.read(operation);
@@ -113,12 +188,12 @@ export function createOfficialProvider(options) {
     };
     const endpoint = {
         async start(context) {
-            const payload = officialPayload(context.need);
+            const payload = await payloadFor(context.need, context.resources);
             if (!options.backend)
                 return failure('ACCOUNT_PROTOCOL_AND_SPEND_UNVERIFIED');
             const operation = id(context.operation);
             const fingerprint = requestFingerprint(options.account, payload);
-            const existing = options.ledger.read(operation);
+            const existing = options.ledger.read(operation) ?? (options.resumeKnownTask ? options.ledger.resumeKnown(operation, fingerprint) : undefined);
             if (existing) {
                 if (existing.fingerprint !== fingerprint)
                     return failure('OPERATION_REQUEST_CHANGED');
@@ -152,7 +227,7 @@ export function createOfficialProvider(options) {
             const row = persisted(context.operation, context.handle);
             if (!options.backend)
                 return failure('BACKEND_UNAVAILABLE');
-            if (clock() - row.created >= timeout)
+            if (clock() - (options.resumeKnownTask ? Math.max(row.created, activationTime) : row.created) >= timeout)
                 return failure('LOCAL_TIMEOUT_REMOTE_MAY_CONTINUE');
             if (row.state === 'failed')
                 return failure('REMOTE_TASK_FAILED');
@@ -165,8 +240,10 @@ export function createOfficialProvider(options) {
             catch {
                 return failure('POLL_FAILED_RECONCILE_REQUIRED');
             }
-            if (response.state === 'pending')
-                return wakeAfter(context.handle, 1000, clock(), { phase: 'pending' });
+            if (response.state === 'pending') {
+                const delay = Math.min(15_000, 2_000 + Math.floor(Math.max(0, clock() - row.created) / 60_000) * 2000);
+                return wakeAfter(context.handle, delay, clock(), { phase: 'pending' });
+            }
             if (response.state === 'failed') {
                 options.ledger.update(context.operation, 'failed', row.remote);
                 return failure('REMOTE_TASK_FAILED');

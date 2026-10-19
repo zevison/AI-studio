@@ -7,6 +7,8 @@ A reused legacy venv remains owned by its original installation directory.
 from __future__ import annotations
 
 import os
+import hashlib
+import json
 import shutil
 import subprocess
 import sys
@@ -14,7 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STORE = Path(os.environ.get('LOCALAPPDATA') or (Path.home() / '.cache')) / 'SeedanceStudio'
-SHARED = STORE / 'runtime' / f'py{sys.version_info.major}{sys.version_info.minor}'
+RUNTIME_FAMILY='hypit-'+hashlib.sha256((ROOT/'tools/analysis_constraints.txt').read_bytes()).hexdigest()[:12]
+SHARED = STORE / 'runtime' / f'py{sys.version_info.major}{sys.version_info.minor}_{RUNTIME_FAMILY}'
 ASSETS = STORE / 'assets'
 
 
@@ -38,6 +41,15 @@ def supported(venv: Path) -> bool:
     return runtime_version(venv) == f'{sys.version_info.major}.{sys.version_info.minor}'
 
 
+def same_family(venv: Path) -> bool:
+    try:return json.loads((venv/'seedance-runtime-family.json').read_text()).get('family')==RUNTIME_FAMILY
+    except (OSError,ValueError,AttributeError):return False
+
+
+def mark_family(venv: Path):
+    (venv/'seedance-runtime-family.json').write_text(json.dumps({'family':RUNTIME_FAMILY}),encoding='utf8')
+
+
 def sibling_roots() -> list[Path]:
     """Only immediately adjacent past Seedance Studio releases; newest first."""
     try:
@@ -51,7 +63,7 @@ def sibling_roots() -> list[Path]:
 def previous_venv() -> Path | None:
     for sibling in sibling_roots():
         candidate = sibling / '.venv'
-        if supported(candidate):
+        if supported(candidate) and same_family(candidate):
             return candidate
     return None
 

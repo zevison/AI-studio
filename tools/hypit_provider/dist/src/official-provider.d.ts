@@ -1,4 +1,5 @@
 import type { EndpointRequest } from '@hypit/hypit/endpoint';
+import type { Reference, ReferenceRole } from './openlux-contract.js';
 export declare const providerName = "@seedance-studio/openlux-provider";
 export type PollResult = {
     state: 'pending' | 'ready' | 'failed';
@@ -9,6 +10,11 @@ export interface BackendPort {
     submit(payload: Record<string, unknown>, identity: string): Promise<string>;
     poll(id: string): Promise<PollResult>;
     collect(id: string): Promise<Uint8Array>;
+    resolveReference?(reference: {
+        sha256: string;
+        role: ReferenceRole;
+        personReference?: boolean;
+    }): Promise<string>;
 }
 type Row = {
     fingerprint: string;
@@ -21,12 +27,13 @@ export declare class OperationLedger {
     constructor(path: string);
     private withDb;
     read(operation: string): Row | undefined;
+    resumeKnown(operation: string, fingerprint: string): Row | undefined;
     reserve(operation: string, fingerprint: string, now: number): void;
     update(operation: string, state: string, remote: string | null): void;
     close(): void;
 }
 /** Only verified scalar mapping is currently supported; unsupported media is refused before I/O. */
-export declare function officialPayload(request: EndpointRequest): Record<string, unknown>;
+export declare function officialPayload(request: EndpointRequest, references?: Reference[], taskType?: 'reference' | 'edit' | 'extend'): Record<string, unknown>;
 export declare function createOfficialProvider(options: {
     instance: string;
     pool: string;
@@ -36,5 +43,8 @@ export declare function createOfficialProvider(options: {
     clock?: () => number;
     timeoutMs?: number;
     actionTimeoutMs?: number;
+    resumeKnownTask?: boolean;
+    allowReferences?: boolean;
+    taskType?: 'reference' | 'edit' | 'extend';
 }): import("@hypit/hypit/endpoint").EndpointInstance;
 export {};

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import importlib.util, json, os, shutil, subprocess, sys, threading, time
 from pathlib import Path
-from . import config, media, db
+from . import config, media, db, pose_runtime
 from .tesseract_support import check_tesseract
 
 _LOCK=threading.RLock();_JOB={'running':False,'started_at':None,'finished_at':None,'exit_code':None,'log_tail':'','error':None}
@@ -47,7 +47,9 @@ def report():
     add('faster_whisper','Faster-Whisper（高速语音识别）','recommended',_mod('faster_whisper'),'已安装' if _mod('faster_whisper') else '未安装')
     add('whisperx','WhisperX（精确语音对齐）','recommended',bool(wx) or _mod('whisperx'),str(wx or ('Python 模块已安装' if _mod('whisperx') else '未安装')))
     add('tesseract','Tesseract OCR（画面文字识别）','recommended',bool(tess),str(tess or '未安装'))
-    add('mediapipe','MediaPipe（人体/手部姿态）','recommended',_mod('mediapipe'),'已安装' if _mod('mediapipe') else '未安装')
+    pose_ok=pose_runtime.available() or _mod('mediapipe')
+    add('mediapipe','MediaPipe（人体/手部姿态）','recommended',pose_ok,
+        '隔离姿态运行环境已验证' if pose_runtime.available() else ('已安装' if pose_ok else '未安装'))
     yolo_model=config.ROOT/'tools'/'models'/'yolo11n.pt';yolo_ok=_mod('ultralytics') and yolo_model.exists() and yolo_model.stat().st_size>1_000_000
     add('ultralytics','YOLO + ByteTrack（目标检测/追踪）','recommended',yolo_ok,(f'已安装 · {yolo_model}' if yolo_ok else ('Ultralytics 已安装，但本地 yolo11n.pt 模型缺失' if _mod('ultralytics') else '未安装')))
     try:

@@ -37,6 +37,7 @@ def module_ok(name):
 def install_pip(specs, *, no_deps=False):
     # Never reinstall an existing native library merely to satisfy an optional feature.
     flags=['--no-deps'] if no_deps else []
+    flags += ['--constraint',str(ROOT/'tools/analysis_constraints.txt')]
     return run([sys.executable,'-m','pip','install','--disable-pip-version-check',
                 '--prefer-binary','--only-binary=:all:',*flags,*specs])
 
@@ -66,8 +67,13 @@ def studio_is_running():
     return False
 
 
-def install_missing_dependencies(dist_name):
-    """Install only absent dependencies; never replace imported OpenCV binaries."""
+def install_missing_dependencies(dist_name, _seen=None):
+    """Resolve missing transitive packages without replacing managed OpenCV."""
+    _seen=set() if _seen is None else _seen
+    canonical=dist_name.lower().replace('_','-')
+    if canonical in _seen: return True
+    if len(_seen)>=200:raise RuntimeError('Analysis dependency graph exceeds bounded size')
+    _seen.add(canonical)
     try:
         from pip._vendor.packaging.requirements import Requirement
         requirements=importlib.metadata.requires(dist_name) or []
@@ -84,12 +90,15 @@ def install_missing_dependencies(dist_name):
                 if req.specifier and installed not in req.specifier:
                     print(f'[WARN] {req.name}={installed} 不满足 {req.specifier}；本次不覆盖升级。')
                     good=False
+                if not install_missing_dependencies(req.name,_seen):good=False
                 continue
             except importlib.metadata.PackageNotFoundError:
                 pass
             if not install_pip([str(req)],no_deps=True):
                 good=False
                 print(f'[WARN] 缺少可选依赖 {req.name}，已保留原环境。')
+            elif not install_missing_dependencies(req.name,_seen):
+                good=False
         return good
     except Exception as exc:
         print('[WARN] 检查依赖失败:',exc)
@@ -97,37 +106,10 @@ def install_missing_dependencies(dist_name):
 
 
 def install_mediapipe_safely():
-    """Keep the existing cv2 installation untouched.
-
-    MediaPipe depends on opencv-contrib-python; normal pip resolution tries to
-    uninstall / replace cv2.pyd, which is often locked on Windows. The Studio
-    uses only cv2's basic frame/color APIs, so retaining a working OpenCV
-    distribution is safer than installing competing OpenCV wheel variants.
-    """
-    if module_ok('mediapipe'):
-        print('[OK] MediaPipe 已可导入；不重复安装。');return True
-    if not module_ok('cv2'):
-        print('[WARN] OpenCV 尚不可用，跳过 MediaPipe。');return False
-    # Legacy pose/hands path requires mp.solutions. Available recent Windows
-    # MediaPipe wheels can omit that API; do not install incompatible packages.
-    if sys.version_info >= (3, 12):
-        print('[INFO] 当前 Python 3.12+ 未验证适用于 mp.solutions 的 MediaPipe 旧版轮子；已跳过可选安装，保留 OpenCV。')
-        print('[INFO] 此组件不会阻止正常视频生成；姿态增强将使用已有兼容组件或降级。')
-        return False
-    print('[INFO] 准备 MediaPipe（隔离 OpenCV 依赖，避免修改 cv2.pyd）...')
-    if not install_pip(['mediapipe>=0.10.21,<0.10.30'],no_deps=True):
-        print('[WARN] MediaPipe 当前没有兼容的预编译安装包；已保留 OpenCV。')
-        return False
-    if not install_missing_dependencies('mediapipe'):
-        print('[WARN] MediaPipe 存在未安装的辅助依赖；视频生成可继续使用。')
-    # Verify in a new subprocess, not the current process's cached imports.
-    if not run([sys.executable,'-c','import mediapipe as mp; import cv2; '
-                'assert hasattr(mp,"solutions"), "MediaPipe legacy solutions API unavailable"; '
-                'print("MediaPipe and OpenCV verified")'],timeout=45):
-        print('[WARN] MediaPipe 未通过运行验证；姿态分析会自动降级，视频生成不受影响。')
-        return False
-    print('[OK] MediaPipe 已通过导入验证，OpenCV 原文件未被覆盖。')
-    return True
+    # MediaPipe has its own OpenCV/NumPy dependency graph. It runs in a
+    # separate environment instead of overwriting the application's cv2 DLL.
+    print('[INFO] Installing/verifying isolated MediaPipe Tasks runtime ...')
+    return run([sys.executable, TOOLS/'install_pose_runtime.py'])
 
 
 def _validate_ffmpeg_binary(path: Path) -> None:
@@ -292,7 +274,7 @@ def main():
     else:print('[INFO] 非 Windows 环境：保留现有 FFmpeg/FFprobe。')
 
     groups=[
-        ('OpenCV（计算机视觉）',['opencv-python-headless>=4.10'], 'cv2'),
+        ('OpenCV（计算机视觉）',['opencv-python==5.0.0.93'], 'cv2'),
         ('PySceneDetect（镜头检测）',['scenedetect>=0.6.5,<0.7'], 'scenedetect'),
         ('Faster-Whisper（高速语音识别）',['faster-whisper>=1.1'], 'faster_whisper'),
     ]
@@ -307,7 +289,7 @@ def main():
             ok=False
         if not module_ok('ultralytics'):
             print('[INFO] 正在安装 YOLO / ByteTrack 主程序（保留已有 OpenCV）。')
-            if not install_pip(['ultralytics>=8.3'], no_deps=True):
+            if not install_pip(['ultralytics==8.4.178']):
                 print('[WARN] YOLO 组件安装失败，视觉追踪将自动降级。')
                 ok=False
             elif not install_missing_dependencies('ultralytics'):

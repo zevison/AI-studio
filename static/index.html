@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Seedance Studio V5.0.0｜本地视频工作台</title>
+  <title>Seedance Studio V5.2.0｜本地视频工作台</title>
   <link rel="stylesheet" href="/static/style.css?v=4.2.8.8" />
   <link rel="stylesheet" href="/static/hot_radar.css?v=3.9.8.9" />
   <link rel="stylesheet" href="/static/product_memory.css?v=3.9.8.21" />
@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/static/v42_ui.css?v=4.2.0" />
   <link rel="stylesheet" href="/static/v421_header_nav.css?v=4.2.1" />
   <link rel="stylesheet" href="/static/v422_header_center.css?v=4.2.2" />
+  <link rel="stylesheet" href="/static/hypit_studio.css?v=20261019" />
 </head>
 <body>
 <div class="app-shell">
@@ -21,7 +22,7 @@
     <div class="brand"><div class="logo">S</div><div><b>Seedance Studio</b><span>本地视频工作台</span></div></div>
     <nav>
       <button class="nav active" data-page="video">🎬 视频创作</button>
-      <button class="nav" data-page="replica">🧩 爆款复刻</button>
+      <button class="nav" data-page="hypit">🎞️ AI 视频制作 · Hypit</button>
       <button class="nav" data-page="image">🖼️ 图片生成</button>
       <button class="nav" data-page="assistant">✨ GPT 对话</button>
       <button class="nav" data-page="products">📦 商品知识中心</button>
@@ -56,6 +57,42 @@
 
 
 
+    <section class="page" id="page-hypit">
+      <div class="hypit-shell">
+        <div class="hypit-heading"><div><span class="hypit-eyebrow">由官方 Hypit 驱动</span>
+          <h2>AI 视频制作</h2><p>选好素材，说明你想怎么改。AI 先编排，确认视频费用后再生成。</p></div>
+          <button class="secondary" id="hypitRefresh" type="button">刷新任务</button></div>
+        <div id="hypitHealth" class="hypit-health" role="status">正在检查制作环境…</div>
+        <div class="hypit-form-grid">
+        <section class="hypit-step"><h3><span>1</span> 添加素材</h3>
+          <p class="hypit-help">至少选择一个参考视频，也可以添加商品图片和音频。上传到本地不会生成视频。</p>
+          <label class="hypit-upload">＋ 上传视频、图片或音频<input id="hypitUpload" type="file" multiple accept="video/*,image/*,audio/*"></label>
+          <div id="hypitAssets" class="hypit-assets"></div>
+        <label id="hypitAudioOptions" class="hidden hypit-field">音频使用方式
+          <select id="hypitAudioMode"><option value="reference_voice">仅参考音色，不复制原内容</option>
+            <option value="uploaded_content">使用上传音频内容并保持音色</option></select></label>
+        </section>
+        <section class="hypit-step"><h3><span>2</span> 说明制作要求</h3>
+          <label class="hypit-field" for="hypitObjective">你想做成什么样？</label>
+          <textarea id="hypitObjective" rows="5" maxlength="6000" placeholder="例如：保留杯子的外观，把背景改成蓝色，镜头缓慢推进，保留 4 秒，不要原声。"></textarea>
+          <label class="hypit-check"><input id="hypitAllowGenerationPlan" type="checkbox"><span>需要 AI 生成或修改画面<small>不勾选时，仅用现有素材剪辑、合成。生成视频会另行报价，不会自动扣费。</small></span></label>
+          <label class="hypit-field" id="hypitGenerationOptions" hidden>画面处理方式<select id="hypitGenerationType"><option value="reference">根据参考素材生成新画面</option><option value="edit">修改参考视频的画面</option><option value="extend">延长参考视频</option></select></label>
+          <p class="hypit-help">目前不支持直接上传真实人脸进行人物替换，音色复刻也尚未验收。</p>
+        </section>
+        </div>
+        <section class="hypit-step hypit-budget"><h3><span>3</span> 设置 AI 编排费用</h3>
+          <p class="hypit-help">AI 理解需求、编排和修改方案会产生模型费用；以下预算不含视频生成费。保存任务本身不收费。</p>
+          <div class="hypit-budget-row"><label class="hypit-field">本次编排预算上限（美元）<input id="hypitBudget" type="number" value="0.50" min="0.01" max="2" step="0.01"></label>
+          <label class="hypit-field">最多尝试次数<input id="hypitCalls" type="number" value="8" min="1" max="8"></label></div>
+          <label class="hypit-check"><input id="hypitConsent" type="checkbox"><span>同意在上述预算和次数内启动 AI 编排<small>达到预算或次数上限即停止。生成视频前还需要单独确认费用。</small></span></label>
+          <details class="hypit-details"><summary>查看模型计费详情</summary><button class="secondary" id="hypitQuote" type="button">查询当前账号价格</button><p id="hypitQuoteResult" class="hypit-help"></p></details>
+        </section>
+        <div class="hypit-save"><button class="primary" id="hypitCreate" type="button">保存制作任务</button><span>保存后，在下方任务中点击“开始 AI 编排”。</span></div>
+        <p id="hypitMessage" class="hypit-message" role="status" aria-live="polite"></p>
+        <section class="hypit-task-section"><h3>4　制作任务与成片</h3><div id="hypitProjects"></div></section>
+        <details class="hypit-details" id="hypitSourceDetails"><summary>高级：查看工程代码</summary><pre id="hypitSource"></pre></details>
+      </div>
+    </section>
     <section class="page" id="page-assistant">
       <div class="gpt-shell">
         <aside class="gpt-side">
@@ -211,7 +248,7 @@
         <section class="card workspace-card compact-workspace" id="videoWorkspaceCard">
           <div class="workspace-head compact-workspace-head"><div><div class="section-kicker">生成状态</div><h2>工作台</h2><p class="tiny muted">只看预览、当前任务与全局任务。</p></div></div>
           <div class="workspace-tabs video-tabs" data-workspace-tabs="video"><button class="workspace-tab active" data-workspace-tab="video:preview">调用预览</button><button class="workspace-tab" data-workspace-tab="video:task">当前任务 <span id="videoTaskTabDot" class="tab-dot hidden"></span></button><button class="workspace-tab" data-workspace-tab="video:global">全局任务</button></div>
-          <div class="workspace-panels compact-panels"><section class="workspace-panel active" data-workspace-panel="video:preview"><div id="videoPreviewBox" class="workspace-empty compact-preview-empty"><b>等待预览</b><span>点击左侧“预览本次调用”后，这里显示模型、模式、时长、素材和费用。</span></div><button id="generateVideo" class="danger wide main-cta" disabled>确认并生成视频</button></section><section class="workspace-panel" data-workspace-panel="video:task"><div id="videoTaskBox" class="task-box"><div class="workspace-empty compact-preview-empty"><b>暂无视频任务</b><span>提交后显示真实任务阶段；刷新或切页不会丢任务。</span></div></div></section><section class="workspace-panel" data-workspace-panel="video:global"><div class="inline-task-center-head"><div><b>全局视频任务</b><span>视频创作与爆款复刻共享 10 个名额</span></div><strong data-task-center-inline-usage>0/10</strong></div><div class="global-task-list inline-global-list" data-global-task-inline><div class="workspace-empty compact"><b>当前没有运行中的视频任务</b></div></div></section></div>
+          <div class="workspace-panels compact-panels"><section class="workspace-panel active" data-workspace-panel="video:preview"><div id="videoPreviewBox" class="workspace-empty compact-preview-empty"><b>等待预览</b><span>点击左侧“预览本次调用”后，这里显示模型、模式、时长、素材和费用。</span></div><button id="generateVideo" class="danger wide main-cta" disabled>确认并生成视频</button></section><section class="workspace-panel" data-workspace-panel="video:task"><div id="videoTaskBox" class="task-box"><div class="workspace-empty compact-preview-empty"><b>暂无视频任务</b><span>提交后显示真实任务阶段；刷新或切页不会丢任务。</span></div></div></section><section class="workspace-panel" data-workspace-panel="video:global"><div class="inline-task-center-head"><div><b>全局视频任务</b><span>所有视频制作任务共享 10 个名额</span></div><strong data-task-center-inline-usage>0/10</strong></div><div class="global-task-list inline-global-list" data-global-task-inline><div class="workspace-empty compact"><b>当前没有运行中的视频任务</b></div></div></section></div>
         </section>
       </div>
     </section>
@@ -339,7 +376,7 @@
 
         <section class="workspace-panel" data-workspace-panel="replica:global">
           <div class="inline-task-center-head">
-            <div><b>全局视频任务</b><span>视频创作与爆款复刻共享 10 个名额</span></div>
+            <div><b>全局视频任务</b><span>所有视频制作任务共享 10 个名额</span></div>
             <strong data-task-center-inline-usage>0/10</strong>
           </div>
           <div class="global-task-list inline-global-list" data-global-task-inline>
@@ -542,7 +579,7 @@
 
           <label>全局默认视频模型<select id="setVideoModelChoice"><option value="doubao-seedance-2-5-260628">Seedance 2.5｜复杂参考与编辑</option><option value="viduq3-turbo">Vidu Q3 Turbo｜低成本测试</option><option value="minimax-video-h3">MiniMax H3｜高清短视频对照</option><option value="custom">自定义实际模型 ID（高级）</option></select></label>
           <label id="setVideoCustomModelWrap" hidden>自定义实际模型 ID<input id="setVideoBaseModel" placeholder="OpenLux 已核验的模型编号"></label>
-          <p class="tiny muted">这里选定全局默认模型；「视频创作」「爆款复刻」和「智能视频制作」均可覆盖。保存后重新读取确认。选择不代表当前渠道已开放该模型，更不会自动发起付费任务。</p>
+          <p class="tiny muted">这里选定全局默认模型；「视频创作」和「智能视频制作」均可覆盖。保存后重新读取确认。选择不代表当前渠道已开放该模型，更不会自动发起付费任务。</p>
 
           <label class="mode-hero">路由控制方式
             <select id="setVideoRouteControl">
@@ -628,12 +665,12 @@
           <label>接口超时（秒）<input id="setHttpTimeout" type="number" min="30" max="300"></label>
           <label>免费状态查询重试次数<input id="setQueryRetries" type="number" min="0" max="5"></label>
         </div>
-        <p class="tiny ok">视频创作与爆款复刻共享同一个全局任务池，最多同时运行 10 个视频任务。付费视频生成固定执行“预览 → 确认 → 提交”，此保护不可关闭。</p>
+        <p class="tiny ok">所有视频制作任务共享同一个全局任务池，最多同时运行 10 个视频任务。付费视频生成固定执行“预览 → 确认 → 提交”，此保护不可关闭。</p>
         <p class="tiny muted">视频创建接口仍固定 0 次自动重试；网络超时后不会自动再提交，避免重复扣费。</p></div>
       </div>
 
       <div class="grid two">
-        <div class="card"><h2>爆款复刻 / Hypit 本地分析</h2><div class="form-grid"><label>镜头检测灵敏度<input id="setSceneThreshold" type="number" step="0.05" min="0.1" max="0.8"></label><label>最大镜头数<input id="setMaxScenes" type="number" min="5" max="60"></label><label>逐词转写<select id="setTranscript"><option value="if_installed">已安装逐词组件时启用</option><option value="off">关闭</option></select></label><label>关键帧文字识别<select id="setOcr"><option value="if_installed">已安装文字识别时启用</option><option value="off">关闭</option></select></label></div><label class="check"><input id="setInheritDuration" type="checkbox"> 默认继承原视频时长</label><label class="check"><input id="setInheritRatio" type="checkbox"> 默认继承原视频比例</label><label class="check"><input id="setAnalysisGate" type="checkbox"> 本地证据不足时禁止付费生成</label><label class="check"><input id="setWordAnchorGate" type="checkbox"> 首次付费测试强制要求逐词锚点（口播视频推荐）</label><label class="check"><input id="setSpatialAnalysis" type="checkbox"> 启用人体姿态 + 目标追踪增强（已安装时自动使用）</label><label class="check"><input id="setAutoQualityCheck" type="checkbox"> 视频生成完成后自动执行本地质量检查</label><p class="tiny muted">真实镜头切分 + 关键帧 + 音频结构为基础；安装逐词组件后升级为词锚点工作流。</p></div>
+        <div class="card"><h2>视频素材分析</h2><div class="form-grid"><label>镜头检测灵敏度<input id="setSceneThreshold" type="number" step="0.05" min="0.1" max="0.8"></label><label>最大镜头数<input id="setMaxScenes" type="number" min="5" max="60"></label><label>逐词转写<select id="setTranscript"><option value="if_installed">已安装逐词组件时启用</option><option value="off">关闭</option></select></label><label>关键帧文字识别<select id="setOcr"><option value="if_installed">已安装文字识别时启用</option><option value="off">关闭</option></select></label></div><label class="check"><input id="setInheritDuration" type="checkbox"> 默认继承原视频时长</label><label class="check"><input id="setInheritRatio" type="checkbox"> 默认继承原视频比例</label><label class="check"><input id="setAnalysisGate" type="checkbox"> 本地证据不足时禁止付费生成</label><label class="check"><input id="setWordAnchorGate" type="checkbox"> 首次付费测试强制要求逐词锚点（口播视频推荐）</label><label class="check"><input id="setSpatialAnalysis" type="checkbox"> 启用人体姿态 + 目标追踪增强（已安装时自动使用）</label><label class="check"><input id="setAutoQualityCheck" type="checkbox"> 视频生成完成后自动执行本地质量检查</label><p class="tiny muted">真实镜头切分 + 关键帧 + 音频结构为基础；安装逐词组件后升级为词锚点工作流。</p></div>
         <div class="card"><h2>公网素材与稳定性</h2>
           <label>公网素材策略<select id="setPublicStrategy"><option value="oss_auto">阿里云 OSS 优先（推荐）→ 固定 HTTPS 备用</option><option value="oss_only">只使用阿里云 OSS</option><option value="fixed_only">只使用固定 HTTPS</option><option value="quick_only">只使用 Quick Tunnel（仅调试）</option></select></label>
           <div class="subcard"><h3>阿里云 OSS（推荐主通道）</h3>
@@ -668,19 +705,19 @@
 <div id="taskCenterBackdrop" class="task-center-backdrop hidden"></div>
 <aside id="taskCenterDrawer" class="task-center-drawer" aria-hidden="true">
   <div class="task-center-head">
-    <div><span class="eyebrow">GLOBAL TASK CENTER</span><h2>全局任务中心</h2><p>视频创作与爆款复刻共享同一个 10 任务池。全部模块统一提供进度反馈；切换页面、刷新或关闭浏览器都不会停止后台任务。</p></div>
+    <div><span class="eyebrow">GLOBAL TASK CENTER</span><h2>全局任务中心</h2><p>所有视频制作任务共享同一个 10 任务池。全部模块统一提供进度反馈；切换页面、刷新或关闭浏览器都不会停止后台任务。</p></div>
     <button id="closeTaskCenter" class="ghost task-center-close" type="button">✕</button>
   </div>
   <div class="task-capacity-card">
     <div class="task-capacity-icon">▱</div>
-    <div class="task-capacity-main"><span>视频任务</span><b id="taskCenterUsage">0/10</b><small id="taskCenterBreakdown">视频创作 0 · 爆款复刻 0 · 空闲 10</small></div>
+    <div class="task-capacity-main"><span>视频任务</span><b id="taskCenterUsage">0/10</b><small id="taskCenterBreakdown">视频创作 0 · AI 制作 0 · 空闲 10</small></div>
     <div class="task-capacity-track"><span id="taskCenterCapacityBar" style="width:0%"></span></div>
   </div>
   <div class="task-center-section-head"><b>跨模块任务状态</b><span>商品分析 · GPT 脚本 · 图片 · 视频</span></div>
   <div id="taskHealthRows" class="task-health-list"><p class="muted">正在读取后台任务状态…</p></div>
   <div class="task-health-actions"><button id="taskHealthRefresh" type="button" class="secondary">更新任务状态（不扣费）</button><button id="taskHealthCopy" type="button" class="secondary">复制脱敏诊断报告</button></div>
   <div class="task-center-section-head"><b>正在运行</b><span id="taskCenterActiveLabel">0 个任务</span></div>
-  <div id="taskCenterActive" class="global-task-list"><div class="workspace-empty compact"><b>当前没有运行中的视频任务</b><span>提交视频创作或爆款复刻后会出现在这里。</span></div></div>
+  <div id="taskCenterActive" class="global-task-list"><div class="workspace-empty compact"><b>当前没有运行中的视频任务</b><span>视频制作任务开始后会出现在这里。</span></div></div>
   <div class="task-center-section-head recent"><b>最近结束</b><span>仅用于查看结果，不占并发名额</span></div>
   <div id="taskCenterRecent" class="global-task-list recent-list"></div>
   <div class="task-center-legend"><span><i class="legend-dot waiting"></i>排队/提交</span><span><i class="legend-dot running"></i>生成中</span><span><i class="legend-dot sync"></i>结果同步</span><span><i class="legend-dot done"></i>已完成</span><span><i class="legend-dot failed"></i>失败/待核对</span></div>
@@ -705,7 +742,8 @@
  </section>
 </div>
 <div id="toast"></div>
-<script src="/static/app.js?v=5.0.0"></script>
+<script src="/static/app.js?v=20261019"></script>
+<script src="/static/hypit_studio.js?v=20261019"></script>
 <script src="/static/hot_radar.js?v=4.2.8.11"></script>
 <script src="/static/creative_production.js?v=4.2.8.11"></script>
 <script src="/static/product_memory.js?v=4.2.8.8"></script>

@@ -95,6 +95,7 @@ def _empty(backend='none', error=''):
     return {
         'duration': None, 'width': None, 'height': None, 'fps': None,
         'has_audio': False, 'ok': False, 'backend': backend, 'error': error,
+        'video_codec': None, 'audio_codec': None,
     }
 
 
@@ -148,6 +149,7 @@ def _probe_via_ffprobe(path: Path, exe: str) -> dict:
         pass
     for st in j.get('streams') or []:
         if st.get('codec_type') == 'video' and out.get('width') is None:
+            out['video_codec'] = st.get('codec_name')
             out['width'] = st.get('width')
             out['height'] = st.get('height')
             rate = st.get('avg_frame_rate') or st.get('r_frame_rate')
@@ -164,6 +166,7 @@ def _probe_via_ffprobe(path: Path, exe: str) -> dict:
                     pass
         elif st.get('codec_type') == 'audio':
             out['has_audio'] = True
+            out['audio_codec'] = st.get('codec_name')
     return _finalize(out)
 
 
@@ -182,6 +185,12 @@ def _probe_via_ffmpeg(path: Path, exe: str) -> dict:
     # Restrict matching to a single video-stream line where possible, so audio values cannot interfere.
     video_lines = [ln for ln in txt.splitlines() if 'Video:' in ln]
     vtxt = '\n'.join(video_lines) if video_lines else txt
+    codec = re.search(r'Video:\s*([a-zA-Z0-9_]+)', vtxt)
+    if codec:
+        out['video_codec'] = codec.group(1).lower()
+    codec = re.search(r'Audio:\s*([a-zA-Z0-9_]+)', txt)
+    if codec:
+        out['audio_codec'] = codec.group(1).lower()
     m = re.search(r'\b(\d{2,5})x(\d{2,5})\b', vtxt, re.I)
     if m:
         out['width'] = int(m.group(1)); out['height'] = int(m.group(2))

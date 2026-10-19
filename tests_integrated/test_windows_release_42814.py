@@ -1,8 +1,9 @@
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-cmds=[p for p in ROOT.rglob('*') if p.is_file() and p.suffix.lower() in {'.cmd','.bat'}]
-ps1s=[p for p in ROOT.rglob('*.ps1') if p.is_file()]
-vbs=[p for p in ROOT.rglob('*.vbs') if p.is_file()]
+def owned(p):return p.is_file() and 'node_modules' not in p.relative_to(ROOT).parts
+cmds=[p for p in ROOT.rglob('*') if owned(p) and p.suffix.lower() in {'.cmd','.bat'}]
+ps1s=[p for p in ROOT.rglob('*.ps1') if owned(p)]
+vbs=[p for p in ROOT.rglob('*.vbs') if owned(p)]
 assert sorted(x.name for x in ROOT.glob('*.cmd'))==['00_START.cmd','01_INSTALL.cmd']
 assert cmds and ps1s and vbs
 for p in cmds:

@@ -77,7 +77,7 @@ def status() -> dict:
     }
 
 
-def _client():
+def _client(*, bounded=False):
     c = _cfg()
     if not oss_sdk:
         raise RuntimeError('缺少 alibabacloud-oss-v2。请重新运行 01_INSTALL.cmd 安装阿里云 OSS Python SDK V2。')
@@ -100,6 +100,11 @@ def _client():
     cfg.region = c['region']
     # Alibaba Cloud SDK V2 examples pass the public endpoint directly (including https://).
     cfg.endpoint = c['endpoint']
+    if bounded:
+        cfg.connect_timeout = 10
+        cfg.readwrite_timeout = 60
+        cfg.retry_max_attempts = 1
+        cfg.enabled_redirect = False
     return oss_sdk.Client(cfg)
 
 

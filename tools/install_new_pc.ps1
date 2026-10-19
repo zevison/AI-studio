@@ -1,6 +1,6 @@
 ﻿#requires -Version 5.1
 <#
-Seedance Studio 5.0.0 - Windows fresh PC installer.
+Seedance Studio 5.2.0 - Windows fresh PC installer.
 Only obtains Python and public dependencies; never touches saved Studio data or API keys.
 Python registration is resolved using PEP 514, launcher, and validated executable paths.
 #>
@@ -279,6 +279,13 @@ try {
     Log-Line ('Compatible Python interpreter: '+$python.Exe+' '+($python.Args -join ' '))
     $exe=[string]$python.Exe;$arguments=@($python.Args)
     if (-not(Test-Python -exe $exe -prefix $arguments)) { throw 'Final interpreter self-check failed.' }
+    if (-not $CheckOnly -and -not $DiagnoseOnly) {
+        & $exe @arguments (Join-Path $root 'tools\install_hypit_bundle.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Offline Hypit runtime extraction failed; existing runtime and data were preserved.' }
+    }
+    Log-Line 'Checking bundled official Hypit, Node and browser (offline, no model calls).'
+    & $exe @arguments (Join-Path $root 'tools\check_hypit_install.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Hypit runtime verification failed. Re-extract the complete Windows x64 installation bundle.' }
     if ($CheckOnly -or $DiagnoseOnly) {Log-Line 'Python installation verified.';exit 0}
     Draw-Phase 2 'Preparing video and audio dependencies (detailed stages below)'
     Log-Line 'Python dependencies and video tools: inner 7 verification steps. Every completed check is logged.'

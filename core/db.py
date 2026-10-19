@@ -5,6 +5,9 @@ from .config import DB_PATH
 
 _lock = threading.RLock()
 CURRENT_SCHEMA_VERSION = 390
+ACTIVE_VIDEO_WHERE = """kind='video' AND (status IN ('pending','running','result_pending')
+ OR (status='submission_unknown' AND (provider_task_id IS NOT NULL OR
+ CASE WHEN json_valid(request_json) THEN json_extract(request_json,'$.mode') END='hypit')))"""
 
 SCHEMA = [
 '''CREATE TABLE IF NOT EXISTS app_meta(key TEXT PRIMARY KEY, value TEXT, updated_at REAL)''',
@@ -320,9 +323,7 @@ def claim_video_submission(preview_token, dedupe_seconds, max_active, expected_m
             # Enforce global video capacity in the same transaction, eliminating
             # the old 9/10 + two concurrent submits => 11/10 race.
             active_count = c.execute(
-                "SELECT COUNT(*) FROM tasks WHERE kind='video' "
-                "AND (status IN ('pending','running','result_pending') "
-                "OR (status='submission_unknown' AND provider_task_id IS NOT NULL))",
+                'SELECT COUNT(*) FROM tasks WHERE '+ACTIVE_VIDEO_WHERE,
                 ()
             ).fetchone()[0]
 

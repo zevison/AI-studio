@@ -1,4 +1,4 @@
-"""V5.0.0 regression: protect user history while the real workspace is running.
+"""V5.2.0 regression: protect user history while the real workspace is running.
 
 All tests run with temporary files and mock-like local data; no network, no paid API.
 """
@@ -60,7 +60,7 @@ def test_live_wal_backup_contains_latest_committed_history(tmp_path,monkeypatch)
         with sqlite3.connect(recovered) as r:
             assert r.execute('SELECT message FROM history').fetchone()[0]=='latest paid task'
             assert r.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
-        assert manifest['version']=='5.0.0'
+        assert manifest['version']=='5.2.0'
         assert manifest['files'].count('data/studio.db')==1
     finally:c.close()
 
@@ -109,10 +109,10 @@ def test_only_one_setup_and_start_entrypoint_and_stable_version():
     root=Path(__file__).resolve().parents[1]
     assert sorted(x.name for x in root.glob('*.cmd'))==['00_START.cmd','01_INSTALL.cmd']
     assert not list(root.glob('*.vbs'))
-    assert config.APP_VERSION=='5.0.0'
-    assert '5.0.0' in (root/'01_INSTALL.cmd').read_text(encoding='utf-8')
-    assert '5.0.0' in (root/'static/index.html').read_text(encoding='utf-8')
-    assert '5.0.0' in (root/'tools/install_new_pc.ps1').read_text(encoding='utf-8-sig')
+    assert config.APP_VERSION=='5.2.0'
+    assert '5.2.0' in (root/'01_INSTALL.cmd').read_text(encoding='utf-8')
+    assert '5.2.0' in (root/'static/index.html').read_text(encoding='utf-8')
+    assert '5.2.0' in (root/'tools/install_new_pc.ps1').read_text(encoding='utf-8-sig')
 
 
 def test_bad_http_body_length_is_rejected_before_read():

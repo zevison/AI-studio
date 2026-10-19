@@ -84,4 +84,4 @@ def test_one_install_one_launcher_and_all_features_remain():
                       'core/oss.py','static/audio_reference.css','static/audio_reference.js','static/app.js',
                       'tools/bootstrap_install.py','tools/install_new_pc.ps1','tools/download_progress.py']:
         assert (ROOT/component).is_file(),component
-    assert "APP_VERSION = '5.0.0'" in (ROOT/'core/config.py').read_text('utf-8')
+    assert "APP_VERSION = '5.2.0'" in (ROOT/'core/config.py').read_text('utf-8')

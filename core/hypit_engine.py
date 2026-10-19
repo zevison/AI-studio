@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, math, os, re, shutil, subprocess, time
+import json, math, os, re, shutil, subprocess, sys, time
 from pathlib import Path
 from .tesseract_support import find_tesseract
 from . import config, media, hypit_policy, smart_analysis
@@ -135,6 +135,8 @@ def ocr_frame(path:Path):
 
 
 def _whisperx_exe():
+    current=Path(sys.executable).parent/('whisperx.exe' if os.name=='nt' else 'whisperx')
+    if current.is_file():return str(current)
     sidecar = config.ROOT / 'tools' / 'runtime' / 'whisperx_py313' / ('Scripts/whisperx.exe' if os.name == 'nt' else 'bin/whisperx')
     if sidecar.exists():
         return str(sidecar)

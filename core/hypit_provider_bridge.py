@@ -171,7 +171,7 @@ class OpenLuxHttpTransport:
             raise ValueError('API key must come from backend encrypted secrets store')
         self.__api_key = api_key
         self.route = route
-        self.__opener = opener or urllib.request.build_opener(_NoRedirect())
+        self.__opener = opener or urllib.request.build_opener(_NoRedirect(), urllib.request.ProxyHandler({}))
 
     def _call(self, method: str, path: str, payload: dict | None, timeout: float):
         if not self.route.account_protocol_verified:
@@ -211,7 +211,14 @@ class OpenLuxHttpTransport:
         if not _ID_RE.fullmatch(task_id):
             raise ContractError('Invalid task identifier')
         path = self.route.query_path.replace('{task_id}', urllib.parse.quote(task_id, safe=''))
-        return self._call('GET', path, None, timeout)
+        # GET is repeatable; POST above deliberately has no retry. Two bounded
+        # attempts fit inside the Runtime action deadline even at 45 s each.
+        for attempt in range(2):
+            try:
+                return self._call('GET', path, None, timeout)
+            except ConnectionError:
+                if attempt: raise
+                time.sleep(1)
 
 
 class SafeMp4Collector:

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -197,6 +198,67 @@ test('cancel is unsupported, never claims remote cancellation', async () => {
         const { endpoint } = f.configure();
         const start = await endpoint.start(f.context);
         assert.deepEqual(await endpoint.cancel(pollContext(f.context, start)), { status: 'unsupported' });
+    }
+    finally {
+        f.close();
+    }
+});
+test('explicit reference mapping binds real ResourceStore bytes, role and non-person classification', async () => {
+    const f = fixture();
+    try {
+        const bytes = new Uint8Array(readFileSync('tests/real_sample.mp4'));
+        const expected = createHash('sha256').update(bytes).digest('hex');
+        const constraints = sealSeedanceRequest('seedance-2.5', { prompt: ['Use the camera movement of the reference video'],
+            duration: [4], aspectRatio: ['9:16'], resolution: ['720p'], generateAudio: [false], webSearch: [false],
+            referenceVideo: [{ role: 'video', artifact: { kind: 'blob', resource: `res_${'a'.repeat(67)}`, size: bytes.length, mediaType: 'video/mp4' }, fields: { personReference: false } }] });
+        const context = { ...f.context, need: { ...f.context.need, constraints: constraints },
+            resources: { ...f.context.resources, async get() { return bytes; } } };
+        let resolves = 0;
+        f.backend.resolveReference = async (ref) => {
+            assert.equal(ref.sha256, expected);
+            assert.equal(ref.role, 'reference_video');
+            assert.equal(ref.personReference, false);
+            resolves++;
+            return 'https://assets.example.com/approved.mp4';
+        };
+        f.backend.submit = async (payload) => {
+            assert.equal(payload.omni_reference_task_type, 'reference');
+            assert.deepEqual(payload.content[1], { type: 'video_url', video_url: { url: 'https://assets.example.com/approved.mp4' }, role: 'reference_video' });
+            f.calls.submit++;
+            return 'reference-1';
+        };
+        let endpoint;
+        const provider = createOfficialProvider({ instance: 'reference', pool: 'offline', account: 'offline', ledger: f.ledger, backend: f.backend, allowReferences: true });
+        assert.equal(provider.offers[0]?.supports?.(context.need).status, 'supported');
+        provider.install({ registerImmediateEndpoint() { }, registerAsyncEndpoint(_i, _c, _r, value) { endpoint = value; } });
+        assert.equal((await endpoint.start(context)).status, 'pending');
+        assert.equal(resolves, 1);
+        assert.equal(f.calls.submit, 1);
+    }
+    finally {
+        f.close();
+    }
+});
+test('explicit recovery aliases only an acknowledged exact request without another submit', async () => {
+    const f = fixture();
+    try {
+        const { endpoint } = f.configure();
+        const started = await endpoint.start(f.context);
+        assert.equal(started.status, 'pending');
+        let recovery;
+        createOfficialProvider({ instance: 'recover', pool: 'test', account: 'offline', ledger: f.ledger,
+            backend: f.backend, resumeKnownTask: true }).install({ registerImmediateEndpoint() { },
+            registerAsyncEndpoint(_i, _c, _r, value) { recovery = value; } });
+        const context = { ...f.context, operation: 'recovery-operation' };
+        const resumed = await recovery.start(context);
+        assert.equal(resumed.status, 'pending');
+        assert.equal(f.calls.submit, 1);
+        assert.equal(f.calls.authorize, 1);
+        const ready = await recovery.poll(pollContext(context, resumed));
+        assert.equal(ready.status, 'ready');
+        assert.equal((await recovery.collect(pollContext(context, ready))).status, 'completed');
+        assert.equal(f.calls.submit, 1);
+        assert.equal(f.ledger.read(f.context.operation)?.state, 'collected');
     }
     finally {
         f.close();

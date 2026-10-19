@@ -1,3 +1,9 @@
+# Seedance Studio V5.2.0
+
+Windows 完整安装包：先运行 `01_INSTALL.cmd`，再运行 `00_START.cmd`。当前能力、费用保护和限制请以 [使用说明](README_NEW_PC_CN.txt) 与 [本版验收](docs/集成验收_20261019.md) 为准。
+
+以下保留的是 V5.0.0 基线历史说明，不代表当前版本的集成状态：
+
 # Seedance Studio V5.0.0 | Stable Full Release
 
 **Current Windows setup (new PC):** Run `01_INSTALL.cmd` once, then open the workbench with `00_START.cmd`. These are the only two root-level CMD entry points; dependencies and FFmpeg are installed/verified through `01_INSTALL.cmd`. New computers need Internet; Python/FFmpeg/model binaries are not included for offline setup.

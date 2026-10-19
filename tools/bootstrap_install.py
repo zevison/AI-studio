@@ -13,9 +13,11 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from shared_runtime import ROOT, SHARED, ASSETS, supported, previous_venv, make_link, copy_previous_asset, cache_asset
+from shared_runtime import ROOT, SHARED, ASSETS, supported, same_family, mark_family, previous_venv, make_link, copy_previous_asset, cache_asset
+if str(ROOT) not in sys.path:
+    sys.path.insert(0,str(ROOT))
 
-APP_VERSION = '5.0.0'
+APP_VERSION = '5.2.0'
 VENV = ROOT / '.venv'
 VENV_PY = VENV / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
 REQ = ROOT / 'requirements.txt'
@@ -64,11 +66,12 @@ def _backup_broken_link():
 
 
 def prepare_venv() -> str:
-    if supported(VENV):
+    if supported(VENV) and same_family(VENV):
         return '当前目录已有兼容运行环境，直接复用'
     if VENV.exists() or VENV.is_symlink():
         _backup_broken_link()
     if supported(SHARED):
+        mark_family(SHARED)
         if make_link(SHARED, VENV):
             return f'使用公共运行环境 {SHARED}；后续版本无需重新安装'
         raise RuntimeError('公共运行环境存在，但建立 .venv 目录链接失败；请关闭工作台后重试。')
@@ -86,6 +89,7 @@ def prepare_venv() -> str:
     print(f'[首次] 在公共位置新建 Python 环境：{SHARED}。之后版本自动复用。')
     if run([sys.executable, '-m', 'venv', str(SHARED)]) != 0 or not supported(SHARED):
         raise RuntimeError('公共 Python 环境创建失败')
+    mark_family(SHARED)
     if not make_link(SHARED, VENV):
         raise RuntimeError('公共 Python 已创建，但无法链接当前版本；请检查 Windows 磁盘目录权限。')
     return '已创建公共 Python 环境（仅首次需要安装依赖）'
@@ -113,7 +117,8 @@ def ensure_requirements():
         print('[OK] 核心 Python 库均已安装且版本满足要求，跳过 pip 下载。')
         return
     print('[缺失] 仅补装以下依赖：', ', '.join(missing))
-    if run([str(VENV_PY),'-m','pip','install','--disable-pip-version-check','--prefer-binary',*missing]) != 0:
+    if run([str(VENV_PY),'-m','pip','install','--disable-pip-version-check','--prefer-binary',
+        '--constraint',str(ROOT/'tools/analysis_constraints.txt'),*missing]) != 0:
         raise RuntimeError('缺失的核心库安装失败（已有依赖保留）')
     if missing_requirements():
         raise RuntimeError('核心依赖安装后仍未通过版本核验')
@@ -146,7 +151,7 @@ def install_original_post_downloader() -> bool:
     check = run([str(VENV_PY), '-c', code])
     if check != 0:
         if run([str(VENV_PY), '-m', 'pip', 'install', '--disable-pip-version-check',
-                '--prefer-binary', 'yt-dlp[default,curl-cffi]']) != 0:
+                '--prefer-binary','--constraint',str(ROOT/'tools/analysis_constraints.txt'), 'yt-dlp[default,curl-cffi]']) != 0:
             print('[WARN] Downloader dependencies could not be installed. No account or service was accessed.')
             return False
     # Test using the exact Studio interpreter, including its local
@@ -191,7 +196,7 @@ def repair_scenedetect() -> bool:
     spec = 'scenedetect>=0.6.5,<0.7'
     # pip --no-deps leaves verified native OpenCV wheels and NumPy untouched.
     pip = [str(VENV_PY), '-m', 'pip', 'install', '--disable-pip-version-check',
-           '--prefer-binary', '--only-binary=:all:']
+           '--prefer-binary', '--only-binary=:all:','--constraint',str(ROOT/'tools/analysis_constraints.txt')]
     first = [*pip, '--force-reinstall', '--no-deps', spec]
     if run(first) == 0:
         ok, reason = probe_scenedetect()
@@ -237,7 +242,8 @@ def capability_report(*, full_analysis_rc: int, downloader_ok: bool, ffmpeg_ok: 
     # Studio interpreter, so missing DLLs / broken native wheels cannot pass.
     actual_imports={}
     import_errors={}
-    for key in required:
+    for key in (*required,'whisperx','ultralytics'):
+        print(f'[CHECK] Importing {key} in the installed runtime ...',flush=True)
         if not modules.get(key):
             actual_imports[key]=False
             import_errors[key]='Module not found in Studio Python (importlib.find_spec).'
@@ -245,15 +251,19 @@ def capability_report(*, full_analysis_rc: int, downloader_ok: bool, ffmpeg_ok: 
         if key=='scenedetect':
             success,err=probe_scenedetect()
             actual_imports[key]=success
+            if success:print('[OK] scenedetect APIs imported.',flush=True)
             if not success:
                 import_errors[key]=err[-1200:]
                 print('[WARN] scenedetect API import check failed: '+err[-500:].replace('\n',' | '))
             continue
         try:
-            probe_result=subprocess.run([str(VENV_PY),'-c',f'import {check_modules[key]}'],
+            statement=('from whisperx.asr import load_model; from whisperx.alignment import align'
+                       if key=='whisperx' else f'import {check_modules[key]}')
+            probe_result=subprocess.run([str(VENV_PY),'-c',statement],
                                         stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
-                                        encoding='utf-8',errors='replace',timeout=45,cwd=ROOT)
+                                        encoding='utf-8',errors='replace',timeout=90 if key=='whisperx' else 45,cwd=ROOT)
             actual_imports[key]=probe_result.returncode==0
+            if actual_imports[key]:print(f'[OK] {key} imported.',flush=True)
             if not actual_imports[key]:
                 import_errors[key]=(probe_result.stderr or 'Nonzero exit')[-1200:]
                 print(f'[WARN] {key} is installed but fails to import in the current Python runtime: '+import_errors[key][-400:].replace('\n',' | '))
@@ -263,7 +273,14 @@ def capability_report(*, full_analysis_rc: int, downloader_ok: bool, ffmpeg_ok: 
     required_missing=[x for x in required if not actual_imports.get(x)]
     if not ffmpeg_ok: required_missing.append('ffmpeg / ffprobe')
     if not downloader_ok and 'yt_dlp' not in required_missing:required_missing.append('Bright Data downloader check')
+    pose_marker=Path(os.environ.get('LOCALAPPDATA',''))/'SeedanceStudio/runtime/pose111/pose-verified.json'
+    modules['mediapipe']=pose_marker.is_file() or modules.get('mediapipe',False)
     optional_missing=[x for x in ('whisperx','ultralytics','mediapipe') if not modules.get(x)]
+    optional_missing += [x for x in ('whisperx','ultralytics') if modules.get(x) and not actual_imports.get(x)]
+    print('[CHECK] Validating complete Python dependency consistency ...',flush=True)
+    consistency=subprocess.run([str(VENV_PY),'-m','pip','check'],capture_output=True,
+        encoding='utf8',errors='replace',timeout=45,cwd=ROOT)
+    if consistency.returncode:required_missing.append('Python dependency consistency (pip check)')
     try:
         from core.tesseract_support import check_tesseract
         tess=bool(check_tesseract().get('available'))
@@ -282,6 +299,8 @@ def capability_report(*, full_analysis_rc: int, downloader_ok: bool, ffmpeg_ok: 
         'required_import_errors':import_errors,
         'ffmpeg_probe_ok':ffmpeg_ok,
         'downloader_installed':downloader_ok,
+        'pip_check_passed':consistency.returncode==0,
+        'pip_check_diagnostics':consistency.stdout[-4000:],
         'note':'No network/provider success claim; capability check only. Some optional modules can be unsupported on Python 3.12.',
     }
     path=logdir/'dependency_report.json'

@@ -6,6 +6,8 @@ component code remains disabled until a separate trusted package review is avail
 import html
 import json
 import re
+import uuid
+from xml.parsers import expat
 from pathlib import Path
 
 MODULES = {'markup', 'markup/run', 'text', 'blob', 'media', 'media-operations', 'timeline',
@@ -40,10 +42,34 @@ def validate_project_boundary(project: Path):
         count += 1
         if count > 500 or source.stat().st_size > 192000:
             raise PermissionError('Compiler source exceeds limits')
-        text = html.unescape(source.read_text(encoding='utf-8'))
-        if re.search(r'url\s*\(|@import|<script\b|javascript:', text, re.I) or (source.suffix == '.svs' and '\\' in text):
+        text = source.read_text(encoding='utf-8')
+        if re.search(r'url\s*\(|@import|<script\b|javascript:', html.unescape(text), re.I) or (source.suffix == '.svs' and '\\' in text):
             raise PermissionError('External CSS or executable source content forbidden')
-        for _, value in ATTR.findall(text):
+        resources = []
+        reference_marker = '__reference_' + uuid.uuid4().hex
+        def collect(tag, attributes):
+            for name, value in attributes.items():
+                if name in {'src','source'} or (name == 'from' and tag.split(':')[-1] == 'import'):
+                    if value != reference_marker:
+                        resources.append(value)
+        parser = expat.ParserCreate()
+        parser.StartElementHandler = collect
+        def deny_dtd(*args):
+            raise PermissionError('Compiler DTD/entity declarations forbidden')
+        parser.StartDoctypeDeclHandler = deny_dtd
+        parser.EntityDeclHandler = deny_dtd
+        # Hypit references are unquoted attribute values. Replace only their
+        # lexical representation for XML structure checking, never execute them.
+        def normalize_reference(match):
+            if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.-]*', match[1].strip()):
+                raise PermissionError('Only static named Hypit references are allowed')
+            return '="' + reference_marker + '"'
+        normalized = re.sub(r'=\s*\{([^{}<>]*)\}', normalize_reference, text)
+        try:
+            parser.Parse(normalized, True)
+        except expat.ExpatError as exc:
+            raise PermissionError('Malformed source cannot pass the resource boundary') from exc
+        for value in resources:
             if value.startswith('@hypit/'):
                 if value[7:].removesuffix('@1') not in MODULES or not value.endswith('@1'):
                     raise PermissionError('Compiler package is outside approved official vocabulary')

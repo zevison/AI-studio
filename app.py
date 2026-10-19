@@ -21,6 +21,9 @@ from core import config, db, media, modes, openlux, tunnel, workflow, settings, 
 from core import prompt_library, audio_subjects, hot_radar, product_memory, model_pricing, creative_production, video_model_tests, video_adapters, task_observability, intelligent_router, audio_output, ai_assistant, gpt_memory_v4, gpt_pro_v41, bright_tiktok, viral_review, bright_e2e_models, voice_bindings
 from core import history_center_v423
 from core import local_output
+from core.hypit_studio import service as hypit_service
+import secrets
+_hypit_session_token = secrets.token_urlsafe(32)
 from core.utils import fingerprint, guess_kind, json_bytes, parse_multipart, safe_name, sha256_bytes, find_url
 _boot_phase("后台模块已加载，准备初始化数据库")
 
@@ -47,7 +50,11 @@ def asset_row(asset_id):
 
 def asset_public(a):
     if not a:return None
-    d=dict(a); d['url']='/public/assets/'+urllib.parse.quote(d['stored_name'])
+    d=dict(a)
+    stored=d.get('stored_name') or Path(d.get('path') or '').name
+    d['stored_name']=stored
+    d['original_name']=d.get('original_name') or stored or d.get('id')
+    d['url']='/public/assets/'+urllib.parse.quote(stored, safe='') if stored else None
     return d
 
 
@@ -262,6 +269,16 @@ def task_to_public(t):
         d[dst]=db.loads(d.get(src),{})
     d['actual_model']=(d.get('request') or {}).get('_request_model') or (d.get('request') or {}).get('model')
     req=d.get('request') or {}
+    if req.get('mode') == 'hypit':
+        d['workspace'] = 'hypit'
+        project = hypit_service.get(req['project_id'])
+        phase = project['status']
+        d['progress'] = {'current_label': {'authoring':'Agent 编写工程','ready':'工程校验通过',
+            'building':'官方 Runtime 构建','exporting':'导出成片','completed':'已完成',
+            'blocked':'需要处理','interrupted':'中断待核对'}.get(phase,phase),
+            'stage_percent': 100 if t['status']=='completed' else 0,
+            'stage_done': 1 if t['status']=='completed' else 0, 'stage_total':1, 'stages':[]}
+        return d
     d['workspace']='replica' if (req.get('mode')=='replica' or req.get('workflow_version_id')) else 'video'
     d['progress']=_task_progress(d,req,d.get('response') or {},d.get('result') or {})
     return d
@@ -275,6 +292,7 @@ def refresh_video_task(t, force=False):
     duplicate status queries.
     """
     if not t or t.get('kind')!='video': return t
+    if db.loads(t.get('request_json'),{}).get('mode') == 'hypit': return t
     if t.get('status') not in ('pending','running','result_pending','submission_unknown'): return t
     pid=t.get('provider_task_id')
     if not pid:return t
@@ -389,7 +407,7 @@ def recovery_tasks():
 def _video_task_mode(row):
     req=db.loads((row or {}).get('request_json'),{}) or {}
     mode=req.get('mode')
-    if mode in ('direct','replica'): return mode
+    if mode in ('direct','replica','hypit'): return mode
     return 'replica' if req.get('workflow_version_id') else 'direct'
 
 
@@ -407,7 +425,7 @@ def resumable_video_tasks(refresh=True):
             r=refresh_video_task(r)
         refreshed.append(r)
     public=[task_to_public(r) for r in refreshed]
-    active=[x for x in public if x and (x.get('status') in ('pending','running','result_pending') or (x.get('status')=='submission_unknown' and x.get('provider_task_id')))]
+    active=[x for x in public if x and (x.get('status') in ('pending','running','result_pending') or (x.get('status')=='submission_unknown' and (x.get('provider_task_id') or x.get('workspace')=='hypit')))]
     slots={'direct':None,'replica':None}
     # Prefer an active task for each workspace; otherwise restore the latest result.
     for mode in ('direct','replica'):
@@ -419,10 +437,10 @@ def resumable_video_tasks(refresh=True):
 
 
 def active_video_count(refresh=True):
-    rows=db.all_("SELECT * FROM tasks WHERE kind='video' AND (status IN ('pending','running','result_pending') OR (status='submission_unknown' AND provider_task_id IS NOT NULL)) ORDER BY created_at ASC")
+    rows=db.all_("SELECT * FROM tasks WHERE "+db.ACTIVE_VIDEO_WHERE+" ORDER BY created_at ASC")
     if refresh:
         for r in rows[:10]: refresh_video_task(r)
-    row=db.one("SELECT COUNT(*) n FROM tasks WHERE kind='video' AND (status IN ('pending','running','result_pending') OR (status='submission_unknown' AND provider_task_id IS NOT NULL))")
+    row=db.one("SELECT COUNT(*) n FROM tasks WHERE "+db.ACTIVE_VIDEO_WHERE)
     return int(row['n'] if row else 0)
 
 
@@ -436,13 +454,14 @@ def global_task_center():
     rows=db.all_("SELECT * FROM tasks WHERE kind='video' ORDER BY created_at DESC LIMIT 80")
     public=[task_to_public(x) for x in rows]
     active_states=('pending','running','result_pending','submission_unknown')
-    active=[x for x in public if x and (x.get('status') in ('pending','running','result_pending') or (x.get('status')=='submission_unknown' and x.get('provider_task_id')))]
-    recent=[x for x in public if x and (x.get('status') not in active_states or (x.get('status')=='submission_unknown' and not x.get('provider_task_id')))][:8]
+    active=[x for x in public if x and (x.get('status') in ('pending','running','result_pending') or (x.get('status')=='submission_unknown' and (x.get('provider_task_id') or x.get('workspace')=='hypit')))]
+    recent=[x for x in public if x and (x.get('status') not in active_states or (x.get('status')=='submission_unknown' and not x.get('provider_task_id') and x.get('workspace')!='hypit'))][:8]
     direct=sum(1 for x in active if x.get('workspace')=='video')
     replica=sum(1 for x in active if x.get('workspace')=='replica')
+    hypit=sum(1 for x in active if x.get('workspace')=='hypit')
     limit=int(settings.effective_limits().get('max_concurrent_video_tasks',config.MAX_CONCURRENT_VIDEO_TASKS))
     return {'active':active,'recent':recent,'active_count':len(active),'limit':limit,
-            'direct_active':direct,'replica_active':replica,'free_slots':max(0,limit-len(active))}
+            'direct_active':direct,'replica_active':replica,'hypit_active':hypit,'free_slots':max(0,limit-len(active))}
 
 
 def _background_task_poller(stop_event):
@@ -514,13 +533,38 @@ class Handler(BaseHTTPRequestHandler):
         if n>config.MAX_UPLOAD_MB*1024*1024: raise ValueError('请求体过大')
         raw=self.rfile.read(n) if n else b'{}'; return json.loads(raw.decode('utf-8') or '{}')
 
+    def _hypit_guard(self, write=False):
+        # Protect spend authorization from cross-site forms and DNS rebinding.
+        port = self.server.server_address[1]
+        hosts = {f'127.0.0.1:{port}', f'localhost:{port}', f'[::1]:{port}'}
+        if self.client_address[0] not in {'127.0.0.1','::1'} or self.headers.get('Host') not in hosts:
+            raise PermissionError('Hypit management is local-only')
+        origin = self.headers.get('Origin')
+        if origin and origin not in {'http://' + host for host in hosts}:
+            raise PermissionError('Cross-origin Hypit request refused')
+        if write and (self.headers.get('Content-Type','').split(';')[0] != 'application/json'
+            or not secrets.compare_digest(self.headers.get('X-Hypit-Session',''), _hypit_session_token)):
+            raise PermissionError('Hypit session authorization missing')
+
     def do_GET(self):
         try:self._get()
         except BrokenPipeError:pass
+        except PermissionError as e:self.err(e,403)
+        except ValueError as e:self.err(e,400)
         except Exception as e: log.exception('GET failed'); self.err(e,500)
 
     def _get(self):
         u=urllib.parse.urlparse(self.path); path=u.path; qs=urllib.parse.parse_qs(u.query)
+        if path.startswith('/api/hypit/'):
+            self._hypit_guard()
+            if path=='/api/hypit/session':return self.ok({'token':_hypit_session_token})
+            if path=='/api/hypit/health':return self.ok(hypit_service.health())
+            if path=='/api/hypit/projects':return self.ok(hypit_service.list())
+            if path=='/api/hypit/project':return self.ok(hypit_service.get((qs.get('id') or [''])[0]))
+            if path=='/api/hypit/source':
+                tools=hypit_service.tools((qs.get('id') or [''])[0])
+                return self.ok(tools.call('read_file',{'path':(qs.get('file') or ['main.svml'])[0]}))
+            return self.err('Not found',404)
         # Fast and side-effect-free readiness probe: no DB, provider, network or background jobs.
         if path=='/api/bootstrap-health':
             return self.ok({'version':config.APP_VERSION,'root_dir':str(config.ROOT),'port':config.PORT,'pid':os.getpid()})
@@ -717,6 +761,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:self._post()
+        except PermissionError as e:self.err(e,403)
         except openlux.ApiError as e:
             log.exception('API error'); self.err(str(e),502,provider_status=e.status,provider_body=(e.body or '')[:2000],retryable=e.retryable)
         except ValueError as e:self.err(e,400)
@@ -724,6 +769,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post(self):
         path=urllib.parse.urlparse(self.path).path
+        if path.startswith('/api/hypit/'):
+            self._hypit_guard(write=True)
+            request=self.json_in()
+            if not isinstance(request,dict):return self.err('JSON object required',400)
+            pid=request.get('id')
+            if path=='/api/hypit/create':return self.ok(hypit_service.create(request))
+            if path=='/api/hypit/quote':return self.ok(hypit_service.quote())
+            if path=='/api/hypit/video-quote':return self.ok(hypit_service.video_quote(pid,request))
+            if path=='/api/hypit/build-paid':return self.ok(hypit_service.build_paid(pid,request))
+            if path=='/api/hypit/author':return self.ok(hypit_service.author(pid,request))
+            if path=='/api/hypit/validate':return self.ok(hypit_service.validate(pid))
+            if path=='/api/hypit/build':return self.ok(hypit_service.build(pid))
+            if path=='/api/hypit/cancel':return self.ok(hypit_service.cancel(pid))
+            if path=='/api/hypit/studio':return self.ok(hypit_service.open_studio(pid))
+            return self.err('Not found',404)
         if path=='/api/gpt-v41/chat/stream':return self._gpt_v41_stream()
         if path=='/api/assistant/new':return self.ok(ai_assistant.new_conversation())
         if path=='/api/assistant/chat':return self.ok(ai_assistant.send(self.json_in()))
@@ -1613,6 +1673,7 @@ def run(open_browser=False):
     creative_production.ensure_schema()
     _boot_phase("数据库初始化完成，正在恢复历史任务状态")
     task_observability.recover_interrupted_on_start()
+    hypit_service.recover()
     # Hotspot collection is manually triggered only; there is no radar scheduler thread.
     _task_poller_stop.clear()
     poller=threading.Thread(target=_background_task_poller,args=(_task_poller_stop,),name='video-task-poller',daemon=True)
@@ -1622,6 +1683,7 @@ def run(open_browser=False):
     try:server.serve_forever()
     finally:
         _task_poller_stop.set()
+        hypit_service.close_studio()
         try:poller.join(timeout=2)
         except Exception:pass
         try:config.PID_PATH.unlink(missing_ok=True)

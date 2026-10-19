@@ -34,6 +34,6 @@ def test_windows_root_only_two_cmd_entrypoints_and_launch_is_hidden():
     assert b'install_new_pc.ps1' in install
 
 def test_consistent_release_identity():
-    assert "APP_VERSION = '5.0.0'" in (ROOT/'core/config.py').read_text(encoding='utf8')
-    assert "APP_VERSION = '5.0.0'" in (ROOT/'tools/bootstrap_install.py').read_text(encoding='utf8')
+    assert "APP_VERSION = '5.2.0'" in (ROOT/'core/config.py').read_text(encoding='utf8')
+    assert "APP_VERSION = '5.2.0'" in (ROOT/'tools/bootstrap_install.py').read_text(encoding='utf8')
     assert 'audio_reference.css?v=5.0.0' in (ROOT/'static/index.html').read_text(encoding='utf8')

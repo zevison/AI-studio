@@ -51,6 +51,17 @@ class GuardedAgentTests(unittest.TestCase):
         d = self.tools.call('read_skill', {'path': 'references/authoring.md'})
         self.assertIn('Do not pay', d['content'])
 
+    def test_opt_in_write_returns_compiler_error_without_another_model_call(self):
+        diagnostic={'error':{'code':'MARKUP_UNKNOWN_SURFACE','message':'Missing module import'}}
+        calls=[]
+        tools=ProjectTools(self.project,self.skill,self.cli,validate_writes=True,
+            cli_runner=lambda cmd,file:calls.append((cmd,file)) or {'ok':False,'document':diagnostic})
+        result=tools.call('write_file',{'path':'main.svml','content':'<svml/>'})
+        self.assertEqual(calls,[('check','main.svml')])
+        self.assertFalse(result['check']['ok'])
+        self.assertEqual(result['check']['document'],diagnostic)
+        self.assertEqual((self.project/'main.svml').read_text(),'<svml/>')
+
     def test_read_escape_denied(self):
         for path in ('../.env', '/etc/passwd', '.hypit/secrets.json', 'folder/../file.md', 'C:\\secrets.json',
                      'notes.md:private.md', 'NUL.md', 'folder /private.md', 'CON.svml'):

@@ -25,7 +25,7 @@ export declare function externalHttps(value: unknown): string;
  * Visual person classification has no VERIFIED OpenLux wire mapping yet, so reject any
  * affected operation before it can become a paid request.
  */
-export declare function buildOpenLuxVideoPayload(spec: VideoSpec): Record<string, unknown>;
+export declare function buildOpenLuxVideoPayload(spec: VideoSpec, verifiedVisualMapping?: boolean): Record<string, unknown>;
 export declare function requestFingerprint(account: string, payload: Record<string, unknown>): string;
 export declare function remoteTaskId(response: unknown): string;
 export declare function remoteState(response: unknown): 'pending' | 'ready' | 'failed';

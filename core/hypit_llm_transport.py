@@ -32,12 +32,16 @@ class OpenLuxChatSender:
                 'User-Agent':'SeedanceStudio-Hypit-Agent/1'},
             data=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf8'))
         try:
-            with self.__opener.open(request,timeout=90) as response:
+            with self.__opener.open(request,timeout=180) as response:
                 if response.status!=200:raise RuntimeError('Unexpected OpenLux Chat HTTP status')
                 raw=response.read(1_000_001)
                 if len(raw)>1_000_000:raise ValueError('Chat response exceeds bounded limit')
                 document=json.loads(raw)
                 if not isinstance(document,dict):raise ValueError('Chat response must be a structured object')
+                headers = getattr(response,'headers',None)
+                request_id = headers.get('X-Request-Id') if headers else None
+                if request_id:
+                    document['_request_id'] = str(request_id)[:160].replace(self.__key,'[REDACTED]')
                 return document
         except urllib.error.HTTPError as exc:
             request_id=exc.headers.get('X-Request-Id') if exc.headers else None

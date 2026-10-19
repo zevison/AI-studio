@@ -5,11 +5,13 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from . import config, media
 from .tesseract_support import find_tesseract
+from . import pose_runtime
 
 
 PROMPT_AUDIO_WORDS = (
@@ -44,6 +46,8 @@ def _hidden_kwargs() -> dict:
 
 def _find_exe(name: str) -> str | None:
     if name.lower() == 'whisperx':
+        current=Path(sys.executable).parent/('whisperx.exe' if os.name=='nt' else 'whisperx')
+        if current.is_file():return str(current)
         sidecar = config.ROOT / 'tools' / 'runtime' / 'whisperx_py313' / ('Scripts/whisperx.exe' if os.name == 'nt' else 'bin/whisperx')
         if sidecar.exists():
             return str(sidecar)
@@ -68,7 +72,7 @@ def capabilities() -> dict:
         'faster_whisper': _module('faster_whisper'),
         'whisperx': bool(_find_exe('whisperx')) or _module('whisperx'),
         'tesseract': bool(_find_exe('tesseract')),
-        'mediapipe': _module('mediapipe'),
+        'mediapipe': pose_runtime.available() or _module('mediapipe'),
         'yolo': _module('ultralytics'),
         'bytetrack': _module('ultralytics'),
         'yolo_model_ready': bool(yolo_model),
@@ -178,6 +182,8 @@ def _sample_frames(path: Path, sha: str, scene: dict, max_frames: int = 8) -> li
 
 
 def _pose_summary(frames: list[dict]) -> dict:
+    if frames and pose_runtime.available():
+        return pose_runtime.analyze(frames)
     if not frames or not _module('mediapipe'):
         return {'available': _module('mediapipe'), 'used': False, 'reason': '无可用采样帧或未安装 MediaPipe'}
     try:

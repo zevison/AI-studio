@@ -62,7 +62,7 @@ export function externalHttps(value) {
  * Visual person classification has no VERIFIED OpenLux wire mapping yet, so reject any
  * affected operation before it can become a paid request.
  */
-export function buildOpenLuxVideoPayload(spec) {
+export function buildOpenLuxVideoPayload(spec, verifiedVisualMapping = false) {
     if (!spec || typeof spec !== 'object')
         throw new ContractViolation('Missing video spec');
     if (typeof spec.prompt !== 'string' || !spec.prompt.trim() || spec.prompt.length > 10000)
@@ -90,7 +90,13 @@ export function buildOpenLuxVideoPayload(spec) {
             if (typeof reference.personReference !== 'boolean')
                 throw new ContractViolation('Visual reference person classification required by Hypit');
             // This metadata cannot be passed in a confirmed OpenLux wire field yet.
-            throw new ContractViolation('OpenLux person-reference wire transport unverified; paid submission disabled');
+            if (!verifiedVisualMapping || reference.personReference)
+                throw new ContractViolation('OpenLux person-reference transport/permission unverified; paid submission disabled');
+            // false is a local classification/authorization guard. The documented
+            // vendor API transports the media role and URL, not a made-up flag.
+            const type = reference.role === 'reference_video' ? 'video_url' : 'image_url';
+            content.push({ type, [type]: { url }, role: reference.role });
+            continue;
         }
         if (reference.personReference !== undefined)
             throw new ContractViolation('Audio must not have personReference');
@@ -107,8 +113,10 @@ export function buildOpenLuxVideoPayload(spec) {
             throw new ContractViolation('Invalid reference generation');
     }
     else {
-        if (buckets.reference_video !== 1 || spec.ratio !== 'adaptive' || spec.duration !== -1)
-            throw new ContractViolation('Edit/extend require one source video, adaptive ratio and -1 duration');
+        if (buckets.reference_video !== 1 || spec.ratio !== 'adaptive' ||
+            spec.taskType === 'edit' && spec.duration !== -1 ||
+            spec.taskType === 'extend' && spec.duration !== -1 && (spec.duration < 4 || spec.duration > 30))
+            throw new ContractViolation('Edit/extend settings differ from the official 2.5 contract');
     }
     const payload = { model, content, ratio: spec.ratio, resolution: spec.resolution,
         duration: spec.duration, generate_audio: spec.generateAudio, output_format: 'mp4' };
@@ -160,6 +168,12 @@ export function finalVideoUrl(response) {
                 candidates.push(node[key]);
         if (typeof node.output === 'string')
             candidates.push(node.output);
+        if (node.content && typeof node.content === 'object' && !Array.isArray(node.content)) {
+            const content = node.content;
+            for (const key of ['video_url', 'output_url'])
+                if (content[key] !== undefined)
+                    candidates.push(content[key]);
+        }
     }
     const unique = [...new Set(candidates.map(x => String(x)))];
     if (unique.length !== 1)

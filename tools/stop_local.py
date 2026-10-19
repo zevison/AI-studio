@@ -26,15 +26,8 @@ for port in ports:
             if r.status==200:
                 print(f'[OK] 已停止本目录服务：{port}');stopped=True;break
     except Exception:pass
-# If the HTTP server already crashed, still stop the watchdog so it cannot relaunch it.
-wp=ROOT/'.watchdog_pid'
-if wp.exists():
-    try:
-        pid=int(wp.read_text().strip())
-        if os.name=='nt':subprocess.run(['taskkill','/PID',str(pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        else:os.kill(pid,15)
-    except Exception:pass
-    wp.unlink(missing_ok=True)
+# The stop marker also tells the guardian to exit after the backend ends.
+# Never kill a PID from a stale file: Windows can reuse it for another app.
 p.unlink(missing_ok=True)
 time.sleep(.2)
 print('[OK] 后台守护已停止。' if stopped else '[INFO] 服务未响应，但已发送停止标记并关闭后台守护。')

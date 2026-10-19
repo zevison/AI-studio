@@ -56,6 +56,6 @@ def test_installer_keeps_two_cmd_entry_points_and_real_error_reporting():
     assert 'repair_scenedetect()' in script
     assert script.index('repair_scenedetect()\n        show_install_stage') < script.index("'Preparing final capability report and dependency validation'")
     assert 'from scenedetect import open_video, SceneManager' in script
-    assert 'APP_VERSION = \'5.0.0\'' in script
+    assert 'APP_VERSION = \'5.2.0\'' in script
     group_script=(ROOT/'tools/install_analysis_stack.py').read_text('utf-8')
     assert "'scenedetect>=0.6.5,<0.7'" in group_script

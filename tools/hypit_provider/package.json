@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build:offline": "npm run prepare:sdk && tsc -p tsconfig.json",
+    "build:offline": "npm run prepare:sdk && tsc -p tsconfig.json && node scripts/register-local-provider.mjs",
     "test:offline": "npm run build:offline && node --import ./tests/sdk-bootstrap.mjs --test dist/tests/*.test.js",
     "prepare:sdk": "node scripts/apply-sdk-security-patches.mjs"
   },

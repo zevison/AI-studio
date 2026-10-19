@@ -33,7 +33,7 @@ def tool_status():
       'faster_whisper':{'ok':_module('faster_whisper'),'level':'required'},
       'whisperx':{'ok':bool(_which('whisperx')) or _module('whisperx'),'level':'recommended'},
       'tesseract':{'ok':bool(_which('tesseract')),'path':_which('tesseract'),'level':'recommended'},
-      'mediapipe':{'ok':_module('mediapipe'),'level':'recommended'},
+      'mediapipe':{'ok':smart_analysis.pose_runtime.available() or _module('mediapipe'),'level':'recommended'},
       'yolo':{'ok':_module('ultralytics'),'level':'recommended','model_ready':bool((smart_analysis.capabilities() or {}).get('yolo_model_ready')),'note':'模块可用；本地权重准备后才启用实际目标追踪'},
       'bytetrack':{'ok':_module('ultralytics'),'level':'recommended','model_ready':bool((smart_analysis.capabilities() or {}).get('yolo_model_ready')),'note':'由 Ultralytics 内置 ByteTrack 配置提供；与本地 YOLO 权重配合使用'},
     }

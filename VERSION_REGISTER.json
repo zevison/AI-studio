@@ -1,15 +1,37 @@
 {
-  "date": "2026-10-16",
-  "status": "development_checkpoint_not_stable",
-  "assigned_release_version": null,
+  "date": "2026-10-19",
+  "assigned_release_version": "5.2.0",
+  "status": "complete_bundle_candidate_pending_final_install_check",
   "official_hypit": "0.3.1",
   "baseline_commit": "3d9588a275f9af75e302e717a6c8fa6dc949a70f",
-  "paid_video_calls": 0,
-  "authorized_llm_calls": 4,
-  "actual_llm_successes": 3,
-  "actual_llm_usd": "0.001338",
-  "ui_merge_complete": false,
-  "live_video_backend_enabled": false,
-  "development_source_base": "5.0.0",
-  "installed_user_version": "not_inferred"
+  "installed_user_version": "not_inferred",
+  "ui_merge_complete": true,
+  "replica_menu_removed": true,
+  "python_tests_passed": 246,
+  "python_tests_skipped": 1,
+  "sdk_tests_passed": 40,
+  "paid_video_creates": 2,
+  "llm_submissions": 36,
+  "actual_llm_usd": "0.014796",
+  "actual_video_usd": "1.611646",
+  "actual_all_tests_usd": "1.626442",
+  "original_additional_grant_usd": "5.00",
+  "actual_additional_grant_spend_usd": "1.625104",
+  "live_verified_scopes": [
+    "official Agent authoring/check/plan",
+    "local Film build/Studio",
+    "Seedance 2.5 TextVideo",
+    "single non-person reference video edit:720p/adaptive/no generated audio",
+    "GET-only same-task recovery"
+  ],
+  "experimental_scopes": [
+    "other reference modes",
+    "extend",
+    "mixed image/audio conditioning"
+  ],
+  "unsupported_scopes": [
+    "direct real-person face references",
+    "verified voice cloning"
+  ],
+  "full_installer_validation": "isolated install/reinstall/launcher/Film/Studio passed; final extracted bundle check pending; not pristine OS"
 }

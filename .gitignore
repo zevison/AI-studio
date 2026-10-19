@@ -10,3 +10,9 @@ __pycache__/
 .hypit-development-backups/
 .hypit-development-install.lock
 tools/runtime/
+
+.venv/
+install_logs/
+tools/node/node.exe
+tools/hypit_browser/
+tools/*-payload.zip

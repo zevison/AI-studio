@@ -1,4 +1,4 @@
-"""V5.0.0 installer behavior tests; no live network, Windows or paid APIs."""
+"""V5.2.0 installer behavior tests; no live network, Windows or paid APIs."""
 from __future__ import annotations
 import sys, io, os, hashlib, subprocess, zipfile
 from pathlib import Path
@@ -58,4 +58,4 @@ def test_preserve_single_cmd_and_existing_audio_features():
     assert sorted(x.name for x in ROOT.glob('*.cmd'))==['00_START.cmd','01_INSTALL.cmd']
     assert (ROOT/'core/voice_bindings.py').exists()
     assert (ROOT/'static/audio_reference.js').exists()
-    assert "APP_VERSION = '5.0.0'" in (ROOT/'core/config.py').read_text('utf-8')
+    assert "APP_VERSION = '5.2.0'" in (ROOT/'core/config.py').read_text('utf-8')
