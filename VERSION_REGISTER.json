@@ -7,7 +7,7 @@
   "installed_user_version": "not_inferred",
   "ui_merge_complete": true,
   "replica_menu_removed": true,
-  "python_tests_passed": 267,
+  "python_tests_passed": 292,
   "python_tests_skipped": 1,
   "sdk_tests_passed": 40,
   "paid_video_creates": 2,
@@ -37,7 +37,9 @@
   "latest_revision_paid_calls": 0,
   "sdk_payload_sha256": "8f09c490efc61594d3835efdc4a6545e741f3c81e30bde5fe9556383fbd86dcb",
   "sdk_reinstall_after_studio_verified": true,
-  "frontend_logic_tests_passed": 11,
+  "frontend_logic_tests_passed": 14,
   "browser_ui_acceptance_passed": true,
-  "browser_evidence": "docs/BROWSER_UI_ACCEPTANCE_20261019.json"
+  "browser_evidence": "docs/BROWSER_UI_ACCEPTANCE_20261019.json",
+  "build_revision": "colleague-20261019",
+  "colleague_audit": "docs/COLLEAGUE_RELEASE_AUDIT_20261019.json"
 }

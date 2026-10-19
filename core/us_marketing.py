@@ -1,7 +1,7 @@
 """Deterministic United States market calendar / time constraints. No weather assertions."""
 from __future__ import annotations
 import datetime as dt
-import re
+import re, math
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -39,6 +39,7 @@ def context(now=None):
             'commercial_truth_policy':'功能及性能必须依据已确认商品事实，不得由热点推断产品能力'}
 
 def validate_script(doc, market):
+    if not isinstance(doc,dict):return {'ok':False,'errors':['脚本必须是完整的结构化对象']}
     problems=[]
     if doc.get('market_country')!='US':problems.append('缺少或错误的美国市场标记')
     if doc.get('as_of_us')!=market['as_of_us']:problems.append('美国日期不一致')
@@ -51,8 +52,14 @@ def validate_script(doc, market):
         for i,seg in enumerate(segments):
             if not isinstance(seg,dict) or not all(str(seg.get(k) or '').strip() for k in ('narration_en','narration_zh','visual_cn')):
                 problems.append(f'分镜{i+1}缺少双语文案或画面');break
+            duration=seg.get('duration_s',5)
+            try:
+                if isinstance(duration,bool) or not math.isfinite(float(duration)) or not 0<float(duration)<=300:
+                    raise ValueError()
+            except (ValueError,TypeError,OverflowError):
+                problems.append(f'分镜{i+1}时长须为大于0且不超过300的有限秒数');break
     # Specific wrong-season statements are a safety failure, not simply a style issue.
-    en=' '.join([str(doc.get('hook_en') or '')]+[str(v.get('narration_en') or '') for v in (segments or []) if isinstance(v,dict)]).lower()
+    en=' '.join([str(doc.get('hook_en') or '')]+[str(v.get('narration_en') or '') for v in (segments if isinstance(segments,list) else []) if isinstance(v,dict)]).lower()
     for season in ('winter','spring','summer','fall','autumn'):
         normalized='fall' if season=='autumn' else season
         if normalized==market['season']:continue

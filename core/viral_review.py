@@ -195,6 +195,10 @@ def start_original_download(payload,save_asset_bytes):
 
 
 def visual_evidence(item_id,max_frames=7):
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise ValueError('缺少 Pillow 图片处理组件，尚未调用 GPT；请关闭工作台并重新运行 01_INSTALL.cmd') from exc
     a=asset_for_item(item_id);path=Path(a['path']);info=media.probe(path)
     duration=float(info.get('duration') or 0)
     if not 0.2<duration<=3600:raise ValueError('视频时长异常，无法拆解真实画面')
@@ -221,7 +225,6 @@ def visual_evidence(item_id,max_frames=7):
         dst=root/f'{index:02d}_{int(t*1000)}.jpg'
         if not dst.is_file() and not smart_analysis._extract_frame(path,dst,t):continue
         try:
-            from PIL import Image
             with Image.open(dst) as im:
                 im.thumbnail((512,768));buf=io.BytesIO();im.convert('RGB').save(buf,'JPEG',quality=72);raw=buf.getvalue()
         except Exception:continue

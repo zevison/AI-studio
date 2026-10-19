@@ -235,7 +235,7 @@ def _task_progress(t, req, resp, result):
         'stage_total':len(visible),
         'note':'这里显示的是本地流程阶段，并非模型内部渲染百分比；实际模型：'+provider_label,
         'provider_status':_provider_status_text(resp),
-        'elapsed_seconds':max(0,int(db.now()-float(t.get('created_at') or db.now()))),
+        'elapsed_seconds':max(0,int((float(t.get('updated_at') or t.get('created_at') or db.now()) if t.get('status') in {'completed','failed','cancelled','canceled','rejected'} else db.now())-float(t.get('created_at') or db.now()))),
         'query_count':int(t.get('query_count') or 0),
         'last_polled_at':t.get('last_polled_at'),
         'last_query_error':t.get('last_query_error')
@@ -839,6 +839,8 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/creative-production/model/activate':return self.ok(creative_production.activate_model(self.json_in().get('id')))
         if path=='/api/creative-production/h3/handoff':return self.ok(creative_production.test_handoff(self.json_in().get('id')))
         if path=='/api/creative-production/h3/bind':return self.ok(creative_production.bind_h3_result(self.json_in()))
+        if path=='/api/creative-production/hypit/bind':return self.ok(creative_production.bind_hypit_result(self.json_in(),hypit_service))
+        if path=='/api/creative-production/review/reopen':return self.ok(creative_production.reopen_review(self.json_in()))
         if path=='/api/creative-production/first-cut/review':return self.ok(creative_production.review_first_cut(self.json_in()))
         # VISUAL_PROMPT_LIBRARY_POST_V1
         if path=='/api/prompt-library/save':return self.ok(prompt_library.save(self.json_in()))

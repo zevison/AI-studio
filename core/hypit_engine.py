@@ -157,6 +157,11 @@ def faster_whisper_status():
 
 
 def transcribe_if_available(path:Path, cache_dir:Path, mode='if_installed'):
+    if mode=='off':
+        return {'available':False,'used':False,'engine':None,'words':[],'segments':[],'reason':'关闭'}
+    info=media.probe(path)
+    if info.get('ok') and info.get('has_audio') is False:
+        return {'available':False,'used':False,'engine':None,'words':[],'segments':[],'reason':'视频没有音轨，已跳过语音模型加载'}
     wx=_whisperx_exe()
     fw=faster_whisper_status().get('available')
     if mode=='off':

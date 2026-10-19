@@ -10,7 +10,7 @@ from core import media
 def main():
  with tempfile.TemporaryDirectory() as root:
   base=Path(root);db_path=base/'studio.db'
-  with patch.object(db,'DB_PATH',db_path),patch.object(config,'DB_PATH',db_path),patch.object(config,'CACHE_DIR',base/'cache'):
+  with patch.object(db,'DB_PATH',db_path),patch.object(config,'DB_PATH',db_path),patch.object(config,'CACHE_DIR',base/'cache'),patch.object(config,'ASSET_DIR',base):
    db.init_db();hot_radar._schema_initialized=False;hot_radar.ensure_schema();viral_review.schema()
    product=hot_radar.save_product({'name':'Demo air pump','keywords':['portable air pump'],
      'facts':[{'text':'Pumps compatible inflatables','status':'verified','source':'manual'}]})
@@ -25,11 +25,11 @@ def main():
    except ValueError as e:assert '视频' in str(e)
    else:raise AssertionError('GPT text-only should have been blocked')
    from shutil import which
-   if not which('ffmpeg') or not which('ffprobe'):
+   if not media.ffmpeg_path() or not media.ffprobe_path():
     print('PARTIAL PASS: media guard and record import; FFmpeg absent on this test machine')
     return
    file=base/'sample.mp4'
-   subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-f','lavfi','-i','testsrc=size=160x288:rate=5',
+   subprocess.run([media.ffmpeg_path(),'-hide_banner','-loglevel','error','-f','lavfi','-i','testsrc=size=160x288:rate=5',
                    '-t','2.1','-pix_fmt','yuv420p','-y',str(file)],check=True,timeout=30)
    md=media.probe(file)
    db.execute('''INSERT INTO assets(id,original_name,stored_name,kind,mime,path,sha256,size_bytes,duration,width,height,fps,has_audio,created_at)
@@ -49,6 +49,8 @@ def main():
          'video_breakdown':[{'time_seconds':evidence['frames'][0]['time'],'visual_cn':'视频中的测试色块','creative_insight_cn':'仅供测试'}],
          'script_segments':[{'duration_s':4,'narration_en':'Check this compact pump.','narration_zh':'看看这款便携气泵','visual_cn':'真实商品演示','source_ids':[item['id']]}],
          'risk_notes_cn':['确认商品真实性']}
+    doc['product_match']={'verdict':'suitable','reason_cn':'同为充气场景，测试仅验证链路',
+        'verified_claims_used':['Pumps compatible inflatables'],'transferable_elements_cn':['开头商品演示节奏']}
     called=[]
     def fake_request(method,path,request,**kwargs):
      assert method=='POST'

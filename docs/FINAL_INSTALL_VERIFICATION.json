@@ -9,13 +9,14 @@
   "fresh_offline_ffmpeg_passed": true,
   "browser_ui_passed": true,
   "paid_calls_this_revision": 0,
-  "reason": "Previously verified installation, restart, free Runtime export, Studio, storage and SDK reuse; browser permission restored and scoped UI acceptance completed. Not a new real-product campaign acceptance.",
+  "reason": "Existing full installer and unchanged dependency payload validation retained; current source restarted in extracted installation, free official export/Studio and browser review-return workflow passed. Pristine colleague Windows and new real-product online campaign remain unverified.",
   "pristine_windows_verified": false,
-  "current_audit": "USABILITY_AUDIT_20261019.json",
+  "current_audit": "COLLEAGUE_RELEASE_AUDIT_20261019.json",
   "sdk_reuse_after_real_studio_passed": true,
   "completed_status_preserved_after_studio": true,
-  "source_python_tests_passed": 267,
-  "frontend_logic_tests_passed": 11,
+  "source_python_tests_passed": 292,
+  "frontend_logic_tests_passed": 14,
   "acceptance_scope": "Current Windows full installer, local Runtime and reviewed browser workflows; limitations listed in BROWSER_UI_ACCEPTANCE_20261019.json",
-  "browser_evidence": "BROWSER_UI_ACCEPTANCE_20261019.json"
+  "browser_evidence": "BROWSER_UI_ACCEPTANCE_20261019.json",
+  "build_revision": "colleague-20261019"
 }

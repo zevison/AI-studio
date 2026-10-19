@@ -130,6 +130,7 @@
     </section>
 
     <section class="page" id="page-products">
+      <details class="usage-help"><summary>商品到成片：操作顺序与常见问题</summary><p>商品资料与事实确认 → 热点候选 → 绑定真实视频 → 预检后拆解匹配 → 审核脚本 → Hypit 编排与导出 → 回到审核队列绑定成片。付费阶段分别确认。</p><a href="/static/product_video_guide.html" target="_blank" rel="noopener">打开同事使用指南（含安装、退回修改和故障处理）</a></details>
       <div class="pm-head"><div><div class="section-kicker">商品知识中心 · 先证据，后关键词</div><h2>商品知识中心</h2><p class="muted">创建空白商品 → 上传官网链接 / 说明书 / 实拍图片 → GPT 解读商品 → 自动提取美区 TikTok 热点搜索词 → 审核关键事实 → 手动采集真实 TikTok 视频。</p></div><div class="pm-actions"><button class="secondary" id="pmToVideo">引用商品事实到视频创作 ↗</button><button class="secondary" id="pmToRadar">查看热点收集 ↗</button></div></div>
       <div class="pm-view-tabs" role="group" aria-label="商品知识中心视图">
         <button type="button" id="pmCatalogTab" class="pm-tab is-active">商品档案</button>
@@ -192,6 +193,7 @@
     </section>
 
     <section class="page" id="page-radar">
+      <details class="usage-help"><summary>商品到成片：操作顺序与常见问题</summary><p>商品资料与事实确认 → 热点候选 → 绑定真实视频 → 预检后拆解匹配 → 审核脚本 → Hypit 编排与导出 → 回到审核队列绑定成片。付费阶段分别确认。</p><a href="/static/product_video_guide.html" target="_blank" rel="noopener">打开同事使用指南（含安装、退回修改和故障处理）</a></details>
       <div class="radar-head"><div><div class="section-kicker">智能带货 · 美区市场情报</div><h2>热点收集</h2><p class="muted">Bright Data 手动寻找热点视频 → 人工复查 → 真实视频拆解 → 改写商品脚本 → 视频制作。</p></div><div class="radar-lock">视频生成：默认禁止自动付费</div></div>
       <div class="radar-product-first"><section class="card radar-panel"><h3>① 选择商品</h3><p class="tiny muted">商品图、说明书、链接、产品事实已统一搬到独立的“商品知识中心”。此处只选择要追踪热点的商品。</p><label>当前商品<select id="radarProduct"></select></label><button class="secondary" id="radarGoProduct" type="button">管理商品资料与 AI 商品记忆 ↗</button><div class="radar-capabilities">仅已确认的产品事实可作为正式广告功能依据。</div></section></div>
       <div class="card bd-panel"><h3>Bright Data · TikTok 手动热点</h3><p class="tiny muted">仅人工触发，默认20条、所有关键词共享上限；采集仅提供热点线索，不能证明成交。免费余额与计费单位需要人工核实。</p>
@@ -211,6 +213,7 @@
 
 
     <section class="page" id="page-ads">
+      <details class="usage-help"><summary>商品到成片：操作顺序与常见问题</summary><p>商品资料与事实确认 → 热点候选 → 绑定真实视频 → 预检后拆解匹配 → 审核脚本 → Hypit 编排与导出 → 回到审核队列绑定成片。付费阶段分别确认。</p><a href="/static/product_video_guide.html" target="_blank" rel="noopener">打开同事使用指南（含安装、退回修改和故障处理）</a></details>
       <div class="radar-head"><div><div class="section-kicker">商品创意 · 人工审核 · 模型测试</div><h2>智能视频制作</h2><p class="muted">编辑和确认商品脚本 → 选择视频模型 → 发送视频创作并人工确认付费 → 审核成片。</p></div><div class="radar-lock">低成本候选：Vidu Q3 Turbo</div></div>
       <div class="card radar-panel"><h3>01 · 选择已生成的热点脚本</h3><p class="tiny muted">脚本由热点收集产生；此处负责制作审批，不会未经授权创建视频。</p><div class="radar-actions"><label style="flex:1;min-width:260px">可选脚本<select id="adsScriptSelect"></select></label><label style="flex:1;min-width:220px">测试视频模型<select id="adsPreferredModel"><option value="auto">智能自动选择（默认）</option><option value="viduq3-turbo">Vidu Q3 Turbo（低成本候选）</option><option value="minimax-video-h3">MiniMax H3（效果对照）</option><option value="doubao-seedance-2-5-260628">Seedance 2.5（原有高质量）</option></select></label><button class="primary" id="adsNewJob" type="button">创建制作审核任务</button></div><div id="adsNotice" class="radar-estimate"></div></div>
       <div class="card radar-panel"><h3>02 · 脚本及制作审核队列</h3><div id="adsJobs"></div></div>
@@ -750,10 +753,10 @@
  </section>
 </div>
 <div id="toast"></div>
-<script src="/static/app.js?v=20261019"></script>
+<script src="/static/app.js?v=5.2.0.colleague-final"></script>
 <script src="/static/hypit_studio.js?v=20261019"></script>
 <script src="/static/hot_radar.js?v=4.2.8.11"></script>
-<script src="/static/creative_production.js?v=4.2.8.11"></script>
+<script src="/static/creative_production.js?v=5.2.0.colleague-final"></script>
 <script src="/static/product_memory.js?v=4.2.8.8"></script>
   <script src="/static/prompt_library.js?v=3.0"></script>
 <script src="/static/audio_reference.js?v=5.0.0"></script>

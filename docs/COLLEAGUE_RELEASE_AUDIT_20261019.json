@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-19",
+  "build_revision": "colleague-20261019",
+  "source_baseline": "ca686dad8a778846376be3a7491b6fb53de31c66",
+  "regression": {
+    "python_passed": 292,
+    "python_skipped": 1,
+    "frontend_logic_passed": 14,
+    "python_ast_files": 177,
+    "javascript_files_parsed": 12
+  },
+  "implemented": [
+    "Three in-app guide entries and bundled product-to-TikTok guide",
+    "Verified Hypit export binding back to review queue",
+    "Rejected/stale script reopening with bounded history and renewed approval",
+    "Recheck verified product claims at approval",
+    "Preserve exact script duration; prevent unsupported single-clip handoff",
+    "Replace stale reference and synchronize ratio/duration during handoff",
+    "Prevent delayed workspace restoration overriding user navigation",
+    "Freeze completed task elapsed time",
+    "Skip transcription engine initialization for silent media; accurate missing Pillow diagnosis"
+  ],
+  "actual_runtime": {
+    "free_official_film_export_and_studio": true,
+    "duration_seconds": 1,
+    "export_sha256": "00fcf2307ed490934197ae8310f5e409aa2d14cf4d9a68cbfd9bdfdd7ccb851c"
+  },
+  "actual_browser": {
+    "export_bind_play_download": true,
+    "reject_and_reopen_editing": true,
+    "guide_opens": true,
+    "business_rows": "Explicitly synthetic product/script linked to real local export"
+  },
+  "offline_business_chain": "Local video import, real FFmpeg frames, mocked GPT response, matched script, approval and handoff passed; no upstream TikTok collection or paid model submission in this revision",
+  "red_team": [
+    {
+      "risk": "Wrong project/task or tampered export accepted as reviewed output",
+      "result": "Regression rejects mismatched ownership, unfinished task, missing file and changed hash"
+    },
+    {
+      "risk": "Stale or revoked product claim approved and old rejection lost",
+      "result": "Regression rejects revoked facts; reapproval preserves previous project/task/script/rejection snapshot"
+    },
+    {
+      "risk": "Navigation race or endless terminal clock",
+      "result": "Frontend logic tests reject stale restoration and freeze terminal time"
+    }
+  ],
+  "paid_calls_this_revision": 0,
+  "not_verified": [
+    "Pristine colleague Windows installation",
+    "New live real-product TikTok-to-paid-video campaign",
+    "All possible hardware, network and supplier combinations"
+  ],
+  "limits": [
+    "Inference uses configured online services, not offline model weights",
+    "Human fact/script/video review and per-stage spending consent required",
+    "Direct real-person face reference and verified voice cloning unsupported; extend/mixed references experimental",
+    "First-use optional transcription dependencies may need network access"
+  ]
+}
