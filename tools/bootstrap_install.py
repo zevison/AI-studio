@@ -1,19 +1,24 @@
-"""Seedance Studio 3.9.8.5: install once, share compatible runtimes across releases.
+"""Seedance Studio: independent per-release environments, reusable download caches.
 
 Never remove a user's earlier .venv automatically. No paid video/API requests.
 """
 from __future__ import annotations
 
 import importlib.metadata
+import queue
+import threading
+import time
+import uuid
 import os
 import shutil
 import subprocess
+import struct
 import sys
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from shared_runtime import ROOT, SHARED, ASSETS, supported, same_family, mark_family, previous_venv, make_link, copy_previous_asset, cache_asset
+from shared_runtime import ROOT, supported, same_family, mark_family, copy_previous_asset, cache_asset
 if str(ROOT) not in sys.path:
     sys.path.insert(0,str(ROOT))
 
@@ -39,18 +44,53 @@ def show_install_stage(stage: int, title: str) -> None:
 
 
 
-def run(cmd):
+def run(cmd, timeout=2400):
     """Stream child process progress to BOTH console and dependency_install.log."""
     print('>', ' '.join(map(str, cmd)), flush=True)
     try:
-        with subprocess.Popen(list(map(str,cmd)), cwd=ROOT,
+        process=subprocess.Popen(list(map(str,cmd)), cwd=ROOT,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True, encoding='utf-8', errors='replace',
-                              bufsize=1) as process:
-            if process.stdout:
+                              bufsize=1,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        output=queue.Queue(maxsize=128)
+        stopped=threading.Event()
+        def offer(value):
+            while not stopped.is_set():
+                try:output.put(value,timeout=.1);return
+                except queue.Full:pass
+        def read():
+            try:
                 for line in process.stdout:
-                    print(line, end='', flush=True)
-            return process.wait()
+                    if stopped.is_set():break
+                    offer(line)
+            finally:offer(None)
+        reader=threading.Thread(target=read,daemon=True);reader.start()
+        deadline=time.monotonic()+timeout;ended=False
+        while not ended or process.poll() is None:
+            if time.monotonic()>=deadline:
+                stopped.set()
+                # Stop only this installer child tree, never all Python tasks.
+                if process.poll() is None:
+                    try:
+                        if os.name=='nt':
+                            subprocess.run([str(Path(os.environ['SystemRoot'])/'System32/taskkill.exe'),'/PID',str(process.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=15)
+                        else:process.kill()
+                    finally:
+                        if process.poll() is None:process.kill()
+                process.wait(timeout=10)
+                reader.join(timeout=2)
+                if not reader.is_alive():process.stdout.close()
+                print('[ERROR] Installation step timed out; current files retained. Rerun 01_INSTALL.cmd after checking the network.',flush=True)
+                return 124
+            if ended:time.sleep(.05);continue
+            try:
+                line=output.get(timeout=min(.2,max(.01,deadline-time.monotonic())))
+                if line is None:ended=True
+                else:print(line,end='',flush=True)
+            except queue.Empty:pass
+        reader.join(timeout=1)
+        if not reader.is_alive():process.stdout.close()
+        return process.wait(timeout=10)
     except (OSError, ValueError) as exc:
         print('[ERROR] Child process start failed:', exc)
         return 127
@@ -58,41 +98,27 @@ def run(cmd):
 
 def _backup_broken_link():
     """Rename instead of destroying user's installed libraries/data."""
-    if not (VENV.exists() or VENV.is_symlink()):
+    if not os.path.lexists(VENV):
         return
-    target = ROOT / ('.venv_saved_' + datetime.now().strftime('%Y%m%d_%H%M%S'))
+    target = ROOT / ('.venv_saved_' + datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + uuid.uuid4().hex[:8])
     VENV.rename(target)
     print(f'[保留] 不兼容或损坏的运行环境已改名为 {target.name}；没有删除。')
 
 
 def prepare_venv() -> str:
-    if supported(VENV) and same_family(VENV):
+    # A release must remain runnable after a colleague deletes an older release.
+    # Do not install into a shared junction: pip can replace DLLs used by another
+    # running release. Local venvs also work on drives without NTFS junctions.
+    linked = VENV.is_symlink() or (hasattr(VENV, 'is_junction') and VENV.is_junction())
+    if not linked and supported(VENV) and same_family(VENV):
         return '当前目录已有兼容运行环境，直接复用'
-    if VENV.exists() or VENV.is_symlink():
+    if os.path.lexists(VENV):
         _backup_broken_link()
-    if supported(SHARED):
-        mark_family(SHARED)
-        if make_link(SHARED, VENV):
-            return f'使用公共运行环境 {SHARED}；后续版本无需重新安装'
-        raise RuntimeError('公共运行环境存在，但建立 .venv 目录链接失败；请关闭工作台后重试。')
-    previous = previous_venv()
-    if previous:
-        if make_link(previous, VENV):
-            print('[注意] 复用了旧版本安装目录中的运行环境，请暂时保留原目录，勿删除旧版 .venv。')
-            return f'复用旧版 Python 环境 {previous}；本次不会重新下载已有的库'
-        raise RuntimeError('发现旧版兼容环境，但无法建立复用链接。未开始重复下载。')
-    SHARED.parent.mkdir(parents=True, exist_ok=True)
-    if SHARED.exists() and not supported(SHARED):
-        backup = SHARED.parent / (SHARED.name + '_saved_' + datetime.now().strftime('%Y%m%d_%H%M%S'))
-        SHARED.rename(backup)
-        print(f'[保留] 不兼容的公共运行环境备份到 {backup}')
-    print(f'[首次] 在公共位置新建 Python 环境：{SHARED}。之后版本自动复用。')
-    if run([sys.executable, '-m', 'venv', str(SHARED)]) != 0 or not supported(SHARED):
-        raise RuntimeError('公共 Python 环境创建失败')
-    mark_family(SHARED)
-    if not make_link(SHARED, VENV):
-        raise RuntimeError('公共 Python 已创建，但无法链接当前版本；请检查 Windows 磁盘目录权限。')
-    return '已创建公共 Python 环境（仅首次需要安装依赖）'
+    print(f'[首次] 创建当前版本独立 Python 环境：{VENV}；不依赖旧版本目录。')
+    if run([sys.executable, '-m', 'venv', str(VENV)]) != 0 or not supported(VENV):
+        raise RuntimeError('独立 Python 环境创建失败；请检查磁盘空间、目录写权限及安全软件日志。现有环境已保留。')
+    mark_family(VENV)
+    return '已创建当前版本独立 Python 环境；pip 下载缓存仍可复用'
 
 
 def missing_requirements() -> list[str]:
@@ -341,8 +367,8 @@ def main() -> int:
     print('='*70)
     print(f'Seedance Studio V{APP_VERSION} | 时区自检 + 跨版本复用')
     print('='*70)
-    if sys.version_info < (3,10):
-        print('[ERROR] 需要 Python 3.10+；建议 3.12 x64。')
+    if sys.version_info[:2] != (3,12) or struct.calcsize('P') != 8:
+        print('[ERROR] 完整安装包需要 Python 3.12 x64。请使用 01_INSTALL.cmd 自动选择或安装匹配版本。')
         return 2
     if os.name != 'nt':
         print('[WARN] 发行版目标为 Windows；当前环境仅适合测试安装逻辑。')
@@ -353,10 +379,10 @@ def main() -> int:
         (ROOT/rel).mkdir(parents=True,exist_ok=True)
     try:
         show_install_stage(0,'Creating or finding the isolated Python runtime')
-        print('[1/7] ' + prepare_venv())
         from install_analysis_stack import studio_is_running, install_ffmpeg_bundle
         if studio_is_running():
             raise RuntimeError('Studio is still running. Please close it and rerun 01_INSTALL.cmd.')
+        print('[1/7] ' + prepare_venv())
         show_install_stage(1,'Python runtime ready. Installing core packages')
         print('[2/7] Checking core Python packages ...')
         ensure_requirements()
@@ -391,7 +417,7 @@ def main() -> int:
         return 3
     show_install_stage(7,'All 7 setup stages passed the required component checks')
     print('\n[OK] 01 dependency installation finished. See install_logs/dependency_report.json for any advanced features unavailable.')
-    print('注意：如复用旧版 .venv，请暂时保留其原始目录；建议未来所有版本沿用当前安装目录。')
+    print('当前版本使用独立 .venv。移动安装目录或更换电脑后，请重新运行 01_INSTALL.cmd。')
     return 0
 
 

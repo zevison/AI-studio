@@ -3,7 +3,7 @@ chcp 65001 >nul
 title Seedance Studio V5.2.0 - Setup
 rem One-click Windows setup with verified progress steps
 color 0B
-setlocal EnableExtensions
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 if errorlevel 1 (
   echo [ERROR] Cannot open installation folder.

@@ -42,12 +42,15 @@ def supported(venv: Path) -> bool:
 
 
 def same_family(venv: Path) -> bool:
-    try:return json.loads((venv/'seedance-runtime-family.json').read_text()).get('family')==RUNTIME_FAMILY
+    try:
+        marker=json.loads((venv/'seedance-runtime-family.json').read_text())
+        owner=marker.get('owner_root')
+        return marker.get('family')==RUNTIME_FAMILY and isinstance(owner,str) and Path(owner).resolve()==ROOT.resolve()
     except (OSError,ValueError,AttributeError):return False
 
 
 def mark_family(venv: Path):
-    (venv/'seedance-runtime-family.json').write_text(json.dumps({'family':RUNTIME_FAMILY}),encoding='utf8')
+    (venv/'seedance-runtime-family.json').write_text(json.dumps({'family':RUNTIME_FAMILY,'owner_root':str(ROOT.resolve())}),encoding='utf8')
 
 
 def sibling_roots() -> list[Path]:

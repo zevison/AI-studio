@@ -26,7 +26,7 @@ def main():
     # Actual model construction + inference on a known blank local frame.
     cache=ROOT/'data/cache/pose-install-check';cache.mkdir(parents=True,exist_ok=True)
     image=cache/'blank.png'
-    run([PY,'-c',"import cv2,numpy as n,sys; assert cv2.imwrite(sys.argv[1],n.zeros((256,256,3),dtype=n.uint8))",image])
+    run([PY,'-c',"import cv2,numpy as n,sys; from pathlib import Path; ok,data=cv2.imencode('.png',n.zeros((256,256,3),dtype=n.uint8)); assert ok; Path(sys.argv[1]).write_bytes(data.tobytes())",image])
     probe=run([PY,ROOT/'tools/pose_worker.py',ROOT/'assets/mediapipe',cache],
         input=json.dumps({'frames':[{'path':str(image),'time':0}]}),capture_output=True,text=True,encoding='utf8')
     doc=json.loads(probe.stdout)

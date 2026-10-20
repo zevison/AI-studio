@@ -11,9 +11,9 @@ function harness(route,blockedStorage=false){
   function node(){return {value:'',children:[],hidden:false,disabled:false,textContent:'',scrollHeight:0,
     classList:{toggle(){},add(){},remove(){}},append(...items){this.children.push(...items)},
     replaceChildren(){this.children=[]},querySelector(){return null},querySelectorAll(){return []},
-    addEventListener(){},after(){},focus(){}};}
+    addEventListener(){},setAttribute(){},after(){},focus(){}};}
   const get=id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id)};
-  const document={readyState:'loading',getElementById:get,addEventListener(){},createElement:node};
+  const document={readyState:'loading',getElementById:get,addEventListener(){},createElement:node,createTextNode:text=>({textContent:text})};
   const localStorage={getItem(){if(blockedStorage)throw Error('denied');return null},
     setItem(){if(blockedStorage)throw Error('quota')},removeItem(){if(blockedStorage)throw Error('denied')}};
   const readers=[];
@@ -96,4 +96,24 @@ test('unavailable clipboard file contents produce an actionable message',async()
   const h=harness(()=>[]);let prevented=false;
   await h.chat.pasteAttachments({clipboardData:{types:['Files'],items:[{kind:'file',getAsFile:()=>null}]},preventDefault(){prevented=true}});
   assert.equal(prevented,true);assert.match(h.get('aiStatus').textContent,/没有提供可读取的文件/);
+});
+
+function finishReaders(h){for(const reader of h.readers){reader.result='data:image/png;base64,aGVsbG8=';reader.onload();}}
+test('twenty images render, including adding past the old three-file limit',async()=>{
+ const h=harness(()=>[]);h.chat.seed('active');
+ const first=h.chat.addFiles(Array.from({length:3},(_,i)=>({name:`${i}.png`,size:5})));finishReaders(h);await first;
+ const rest=h.chat.addFiles(Array.from({length:17},(_,i)=>({name:`${i+3}.png`,size:5})));finishReaders(h);await rest;
+ assert.equal(h.chat.state().files.length,20);assert.equal(h.get('aiFileList').children.length,20);assert.match(h.get('aiStatus').textContent,/20\/20/);
+ await assert.rejects(h.chat.addFiles([{name:'extra.png',size:5}]),/最多20/);assert.equal(h.chat.state().files.length,20);
+});
+test('parallel additions cannot bypass the twenty-file limit or discard accepted files',async()=>{
+ const h=harness(()=>[]);h.chat.seed('active');
+ const first=h.chat.addFiles(Array.from({length:12},()=>({name:'a.png',size:5})));
+ const second=h.chat.addFiles(Array.from({length:12},()=>({name:'b.png',size:5})));
+ const rejected=assert.rejects(second,/最多20/);finishReaders(h);await first;await rejected;
+ assert.equal(h.chat.state().files.length,12);
+});
+test('oversized batch fails before reading image data',async()=>{
+ const h=harness(()=>[]);await assert.rejects(h.chat.addFiles(Array.from({length:4},()=>({name:'large.png',size:3*1024*1024}))),/总大小/);
+ assert.equal(h.readers.length,0);assert.equal(h.chat.state().files.length,0);
 });

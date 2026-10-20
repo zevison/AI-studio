@@ -62,3 +62,36 @@ def test_payload_excludes_generated_studio_cache_but_keeps_code_integrity(tmp_pa
     assert module.extract_verified(bundle,target,identity['sha256'])=='reused'
     (target/'node_modules/@hypit/studio/dist/start.js').write_text('tampered SDK code')
     with pytest.raises(RuntimeError):module.extract_verified(bundle,target,identity['sha256'])
+
+
+def test_deep_unicode_paths_install_reuse_and_cleanup(tmp_path):
+    import os
+    target=tmp_path/('中文安装目录'+'a'*65)/'runtime'
+    name=('nested'+'b'*65)+'/'+('leaf'+'c'*65)+'/runtime.dat'
+    file,sha=archive(tmp_path,name)
+    assert len(str(target/name))>260
+    assert module.extract_verified(file,target,sha)=='installed'
+    assert module.native_path(target/name).read_bytes()==b'Pinned runtime fixture'
+    assert module.extract_verified(file,target,sha)=='reused'
+    # Force failure after a deep file was created; cleanup must handle the same long paths.
+    bad=tmp_path/'bad.zip'
+    with zipfile.ZipFile(bad,'w') as z:
+        z.writestr(name,b'deep file')
+        z.writestr('../escape',b'unsafe')
+    failed=target.parent/'failed'
+    with pytest.raises(RuntimeError,match='Unsafe'):
+        module.extract_verified(bad,failed,hashlib.sha256(bad.read_bytes()).hexdigest())
+    assert not module.native_path(failed).exists()
+    assert not list(module.native_path(target.parent).glob('.install-*'))
+    # Own deep fixtures must also be removed through the native path API.
+    assert target.parent.resolve().is_relative_to(tmp_path.resolve())
+    module.shutil.rmtree(module.native_path(target.parent))
+
+
+def test_cleanup_error_preserves_primary_installation_failure(tmp_path,monkeypatch):
+    file,sha=archive(tmp_path,'../escape')
+    def fail_cleanup(*args,**kwargs):raise PermissionError('test cleanup denied')
+    monkeypatch.setattr(module.shutil,'rmtree',fail_cleanup)
+    with pytest.raises(RuntimeError,match='Unsafe') as caught:
+        module.extract_verified(file,tmp_path/'managed/runtime',sha)
+    assert any('cleanup' in note.lower() and 'denied' in note for note in caught.value.__notes__)

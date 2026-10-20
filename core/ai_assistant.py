@@ -50,13 +50,16 @@ def messages(cid,before_id=None):
     return rows
 
 
+MAX_CHAT_ATTACHMENTS = 20
+
+
 def attachment(message_id,index):
     schema()
     row=db.one('SELECT payload_json FROM ai_messages WHERE id=?',(str(message_id),))
     if not row:raise ValueError('附件记录不存在')
     try:
         number=int(index)
-        if not 0<=number<3:raise ValueError()
+        if not 0<=number<MAX_CHAT_ATTACHMENTS:raise ValueError()
         return json.loads(row['payload_json'])[number]
     except (ValueError,TypeError,IndexError):raise ValueError('附件编号无效') from None
 

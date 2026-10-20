@@ -1,0 +1,10 @@
+# Preserve existing source bytes and signed/checksummed Windows payload inputs.
+* -text
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.ttf binary
+*.task binary

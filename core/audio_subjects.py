@@ -1,16 +1,22 @@
 """Reusable local audio subjects. Only local assets, no voice embedding or cloud calls."""
 from __future__ import annotations
 import sqlite3,time,uuid
+from contextlib import contextmanager
 from . import config
 DB=config.DATA_DIR/'audio_subjects.db'
 
+@contextmanager
 def _connect():
     config.DATA_DIR.mkdir(parents=True,exist_ok=True)
     cn=sqlite3.connect(DB,timeout=10);cn.row_factory=sqlite3.Row
-    cn.execute('''CREATE TABLE IF NOT EXISTS subjects(
-        id TEXT PRIMARY KEY,asset_id TEXT NOT NULL,name TEXT NOT NULL,description TEXT NOT NULL,
-        source_asset_id TEXT,start_sec REAL,end_sec REAL,created_at INTEGER NOT NULL)''')
-    return cn
+    try:
+        cn.execute('''CREATE TABLE IF NOT EXISTS subjects(
+            id TEXT PRIMARY KEY,asset_id TEXT NOT NULL,name TEXT NOT NULL,description TEXT NOT NULL,
+            source_asset_id TEXT,start_sec REAL,end_sec REAL,created_at INTEGER NOT NULL)''')
+        yield cn
+        cn.commit()
+    except Exception:cn.rollback();raise
+    finally:cn.close()
 
 def add(asset_id,name,description='',source_asset_id=None,start_sec=None,end_sec=None):
     name=str(name or '').strip()[:40]

@@ -52,6 +52,48 @@ def test_document_persists_and_returns_in_next_turn(conversation):
     assert any('160 PSI' in str(item['content']) for item in chain[:-1])
 
 
+def image_attachments(count):
+    from PIL import Image
+    buffer=io.BytesIO()
+    Image.new('RGB',(8,8),'blue').save(buffer,format='PNG')
+    data=base64.b64encode(buffer.getvalue()).decode()
+    return [{'name':f'picture-{i+1}.png','data':data} for i in range(count)]
+
+
+def test_twenty_images_are_sent_saved_and_reopenable(conversation):
+    attachments=image_attachments(20)
+    with patch.object(chat.urllib.request,'urlopen',return_value=stream()):
+        chat.chat_events(message(conversation,attachments=attachments),lambda *args:None)
+    saved=store.messages(conversation)
+    assert len(saved[0]['attachments'])==20
+    for index in range(20):
+        assert store.attachment(saved[0]['id'],index)['name']==f'picture-{index+1}.png'
+    _,_,_,_,_,chain=chat._start(message(conversation,message='继续比较图片'))
+    assert sum(p.get('type')=='image_url' for m in chain if isinstance(m['content'],list) for p in m['content'])==20
+    for index in (-1,20):
+        with pytest.raises(ValueError,match='附件编号无效'):store.attachment(saved[0]['id'],index)
+
+
+def test_twenty_one_attachments_rejected_before_credentials_or_persistence(conversation,monkeypatch):
+    def forbidden():raise AssertionError('Must not read credentials or call a provider')
+    monkeypatch.setattr(chat,'_key',forbidden)
+    with pytest.raises(ValueError,match='最多上传20'):
+        chat._start(message(conversation,attachments=image_attachments(21)))
+    assert store.messages(conversation)==[]
+
+
+def test_total_size_guard_still_applies_to_many_attachments():
+    raw=[{'name':f'{i}.txt','data':base64.b64encode(b'x'*(1024*1024)).decode()} for i in range(11)]
+    with pytest.raises(ValueError,match='总大小超过10MB'):chat._files(raw)
+
+
+def test_frontend_backend_attachment_limits_match():
+    from pathlib import Path
+    import re
+    script=(Path(__file__).parents[1]/'static/assistant_bright.js').read_text(encoding='utf8')
+    assert int(re.search(r'const MAX_CHAT_ATTACHMENTS=(\d+)',script)[1])==store.MAX_CHAT_ATTACHMENTS
+
+
 def test_duplicate_request_and_parallel_same_conversation_reserve_once(conversation):
     payload=message(conversation,request_id='repeat_request_123456789')
     def admit(_):

@@ -11,7 +11,7 @@ assert r'tools\install_new_pc.ps1' in cmd
 assert 'System.Diagnostics.ProcessStartInfo' in ps
 assert 'RedirectStandardOutput=$true' in ps
 assert 'RedirectStandardError=$true' in ps
-assert r'3\s+(10|11|12)\s+64' in ps
+assert r'3\s+12\s+64' in ps  # Match the shipped CPython 3.12 wheel constraints.
 assert 'Python candidate check failed:' in ps
 assert 'bootstrap_install.py' in ps
 assert '01_INSTALL.cmd' in vbs

@@ -12,7 +12,7 @@
  function current(){return(data?.products||[]).find(p=>p.id===pid)}
  function productSelect(){const sel=$r('radarProduct'); if(!sel)return;sel.innerHTML=(data.products||[]).map(p=>`<option value="${html(p.id)}">${html(p.name)}</option>`).join('');
    if(!pid||!data.products.some(p=>p.id===pid))pid=data.products[0]?.id||null;
-   sel.value=pid||'';
+   sel.value=pid||'';window.ProductFlow?.set(pid);
    const missing=!(data.products||[]).length;
    if(missing)sel.innerHTML='<option value="">请先到商品知识中心创建商品</option>';
    sel.disabled=missing;
@@ -95,15 +95,15 @@
    }catch(e){msg(e.message,true)}});
  }
 
- function rerender(){productSelect();showOpts();renderCaps();renderStats();renderItems();renderScripts();updateSelected()}
- async function load(){try{data=await apiR('/api/hot-radar/state'+(pid?'?product_id='+encodeURIComponent(pid):''));rerender()}catch(e){msg('热点雷达加载失败：'+e.message,true)}}
+ function rerender(){productSelect();showOpts();renderCaps();renderStats();renderItems();renderScripts();updateSelected();window.BrightTK?.refresh?.()}
+ async function load(){try{pid=window.ProductFlow?.get()||pid;const fresh=window.ProductFlow?.begin('radar')||(()=>true);const result=await apiR('/api/hot-radar/state'+(pid?'?product_id='+encodeURIComponent(pid):''));if(!fresh())return;data=result;rerender()}catch(e){msg('热点雷达加载失败：'+e.message,true)}}
  setInterval(()=>{if(document.querySelector('#page-radar')?.classList.contains('active')&&data?.items?.some(x=>x.video_review?.download_status==='running')){
-   const old=[...selected];apiR('/api/hot-radar/state'+(pid?'?product_id='+encodeURIComponent(pid):'')).then(r=>{data=r;selected=new Set(old);renderStats();renderItems();renderScripts();}).catch(()=>{});
+   const was=pid,fresh=window.ProductFlow?.begin('radar')||(()=>true);apiR('/api/hot-radar/state'+(was?'?product_id='+encodeURIComponent(was):'')).then(r=>{if(!fresh()||pid!==was)return;data=r;renderStats();renderItems();renderScripts();}).catch(()=>{});
  }},5000);
- async function refresh(){const was=pid;data=await apiR('/api/hot-radar/state'+(was?'?product_id='+encodeURIComponent(was):''));pid=was;productSelect();renderStats();renderItems();renderScripts();updateSelected()}
+ async function refresh(){const was=pid;window.ProductFlow?.set(was);const fresh=window.ProductFlow?.begin('radar')||(()=>true);const result=await apiR('/api/hot-radar/state'+(was?'?product_id='+encodeURIComponent(was):''));if(!fresh())return;data=result;pid=was;productSelect();renderStats();renderItems();renderScripts();updateSelected()}
  async function task(fn){controlsDisabled(true);try{await fn()}catch(e){msg(e.message,true)}finally{controlsDisabled(false)}}
- $r('radarProduct')?.addEventListener('change',e=>{pid=e.target.value;selected.clear();editingNew=false;window.BrightTK?.refresh?.();renderStats();renderItems();renderScripts();updateSelected()});
- $r('radarGoProduct')?.addEventListener('click',()=>{if(typeof activatePage==='function')activatePage('products')});
+ $r('radarProduct')?.addEventListener('change',async e=>{pid=e.target.value;window.ProductFlow?.set(pid);selected.clear();editingNew=false;updateSelected();$r('radarItems').textContent='正在读取当前商品的视频…';$r('radarScripts').textContent='正在读取当前商品的脚本…';try{await refresh();window.BrightTK?.refresh?.()}catch(error){msg('切换商品失败：'+error.message,true)}});
+ $r('radarGoProduct')?.addEventListener('click',()=>{window.ProductFlow?.set(pid);if(typeof activatePage==='function')activatePage('products')});
  $r('radarCheckPrice')?.addEventListener('click',()=>task(refreshRadarPrice));
  $r('radarSaveOptions')?.addEventListener('click',()=>task(async()=>{
  const intended={auto_scan:$r('radarAutoScan').checked,scan_hour_bj:Number($val('radarScanHour')),script_model:$val('radarModel').trim(),daily_llm_usd_limit:Number($val('radarDailyBudget'))};
@@ -127,7 +127,7 @@
  }));
  $r('radarPreviewScript')?.addEventListener('click',()=>task(async()=>{if(selected.size!==1)throw Error('请先选择一条已绑定真实视频的候选');if(Number($val('radarDailyBudget'))<=0)throw Error('请先展开「GPT 模型、费用和预算设置」，设置每日 GPT 预算并保存');const model=$val('radarModel').trim(),p=await apiR('/api/hot-radar/scripts/preview',{product_id:pid,source_ids:[...selected],model});preview=p;$r('radarEstimate').innerHTML=`<b>拟调用模型：</b>${html(p.model)}<br><b>来源：</b>${p.source_count} 条<br><b>预计输入词元：</b>${p.estimated_input_tokens}<br><b>允许输出词元：</b>${p.max_output_tokens}<br><b>预估费用：</b>${p.estimated_cost_usd==null?'OpenLux 报价未核实，禁止调用':'$'+Number(p.estimated_cost_usd).toFixed(5)}<br><small>${html(p.warning)}</small>${p.evidence_warnings?.length?'<br><b>证据注意：</b>'+p.evidence_warnings.map(html).join('；').slice(0,600):''}`;$r('radarGenerateScript').disabled=p.estimated_cost_usd==null;msg('已生成费用预检，没有调用 GPT')}));
  $r('radarGenerateScript')?.addEventListener('click',()=>task(async()=>{if(!preview)throw Error('请先预检费用');const max=Number(preview.estimated_cost_usd)*1.25;if(!Number.isFinite(max)||max<=0)throw Error('费用无效');if(!confirm(`确认单次付费调用 ${preview.model} 生成脚本？\n预估 $${preview.estimated_cost_usd.toFixed(5)}，本次授权上限 $${max.toFixed(5)}。\n报价由 OpenLux 自动核验，最终实际扣费以账号账单为准。`))return;
-   const r=await apiR('/api/hot-radar/scripts/generate',{product_id:pid,source_ids:[...selected],model:preview.model,approve_paid:true,max_cost_usd:max});await refresh();msg(r.status==='completed'?`真实视频拆解和脚本已保存：${r.id}。点击「编辑并确认脚本」继续，实际账单待核验。`:`本次模型结果状态：${r.status}。请先复核，暂不能进入制作。`,r.status!=='completed')}));
+   const r=await apiR('/api/hot-radar/scripts/generate',{product_id:pid,source_ids:[...selected],model:preview.model,preview_hash:preview.preview_hash,approve_paid:true,max_cost_usd:max});await refresh();msg(r.status==='completed'?`真实视频拆解和脚本已保存：${r.id}。点击「编辑并确认脚本」继续，实际账单待核验。`:`本次模型结果状态：${r.status}。请先复核，暂不能进入制作。`,r.status!=='completed')}));
  ['radarModel','radarDailyBudget'].forEach(id=>$r(id)?.addEventListener('input',()=>{updateSelected();if(id==='radarModel')$r('radarPriceStatus').textContent='模型已修改，保存后自动核验报价。'}));
- window.HotRadar={load,updateHarvest:(jobs)=>{brightJobs=Array.isArray(jobs)?jobs:[];if(data)renderStats()},selectProduct:async productId=>{pid=productId;selected.clear();await refresh();renderStats();renderItems();renderScripts();window.BrightTK?.refresh?.()}};
+ window.HotRadar={load,updateHarvest:(jobs)=>{brightJobs=Array.isArray(jobs)?jobs:[];if(data)renderStats()},selectProduct:async productId=>{pid=productId;window.ProductFlow?.set(pid);selected.clear();await refresh();renderStats();renderItems();renderScripts();window.BrightTK?.refresh?.()}};
 })();

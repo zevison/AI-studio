@@ -7,6 +7,7 @@ A public catalogue listing cannot upgrade a candidate to operational readiness.
 from __future__ import annotations
 import datetime as dt
 import json
+import math
 from . import video_adapters
 
 # Observed starting prices are USER-REPORTED DIRECTORY REFERENCES, not account quotes.
@@ -118,17 +119,22 @@ def _capability_fit(model,ctx):
     return (False,'未核实',mode)
 
 
-def historical_metrics(model,rows):
-    """Rows are truthful completed/failed video attempts, not simulated measurements."""
-    outcomes=[r for r in rows if r.get('model')==model and r.get('status') in ('completed','failed')]
-    if len(outcomes)<5:return {'count':len(outcomes),'enough_evidence':False,'success_rate':None,'average_seconds':None,'cost_per_usable_video_usd':None}
+def historical_metrics(model,rows,context=None):
+    """Comparable, reviewed attempts only; completion alone is not usability."""
+    from .video_evaluation import case_key
+    key=case_key(context or {})
+    outcomes=[r for r in rows if key and r.get('case_key')==key and r.get('model')==model]
+    complete_reviews=all(r.get('status') in ('completed','failed') and (r.get('status')=='failed' or type(r.get('quality_accepted')) is bool) for r in outcomes)
+    if len(outcomes)<5 or not complete_reviews:return {'count':len(outcomes),'enough_evidence':False,'success_rate':None,'average_seconds':None,'cost_per_usable_video_usd':None}
     successes=[r for r in outcomes if r.get('status')=='completed' and r.get('has_downloadable_video') is True]
-    durations=[float(r['elapsed_seconds']) for r in outcomes if isinstance(r.get('elapsed_seconds'),(int,float)) and r['elapsed_seconds']>0]
-    costs=[float(r['actual_cost_usd']) for r in outcomes if isinstance(r.get('actual_cost_usd'),(int,float)) and r['actual_cost_usd']>=0]
+    usable=[r for r in successes if r.get('quality_accepted') is True and r.get('technical_status') in ('passed','warning')]
+    valid=lambda v:type(v) in (int,float) and math.isfinite(v) and v>=0
+    durations=[float(r['elapsed_seconds']) for r in outcomes if valid(r.get('elapsed_seconds'))]
+    costs=[float(r['actual_cost_usd']) for r in outcomes if valid(r.get('actual_cost_usd'))]
     full_costs=len(costs)==len(outcomes)
-    return {'count':len(outcomes),'enough_evidence':True,'success_rate':len(successes)/len(outcomes),
+    return {'count':len(outcomes),'enough_evidence':True,'success_rate':len(usable)/len(outcomes),
             'average_seconds':sum(durations)/len(durations) if len(durations)==len(outcomes) else None,
-            'cost_per_usable_video_usd':sum(costs)/len(successes) if full_costs and successes else None}
+            'cost_per_usable_video_usd':sum(costs)/len(usable) if full_costs and usable else None}
 
 
 def quote(model,context):
@@ -157,7 +163,7 @@ def choose(context,*,mode='auto',override=None,history=None):
     for model in ACTIVE:
         ok,why,mapped=_capability_fit(model,ctx)
         if not ok:rejected.append({'model':model,'reason':why});continue
-        metrics=historical_metrics(model,history)
+        metrics=historical_metrics(model,history,ctx)
         eligible.append({'model':model,'mode':mapped,'reason':why,'metrics':metrics,'quote':quote(model,ctx)})
     if override and override not in ('auto','default'):
         try:target=video_adapters.canonical(override)

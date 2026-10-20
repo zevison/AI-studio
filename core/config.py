@@ -3,14 +3,20 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / 'data'
+# An authenticated workspace is a separate process and database, not a UI filter.
+WORKSPACE_ID = os.getenv('STUDIO_WORKSPACE_ID','owner')
+if WORKSPACE_ID!='owner' and not __import__('re').fullmatch('[a-f0-9]{24}',WORKSPACE_ID):
+    raise RuntimeError('Invalid workspace identity')
+DATA_DIR = ROOT / 'data' if WORKSPACE_ID=='owner' else ROOT / 'data/workspaces' / WORKSPACE_ID
+WORKSPACE_TOKEN = os.getenv('STUDIO_WORKSPACE_TOKEN','')
+if WORKSPACE_ID!='owner' and len(WORKSPACE_TOKEN)<32:raise RuntimeError('Isolated workspace requires a gateway token')
 ASSET_DIR = DATA_DIR / 'assets'
 OUTPUT_DIR = DATA_DIR / 'outputs'
 CACHE_DIR = DATA_DIR / 'cache'
 STATIC_DIR = ROOT / 'static'
 DB_PATH = DATA_DIR / 'studio.db'
-LOG_PATH = ROOT / 'seedance_studio.log'
-PID_PATH = ROOT / 'seedance_studio.pid'
+LOG_PATH = (ROOT if WORKSPACE_ID=='owner' else DATA_DIR) / 'seedance_studio.log'
+PID_PATH = (ROOT if WORKSPACE_ID=='owner' else DATA_DIR) / 'seedance_studio.pid'
 
 for p in (DATA_DIR, ASSET_DIR, OUTPUT_DIR, CACHE_DIR, STATIC_DIR):
     p.mkdir(parents=True, exist_ok=True)
@@ -44,6 +50,7 @@ if not _external_openlux_key and _vault.get('openlux_api_key'):
     os.environ['OPENLUX_API_KEY'] = _vault['openlux_api_key']
 
 APP_VERSION = '5.2.0'
+APP_BUILD = 'R3.8-release-candidate'
 APP_EDITION = '人工爆款复查与真实视觉脚本版'
 HOST = os.getenv('HOST', '127.0.0.1')
 PORT = int(os.getenv('PORT', '8765'))

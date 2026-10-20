@@ -1,6 +1,6 @@
 from __future__ import annotations
 # Seedance V4.2.3 Unified History
-import argparse, base64, json, logging, mimetypes, re, os, subprocess, sys, threading, time, urllib.parse, uuid, webbrowser, traceback
+import argparse, base64, io, json, logging, mimetypes, re, os, subprocess, sys, threading, time, urllib.parse, uuid, webbrowser, traceback
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -9,6 +9,8 @@ from pathlib import Path
 def _boot_phase(stage):
     try:
         bootdir = Path(__file__).resolve().parent / 'data'
+        workspace=os.getenv('STUDIO_WORKSPACE_ID','owner')
+        if re.fullmatch('[a-f0-9]{24}',workspace):bootdir=bootdir/'workspaces'/workspace
         bootdir.mkdir(parents=True, exist_ok=True)
         (bootdir / 'startup_stage.txt').write_text(
             f'{time.strftime("%Y-%m-%d %H:%M:%S")} | {stage} | pid={os.getpid()}\n', encoding='utf-8')
@@ -20,21 +22,27 @@ _boot_phase('导入后台模块中')
 from core import config, db, media, modes, openlux, tunnel, workflow, settings, oss, secrets_store, public_assets, reference_logic, cost_system, media_preflight, production_system, smart_analysis, system_health, workspace_store, backup_manager
 from core import prompt_library, audio_subjects, hot_radar, product_memory, model_pricing, creative_production, video_model_tests, video_adapters, task_observability, intelligent_router, audio_output, ai_assistant, gpt_memory_v4, gpt_pro_v41, bright_tiktok, viral_review, bright_e2e_models, voice_bindings
 from core import history_center_v423
-from core import local_output
+from core import local_output, upload_lifecycle, team_safety, storage_manager
+from core import video_evaluation
 from core.hypit_studio import service as hypit_service
 import secrets
 _hypit_session_token = secrets.token_urlsafe(32)
 from core.utils import fingerprint, guess_kind, json_bytes, parse_multipart, safe_name, sha256_bytes, find_url
 _boot_phase("后台模块已加载，准备初始化数据库")
 
-logging.basicConfig(filename=config.LOG_PATH, level=logging.INFO,
-                    format='%(asctime)s %(levelname)s %(message)s', encoding='utf-8')
+from logging.handlers import RotatingFileHandler
+logging.basicConfig(handlers=[RotatingFileHandler(config.LOG_PATH,maxBytes=10*1024*1024,backupCount=3,encoding='utf-8')],level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
 log=logging.getLogger('seedance-studio')
 
 # Video task polling is server-owned, not browser-owned. This makes running tasks
 # survive page refreshes, browser closes, and local service restarts.
-_task_refresh_lock = threading.RLock()
+_task_refresh_locks = tuple(threading.RLock() for _ in range(64))
 _task_poller_stop = threading.Event()
+
+
+def _task_lock(task_id):
+    # Bounded lock storage, with unrelated tasks free to query or download.
+    return _task_refresh_locks[hash(str(task_id)) % len(_task_refresh_locks)]
 
 
 def ratio_from_dims(w,h):
@@ -45,6 +53,7 @@ def ratio_from_dims(w,h):
 
 
 def asset_row(asset_id):
+    if upload_lifecycle.removed('asset',asset_id):raise ValueError('参考文件已删除，请重新选择并预览')
     return db.one('SELECT * FROM assets WHERE id=?',(asset_id,))
 
 
@@ -82,6 +91,10 @@ def _refresh_asset_media_metadata(a:dict, force=False):
 
 
 def save_asset_bytes(data:bytes, original_name:str, mime:str, kind=None):
+    kind=kind or guess_kind(original_name,mime)
+    if kind=='image':
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as image:image.verify()
     digest=sha256_bytes(data)
     existing=db.one('SELECT * FROM assets WHERE sha256=? ORDER BY created_at DESC LIMIT 1',(digest,))
     if existing and Path(existing.get('path') or '').exists():
@@ -91,7 +104,9 @@ def save_asset_bytes(data:bytes, original_name:str, mime:str, kind=None):
     ext=Path(original_name).suffix.lower()
     if not ext:
         ext=mimetypes.guess_extension(mime or '') or ('.png' if kind=='image' else '.mp4' if kind=='video' else '.bin')
+    storage_manager.require_capacity(len(data))
     stored=f'{aid}{ext}'; path=config.ASSET_DIR/stored; path.write_bytes(data)
+    storage_manager.invalidate()
     meta=media.probe(path) if kind in ('video','audio') else ({'duration':None,**media.image_probe(path)} if kind=='image' else {'duration':None,'width':None,'height':None})
     db.execute('''INSERT INTO assets(id,original_name,stored_name,kind,mime,path,sha256,size_bytes,duration,width,height,fps,has_audio,created_at)
                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
@@ -127,7 +142,10 @@ def save_generated_image(resp):
     b64=_extract_b64(resp)
     if b64:
         if ',' in b64 and b64.lower().startswith('data:'): b64=b64.split(',',1)[1]
-        data=base64.b64decode(b64); dst=config.OUTPUT_DIR/f'image_{int(time.time())}_{uuid.uuid4().hex[:6]}.png'; dst.write_bytes(data)
+        data=base64.b64decode(b64)
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as image:image.verify()
+        dst=config.OUTPUT_DIR/f'image_{int(time.time())}_{uuid.uuid4().hex[:6]}.png'; dst.write_bytes(data)
         a=save_asset_bytes(data,dst.name,'image/png','image'); return a,str(dst)
     raise RuntimeError('接口已返回成功响应，但没有找到图片 URL 或 Base64 图片数据。')
 
@@ -166,7 +184,8 @@ def _task_progress(t, req, resp, result):
     has_remote=bool((result or {}).get('remote_url'))
     has_local=bool((result or {}).get('local_url') or (result or {}).get('local_path'))
     download_error=(result or {}).get('download_error')
-    failed=status in ('failed','submission_unknown')
+    failed=status=='failed'
+    uncertain=status=='submission_unknown'
     completed=status=='completed'
     result_pending=status=='result_pending'
     running=status in ('pending','running','result_pending')
@@ -183,11 +202,15 @@ def _task_progress(t, req, resp, result):
         add('assets','参考素材准备','skipped','本次任务无需参考素材')
     if pid:
         add('submit','提交 OpenLux 视频任务','done',f'平台任务号：{pid}')
+    elif uncertain:
+        add('submit','提交 OpenLux 视频任务','unknown','提交结果待核对；不能认定失败，禁止自动重提')
     elif failed:
         add('submit','提交 OpenLux 视频任务','failed','提交结果失败或不确定，系统不会自动重提')
     else:
         add('submit','提交 OpenLux 视频任务','active','正在提交付费视频任务')
-    if failed and pid:
+    if uncertain:
+        add('generate','视频模型生成','unknown','平台结果尚未核实；保留原任务及费用状态')
+    elif failed and pid:
         add('generate','视频模型生成','failed','平台任务返回失败')
     elif completed or result_pending:
         add('generate','视频模型生成','done','平台任务已结束')
@@ -195,7 +218,9 @@ def _task_progress(t, req, resp, result):
         add('generate','视频模型生成','active','正在等待平台生成结果')
     else:
         add('generate','视频模型生成','waiting','等待任务提交成功')
-    if failed:
+    if uncertain:
+        add('result','获取生成结果','unknown','等待查询原任务或人工对账，不创建新任务')
+    elif failed:
         add('result','获取生成结果','waiting','任务失败，未进入结果获取')
     elif completed and has_remote:
         add('result','获取生成结果','done','已获得平台结果地址')
@@ -215,13 +240,15 @@ def _task_progress(t, req, resp, result):
         add('complete','完成','done','视频已成功保存到本地')
     elif completed and has_remote:
         add('complete','完成','active','远端视频已就绪，等待本地下载成功')
+    elif uncertain:
+        add('complete','完成','unknown','结果尚未核实')
     elif failed:
         add('complete','完成','failed','任务未成功完成')
     else:
         add('complete','完成','waiting','等待前序步骤完成')
     visible=[x for x in stages if x['state']!='skipped']
     done=sum(1 for x in visible if x['state']=='done')
-    active=next((x for x in stages if x['state'] in ('active','failed')),None)
+    active=next((x for x in stages if x['state'] in ('active','failed','unknown')),None)
     if not active:
         active=next((x for x in stages if x['state']=='waiting'), stages[-1] if stages else None)
     percent=round((done/max(1,len(visible)))*100)
@@ -266,13 +293,22 @@ def task_to_public(t):
     if not t:return None
     d=dict(t)
     for src,dst in (('request_json','request'),('response_json','response'),('result_json','result')):
-        d[dst]=db.loads(d.get(src),{})
+        value=db.loads(d.get(src),{})
+        d[dst]=value if isinstance(value,dict) else {}
     d['actual_model']=(d.get('request') or {}).get('_request_model') or (d.get('request') or {}).get('model')
     req=d.get('request') or {}
+    check=(d.get('result') or {}).get('quality_check')
+    if isinstance(check,dict):
+        items=[x for x in check.get('issues',[]) if isinstance(x,dict)]
+        d['quality_report']={'pass':check.get('technical_status')=='passed',
+            'issues':[x.get('message','') for x in items if x.get('level')=='error'],
+            'warnings':[x.get('message','') for x in items if x.get('level')!='error']+['自动检查仅覆盖基础技术指标；商品保真和广告可用性仍须人工评审。']+
+                (['基础质检未完成；不能视为效果验收通过'] if check.get('technical_status') in (None,'incomplete') else []),
+            'created_at':d.get('updated_at'),'technical_status':check.get('technical_status','incomplete')}
     if req.get('mode') == 'hypit':
         d['workspace'] = 'hypit'
-        project = hypit_service.get(req['project_id'])
-        phase = project['status']
+        try:phase = hypit_service.get(req.get('project_id'))['status']
+        except (ValueError,KeyError,TypeError):phase='工程记录缺失，原任务保留待核对'
         d['progress'] = {'current_label': {'authoring':'Agent 编写工程','ready':'工程校验通过',
             'building':'官方 Runtime 构建','exporting':'导出成片','completed':'已完成',
             'blocked':'需要处理','interrupted':'中断待核对'}.get(phase,phase),
@@ -296,7 +332,7 @@ def refresh_video_task(t, force=False):
     if t.get('status') not in ('pending','running','result_pending','submission_unknown'): return t
     pid=t.get('provider_task_id')
     if not pid:return t
-    with _task_refresh_lock:
+    with _task_lock(t['id']):
         latest=db.one('SELECT * FROM tasks WHERE id=?',(t['id'],)) or t
         if latest.get('status') not in ('pending','running','result_pending','submission_unknown'): return latest
         if not latest.get('provider_task_id'): return latest
@@ -309,9 +345,11 @@ def refresh_video_task(t, force=False):
             reqmeta=db.loads(latest.get('request_json'),{}) or {}
             if reqmeta.get('_provider_adapter'):
                 resp=video_adapters.query(latest['provider_task_id'],reqmeta)
+                openlux.validate_task_identity(resp,latest['provider_task_id'])
                 st=video_adapters.status(resp)
             else:
                 resp=openlux.video_query(latest['provider_task_id'], reqmeta.get('_query_path'))
+                openlux.validate_task_identity(resp,latest['provider_task_id'])
                 st=openlux.extract_status(resp)
             fields={'response_json':resp,'status':st,'query_count':qcount,'last_polled_at':polled_at,'last_query_error':None}
             if st=='completed':
@@ -329,7 +367,7 @@ def refresh_video_task(t, force=False):
                             result['audio_status']='failed';result['audio_error']=str(audio_exc)[:900]
                             result['unprocessed_local_url']='/outputs/'+urllib.parse.quote(dst.name)
                             result.pop('local_url',None);result.pop('local_path',None)
-                        try: result['quality_check']=production_system.quality_check(Path(result.get('local_path') or dst))
+                        try: result['quality_check']=production_system.quality_check(Path(result.get('local_path') or dst),expected=reqmeta)
                         except Exception as qe: result['quality_check']={'ok':False,'issues':[{'level':'info','message':'自动质检未完成：'+str(qe)[:180]}]}
                     except Exception as e:
                         result['download_error']=str(e)
@@ -354,6 +392,10 @@ def refresh_video_task(t, force=False):
 
 
 def retry_task_download(task_id:str):
+    with _task_lock(task_id):return _retry_task_download_locked(task_id)
+
+
+def _retry_task_download_locked(task_id:str):
     row=db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
     if not row or row.get('kind')!='video':
         raise ValueError('视频任务不存在')
@@ -375,12 +417,16 @@ def retry_task_download(task_id:str):
         result['audio_status']='failed';result['audio_error']=str(audio_exc)[:900]
         result['unprocessed_local_url']='/outputs/'+urllib.parse.quote(dst.name)
         result.pop('local_url',None);result.pop('local_path',None)
-    try: result['quality_check']=production_system.quality_check(Path(result.get('local_path') or dst))
+    try: result['quality_check']=production_system.quality_check(Path(result.get('local_path') or dst),expected=reqmeta)
     except Exception as qe: result['quality_check']={'ok':False,'issues':[{'level':'info','message':'自动质检未完成：'+str(qe)[:180]}]}
     db.task_update(task_id,status='completed',result_json=result,last_query_error=None)
     return db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
 
 def retry_audio_output(task_id):
+    with _task_lock(task_id):return _retry_audio_output_locked(task_id)
+
+
+def _retry_audio_output_locked(task_id):
     row=db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
     if not row or row.get('kind')!='video':raise ValueError('未找到视频任务')
     result=db.loads(row.get('result_json'),{}) or {}
@@ -391,12 +437,45 @@ def retry_audio_output(task_id):
         result['audio_status']='failed';result['audio_error']=str(e)[:900]
         db.task_update(task_id,result_json=result)
         raise RuntimeError('本地音轨处理失败，原视频已保留：'+str(e))
+    try:result['quality_check']=production_system.quality_check(Path(result['local_path']),expected=db.loads(row.get('request_json'),{}) or {})
+    except Exception as exc:result['quality_check']={'ok':False,'technical_status':'incomplete','issues':[{'level':'info','message':'音轨处理后质检未完成：'+str(exc)[:180]}]}
     db.task_update(task_id,result_json=result)
     return db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
 
 
+def finalize_image_task(task_id):
+    """Save a retained synchronous image response; NEVER call a model here."""
+    with _task_lock(task_id):
+        row=db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
+        if not row or row['kind']!='image':raise ValueError('图片任务不存在')
+        if row['status']=='completed':return row
+        if row['status']!='result_pending':raise ValueError('只有已保留接口响应的图片任务可以仅重新保存')
+        req=db.loads(row['request_json'],{}) or {};response=db.loads(row['response_json'],{}) or {}
+        if not isinstance(req,dict) or not isinstance(response,dict) or not response:raise ValueError('原始图片响应不完整；请先核对原任务，不能重新生成')
+        asset,out_path=save_generated_image(response)
+        parent=req.get('parent')
+        previous=db.one('SELECT * FROM generation_versions WHERE version_id=?',(parent,)) if parent else None
+        if parent and not previous:raise ValueError('原图片版本缺失；已保留图片，请先核对历史记录')
+        group=previous['group_id'] if previous else db.new_id('imggrp');version=db.new_id('imgver')
+        source=asset_row(req.get('source_asset_id')) if req.get('source_asset_id') else None
+        if previous and previous.get('asset_id'):source=asset_row(previous['asset_id'])
+        metadata={'output_path':out_path,'ratio':req.get('ratio'),'request_size':req.get('size'),'quality':req.get('quality'),
+            'inherited_ratio':bool(req.get('_inherited_ratio')),'actual_width':asset.get('width'),'actual_height':asset.get('height'),
+            'mode':req.get('mode'),'source_asset_id':source.get('id') if source else None}
+        result={'version_id':version,'group_id':group,'asset':asset_public(asset),'ratio':req.get('ratio'),'request_size':req.get('size'),
+            'quality':req.get('quality'),'inherited_ratio':bool(req.get('_inherited_ratio')),'mode':req.get('mode'),
+            'source_asset':asset_public(source) if source else None}
+        with db.tx() as c:
+            c.execute('INSERT INTO generation_versions(version_id,group_id,parent_version_id,kind,prompt,level,asset_id,metadata_json,confirmed,created_at) VALUES(?,?,?,?,?,?,?,?,0,?)',
+                      (version,group,parent,'image',req.get('prompt'),req.get('level'),asset['id'],db.dumps(metadata),db.now()))
+            c.execute("UPDATE tasks SET status='completed',result_json=?,error=NULL,updated_at=? WHERE id=?",(db.dumps(result),db.now(),task_id))
+        try:task_observability.record('image',task_id,'原始图片响应已保存到本地','completed','没有调用新的生成接口')
+        except Exception:log.warning('Image saved; observation write deferred for %s',task_id)
+        return db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
+
+
 def recovery_tasks():
-    rows=db.all_("SELECT * FROM tasks WHERE kind='video' ORDER BY updated_at DESC LIMIT 150")
+    rows=db.video_task_snapshot(150)
     out=[]
     for row in rows:
         result=db.loads(row.get('result_json'),{}) or {}
@@ -418,7 +497,7 @@ def resumable_video_tasks(refresh=True):
     task, so a task that completed while the browser was closed still reappears
     with its result after the user opens/refreshes the page.
     """
-    rows=db.all_("SELECT * FROM tasks WHERE kind='video' ORDER BY created_at DESC LIMIT 150")
+    rows=db.video_task_snapshot(150)
     refreshed=[]
     for r in rows:
         if refresh and r.get('status') in ('pending','running','result_pending','submission_unknown'):
@@ -451,7 +530,7 @@ def global_task_center():
     polling. The background watcher owns provider polling, so opening the drawer
     or refreshing the UI cannot produce extra platform traffic.
     """
-    rows=db.all_("SELECT * FROM tasks WHERE kind='video' ORDER BY created_at DESC LIMIT 80")
+    rows=db.video_task_snapshot(80)
     public=[task_to_public(x) for x in rows]
     active_states=('pending','running','result_pending','submission_unknown')
     active=[x for x in public if x and (x.get('status') in ('pending','running','result_pending') or (x.get('status')=='submission_unknown' and (x.get('provider_task_id') or x.get('workspace')=='hypit')))]
@@ -470,7 +549,7 @@ def _background_task_poller(stop_event):
     if stop_event.wait(1.0): return
     while not stop_event.is_set():
         try:
-            rows=db.all_("SELECT * FROM tasks WHERE kind='video' AND status IN ('pending','running','result_pending','submission_unknown') ORDER BY created_at ASC LIMIT 20")
+            rows=db.pollable_video_tasks(20)
             for row in rows:
                 if stop_event.is_set(): break
                 # submission_unknown without a provider id cannot be queried safely.
@@ -508,6 +587,7 @@ def validate_replica_paid_payload(payload, specs):
 
 
 class Handler(BaseHTTPRequestHandler):
+    timeout = 30  # Bound stalled request reads and disconnected client writes.
     server_version=f'SeedanceStudio/{config.APP_VERSION}'
 
     def log_message(self, fmt, *args): log.info('%s %s',self.address_string(),fmt%args)
@@ -515,6 +595,8 @@ class Handler(BaseHTTPRequestHandler):
     def _send(self,status=200,body=b'',ctype='application/json; charset=utf-8',headers=None):
         if isinstance(body,(dict,list)): body=json_bytes(body)
         elif isinstance(body,str): body=body.encode('utf-8')
+        if getattr(self,'_operation_id',None) and not getattr(self,'_operation_finished',False):
+            team_safety.finish(self._operation_id,status,body);self._operation_finished=True
         self.send_response(status); self.send_header('Content-Type',ctype); self.send_header('Content-Length',str(len(body)))
         self.send_header('Cache-Control','no-store'); self.send_header('X-Content-Type-Options','nosniff')
         if headers:
@@ -528,10 +610,17 @@ class Handler(BaseHTTPRequestHandler):
         out={'ok':False,'error':str(msg)}; out.update(extra); self._send(status,out)
 
     def json_in(self):
+        if hasattr(self,'_cached_json'):return self._cached_json
         n=int(self.headers.get('Content-Length','0') or 0)
         if n<0: raise ValueError('请求体长度无效')
         if n>config.MAX_UPLOAD_MB*1024*1024: raise ValueError('请求体过大')
-        raw=self.rfile.read(n) if n else b'{}'; return json.loads(raw.decode('utf-8') or '{}')
+        raw=self.rfile.read(n) if n else b'{}'
+        if n and len(raw)!=n:raise ValueError('请求体不完整，未进入业务执行')
+        value=json.loads(raw.decode('utf-8') or '{}')
+        if not isinstance(value,dict):raise ValueError('请求参数必须是 JSON 对象')
+        if not urllib.parse.urlparse(self.path).path.startswith('/api/uploads/'):
+            upload_lifecycle.validate_request(value)
+        return value
 
     def _hypit_guard(self, write=False):
         # Protect spend authorization from cross-site forms and DNS rebinding.
@@ -546,8 +635,15 @@ class Handler(BaseHTTPRequestHandler):
             or not secrets.compare_digest(self.headers.get('X-Hypit-Session',''), _hypit_session_token)):
             raise PermissionError('Hypit session authorization missing')
 
+    def _workspace_guard(self):
+        token=getattr(config,'WORKSPACE_TOKEN','')
+        if token and not secrets.compare_digest(self.headers.get('X-Studio-Access',''),token):
+            raise PermissionError('该空间只能通过已授权的远程入口访问')
+
     def do_GET(self):
-        try:self._get()
+        try:
+            if urllib.parse.urlparse(self.path).path!='/api/bootstrap-health':self._workspace_guard()
+            self._get()
         except BrokenPipeError:pass
         except PermissionError as e:self.err(e,403)
         except ValueError as e:self.err(e,400)
@@ -555,6 +651,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _get(self):
         u=urllib.parse.urlparse(self.path); path=u.path; qs=urllib.parse.parse_qs(u.query)
+        if path=='/workspace-context.js':
+            ctx={'remote':False,'workspace':config.WORKSPACE_ID,'admin':config.WORKSPACE_ID=='owner'}
+            return self._send(200,'window.STUDIO_CONTEXT='+json.dumps(ctx)+';', 'application/javascript; charset=utf-8')
+        if path=='/api/storage/status':return self.ok(storage_manager.status())
+        if path=='/api/storage/files':return self.ok(storage_manager.files((qs.get('category') or ['outputs'])[0],(qs.get('page') or ['0'])[0]))
         if path.startswith('/api/hypit/'):
             self._hypit_guard()
             if path=='/api/hypit/session':return self.ok({'token':_hypit_session_token})
@@ -567,9 +668,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.err('Not found',404)
         # Fast and side-effect-free readiness probe: no DB, provider, network or background jobs.
         if path=='/api/bootstrap-health':
-            return self.ok({'version':config.APP_VERSION,'root_dir':str(config.ROOT),'port':config.PORT,'pid':os.getpid()})
+            return self.ok({'version':config.APP_VERSION,'build':config.APP_BUILD,'root_dir':str(config.ROOT),'port':config.PORT,'pid':os.getpid(),'workspace':config.WORKSPACE_ID,'data_dir':str(config.DATA_DIR)})
         if path=='/api/gpt-v41/models':return self.ok(gpt_pro_v41.models(force=(qs.get('force') or ['0'])[0]=='1'))
         if path=='/api/assistant/conversations':return self.ok(ai_assistant.conversations())
+        if path=='/api/image/recovery':
+            return self.ok(db.all_("SELECT id,status,created_at FROM tasks WHERE kind='image' AND status='result_pending' ORDER BY created_at DESC LIMIT 10"))
         if path=='/api/assistant/messages':return self.ok(ai_assistant.messages((qs.get('conversation_id') or [''])[0],(qs.get('before_id') or [None])[0]))
         if path=='/api/assistant/attachment':
             self._hypit_guard()
@@ -593,6 +696,9 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/model-pricing':return self.ok(model_pricing.get((qs.get('model') or [''])[0],force=(qs.get('refresh') or ['0'])[0]=='1'))
         if path=='/api/product-memory/models':return self.ok(product_memory.model_status((qs.get('model') or ['gpt-6.1-sol'])[0]))
         if path=='/api/video-model-tests/plan':return self.ok(video_model_tests.plan())
+        if path=='/api/video-evaluation/overview':
+            self._hypit_guard()
+            return self.ok(video_evaluation.overview())
         if path=='/api/video/resolution-options':return self.ok({'models':video_adapters.resolution_menus()})
         if path=='/api/video/smart-model-catalog':return self.ok({'models':intelligent_router.catalog(),'routing_modes':intelligent_router.ROUTE_MODES,'task_types':intelligent_router.TASK_TYPES})
         if path=='/api/hot-radar/state':return self.ok(hot_radar.state((qs.get('product_id') or [None])[0]))
@@ -630,7 +736,7 @@ class Handler(BaseHTTPRequestHandler):
             for table in ('assets','tasks','generation_versions','workflows','usage_events'):
                 r=db.one(f'SELECT COUNT(*) n FROM {table}');counts[table]=r['n'] if r else 0
             cfg=settings.get_all(); model=settings.effective_video_model(cfg); route=settings.route_info(cfg); create_path,query_path=settings.effective_video_paths(cfg); limits=settings.effective_limits(cfg)
-            return self.ok({'version':config.APP_VERSION,'edition':config.APP_EDITION,'image_model':config.IMAGE_MODEL,'video_model':model,
+            return self.ok({'version':config.APP_VERSION,'build':config.APP_BUILD,'edition':config.APP_EDITION,'image_model':config.IMAGE_MODEL,'video_model':model,
                             'video_base_model':route['base_model'],'video_route_control':route['control'],'video_route_control_label':route['control_label'],
                             'video_route_preference':route['preference'],'video_route_preference_label':route['preference_label'],
                             'video_route_provider_sort':route.get('provider_sort'),'video_endpoint_strategy':cfg.get('video_endpoint_strategy'),
@@ -640,9 +746,9 @@ class Handler(BaseHTTPRequestHandler):
                             'max_concurrent_video_tasks':limits['max_concurrent_video_tasks'],'active_video_tasks':active_video_count(False),
                             'ffmpeg_available':bool(media.ffmpeg_path()),'media_shape':config.VIDEO_MEDIA_SHAPE,'settings':cfg,'hypit_engine':'native-v1',
                             'root_dir':str(config.ROOT),'port':config.PORT})
-        if path=='/api/audio/subjects':return self.ok([{**x,'asset':asset_public(asset_row(x['asset_id']))} for x in audio_subjects.list_all()])
+        if path=='/api/audio/subjects':return self.ok([{**x,'asset':asset_public(asset_row(x['asset_id']))} for x in audio_subjects.list_all() if not upload_lifecycle.removed('asset',x['asset_id'])])
         if path=='/api/assets':
-            rows=db.all_('SELECT * FROM assets ORDER BY created_at DESC LIMIT 300'); return self.ok([asset_public(x) for x in rows])
+            rows=db.all_('SELECT * FROM assets ORDER BY created_at DESC LIMIT 300'); return self.ok([asset_public(x) for x in upload_lifecycle.filter_rows(rows)])
         if path=='/api/history/overview':
             return self.ok(history_center_v423.overview((qs.get('limit') or ['140'])[0]))
         if path=='/api/history':
@@ -685,7 +791,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/workspace/drafts': return self.ok(workspace_store.get_all())
         if path in ('/api/library','/api/asset-library'):
             q=(qs.get('q') or [''])[0]; kind=(qs.get('kind') or [''])[0]
-            return self.ok([asset_public(x) for x in production_system.list_assets(q,kind)])
+            return self.ok([asset_public(x) for x in upload_lifecycle.filter_rows(production_system.list_assets(q,kind))])
         if path=='/api/settings': return self.ok(settings.get_all())
         if path=='/api/models':
             route=settings.route_info()
@@ -701,6 +807,11 @@ class Handler(BaseHTTPRequestHandler):
             input_video_seconds=(qs.get('input_video_seconds') or ['0'])[0]
             force=(qs.get('force') or ['0'])[0] in ('1','true','yes')
             return self.ok(cost_system.live(dur,res,ratio,input_video_seconds,force,force))
+        if path=='/api/openlux/balance':
+            # Read-only wallet lookup; no model pricing or generation requests.
+            balance=cost_system.fetch_balance(force=(qs.get('refresh') or ['0'])[0]=='1')
+            return self.ok({key:balance.get(key) for key in
+                            ('ok','available','stale','needs_account_binding')})
         if path=='/api/openlux/account-status':
             return self.ok(secrets_store.status())
         if path=='/api/cost/summary':
@@ -761,18 +872,67 @@ class Handler(BaseHTTPRequestHandler):
 
     def _file(self,p:Path,ctype=None):
         if not p.exists() or not p.is_file():return self.err('文件不存在',404)
+        if p.stat().st_size>1024*1024:return self._stream_output(p)
         data=p.read_bytes(); ctype=ctype or mimetypes.guess_type(p.name)[0] or 'application/octet-stream'; return self._send(200,data,ctype)
 
     def do_POST(self):
-        try:self._post()
+        self._operation_id=None;self._operation_finished=False;upload_slot=False
+        try:
+            self._workspace_guard()
+            self._hypit_guard()
+            route=urllib.parse.urlparse(self.path).path
+            if route in team_safety.CHARGED:
+                self._hypit_guard()
+                self._cached_json=self.json_in()
+                storage_manager.require_capacity(512*1024*1024)
+                operation=team_safety.claim(route,self._cached_json,self.headers.get('Idempotency-Key',''))
+                if operation['replay']:
+                    return self._send(operation['status'],operation['body'],headers={'X-Idempotent-Replay':'true'})
+                self._operation_id=operation['id']
+            elif route in ('/api/upload','/api/product-memory/source/upload','/api/product-memory/image/to-assets','/api/hot-radar/video/download-post','/api/hot-radar/video/fetch','/api/tasks/retry-download','/api/tasks/retry-image'):
+                upload_slot=storage_manager.upload_gate.acquire(False)
+                if not upload_slot:raise team_safety.Refused('当前空间正在上传或保存文件，请完成后再上传，避免内存和磁盘突增。')
+                storage_manager.require_capacity(int(self.headers.get('Content-Length','0') or 0))
+            self._post()
+            if self._operation_id and not self._operation_finished:
+                # A streaming response has no reusable JSON body; preserve its receipt.
+                team_safety.finish(self._operation_id,200,None);self._operation_finished=True
+        except (BrokenPipeError,ConnectionResetError):pass
+        except team_safety.Refused as e:self.err(e,409)
         except PermissionError as e:self.err(e,403)
         except openlux.ApiError as e:
-            log.exception('API error'); self.err(str(e),502,provider_status=e.status,provider_body=(e.body or '')[:2000],retryable=e.retryable)
+            log.exception('API error');self.err(str(e),502,provider_status=e.status,provider_body=(e.body or '')[:2000],retryable=False)
         except ValueError as e:self.err(e,400)
-        except Exception as e: log.exception('POST failed'); self.err(e,500)
+        except Exception as e:log.exception('POST failed');self.err(e,500)
+        finally:
+            if self._operation_id and not self._operation_finished:team_safety.finish(self._operation_id,None,None)
+            if upload_slot:storage_manager.upload_gate.release()
 
     def _post(self):
         path=urllib.parse.urlparse(self.path).path
+        if path.startswith('/api/video-evaluation/'):
+            self._hypit_guard()
+            if self.headers.get('Content-Type','').split(';')[0]!='application/json':raise PermissionError('JSON content type required')
+            req=self.json_in()
+            if not isinstance(req,dict):raise ValueError('JSON object required')
+            if path=='/api/video-evaluation/review':return self.ok(video_evaluation.review(req))
+            if path=='/api/video-evaluation/check':return self.ok(video_evaluation.check(req))
+            return self.err('Not found',404)
+        if path.startswith('/api/storage/') or path=='/api/safety/acknowledge':
+            self._hypit_guard();req=self.json_in()
+            if not isinstance(req,dict):raise ValueError('JSON object required')
+            if path=='/api/storage/trash':return self.ok(storage_manager.trash(req.get('path'),req.get('confirmed')))
+            if path=='/api/storage/restore':return self.ok(storage_manager.restore(req.get('id')))
+            if path=='/api/storage/purge':return self.ok(storage_manager.purge(req.get('id'),req.get('confirmed')))
+            if path=='/api/storage/clean':return self.ok(storage_manager.maintenance())
+            if path=='/api/safety/acknowledge':return self.ok(team_safety.acknowledge(req.get('id'),req.get('confirmed'),req.get('note')))
+            return self.err('Not found',404)
+        if path in ('/api/uploads/remove','/api/uploads/restore'):
+            self._hypit_guard()
+            req=self.json_in()
+            if not isinstance(req,dict):return self.err('JSON object required',400)
+            if path.endswith('/restore'):return self.ok(upload_lifecycle.restore(req.get('kind'),req.get('id')))
+            return self.ok(upload_lifecycle.remove(req.get('kind'),req.get('id'),str(req.get('product_id') or '')))
         if path.startswith(('/api/assistant/','/api/gpt-v41/','/api/gpt-v4/')):
             self._hypit_guard()
         if path.startswith('/api/hypit/'):
@@ -938,6 +1098,10 @@ class Handler(BaseHTTPRequestHandler):
             req=self.json_in(); tid=req.get('task_id')
             return self.ok(task_to_public(retry_task_download(tid)))
         if path=='/api/image/generate':return self._image_generate()
+        if path=='/api/tasks/retry-image':
+            task=finalize_image_task(self.json_in().get('task_id'))
+            public=task_to_public(task)
+            return self.ok({'task':public,'version':public['result'],'paid_create_calls':0})
         if path=='/api/workflow/analyze':return self._workflow_analyze()
         if path=='/api/workflow/edit':return self._workflow_edit()
         if path=='/api/workflow/confirm':return self._workflow_confirm()
@@ -1039,8 +1203,10 @@ class Handler(BaseHTTPRequestHandler):
         dedupe=settings.effective_limits().get('dedupe_seconds',config.DEDUPE_SECONDS)
         recent=db.task_recent_by_fp(fp,dedupe)
         if recent:return self.ok({'task':task_to_public(recent),'reused':True,'reason':f'{dedupe} 秒内相同请求已拦截，未再次计费。'})
+        fp_obj['_inherited_ratio']=inherited
         tid=db.task_create('image',fp,fp_obj); db.task_update(tid,status='running')
         task_observability.record('image',tid,'请求图片生成服务','running','已发送付费请求，未收到远端响应')
+        resp=None
         try:
             actual_prompt=deepen_prompt(prompt,level) if source else prompt
             try:
@@ -1048,21 +1214,29 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 db.task_update(tid,status='failed',error=str(e)); return self.err(str(e),409)
             resp=openlux.image_edit(actual_prompt,Path(source['path']),source['mime'],ratio,quality,idempotency_key=fp) if source else openlux.image_generate(actual_prompt,ratio,quality,idempotency_key=fp)
-            a,out_path=save_generated_image(resp); group=parent_row['group_id'] if parent_row else db.new_id('imggrp'); vid=db.new_id('imgver')
-            meta={'output_path':out_path,'ratio':ratio,'request_size':size,'quality':quality,'inherited_ratio':inherited,'actual_width':a.get('width'),'actual_height':a.get('height'),'mode':generate_mode,'source_asset_id':source.get('id') if source else None}
-            db.execute('''INSERT INTO generation_versions(version_id,group_id,parent_version_id,kind,prompt,level,asset_id,metadata_json,confirmed,created_at)
-                          VALUES(?,?,?,?,?,?,?,?,0,?)''',(vid,group,parent,'image',prompt,level,a['id'],db.dumps(meta),db.now()))
-            result={'version_id':vid,'group_id':group,'asset':asset_public(a),'ratio':ratio,'request_size':size,'quality':quality,'inherited_ratio':inherited,'mode':generate_mode,'source_asset':asset_public(source) if source else None}
-            db.task_update(tid,status='completed',response_json=resp,result_json=result)
-            task_observability.record('image',tid,'图片已保存','completed')
-            est=config.IMAGE_ESTIMATED_COST_USD or None; db.usage_add(tid,'image',config.IMAGE_MODEL,1,est,None,{'ratio':ratio,'size':size,'quality':quality,'deep':bool(parent),'image2image':bool(source_asset_id and not parent),'source_asset_id':source.get('id') if source else None})
-            return self.ok({'task':task_to_public(db.one('SELECT * FROM tasks WHERE id=?',(tid,))),'version':result,'cost_estimate_usd':est})
+            db.task_update(tid,status='result_pending',response_json=resp)
+            est=config.IMAGE_ESTIMATED_COST_USD or None
+            db.usage_add(tid,'image',config.IMAGE_MODEL,1,est,None,{'ratio':ratio,'size':size,'quality':quality,'deep':bool(parent),'image2image':bool(source_asset_id and not parent),'source_asset_id':source.get('id') if source else None})
+            cost_system.clear_balance_cache()
+            try:
+                saved=finalize_image_task(tid)
+                result=db.loads(saved['result_json'],{})
+                return self.ok({'task':task_to_public(saved),'version':result,'cost_estimate_usd':est})
+            except Exception as save_error:
+                db.task_update(tid,status='result_pending',error='原图片响应已保留，本地保存失败：'+str(save_error)[:600])
+                task_observability.record('image',tid,'原图片响应已保留，仅需重新保存','result_pending')
+                return self.ok({'task':task_to_public(db.one('SELECT * FROM tasks WHERE id=?',(tid,))),
+                    'reason':'原图片响应已保留，请点击“仅重新保存原图片”；不要重新生成。',
+                    'paid_create_calls':1,'local_save_pending':True})
         except openlux.ApiError as e:
             status='submission_unknown' if e.status is None or (e.status and e.status>=500) else 'failed'; db.task_update(tid,status=status,error=str(e),response_json={'provider_status':e.status,'provider_body':e.body})
             task_observability.record('image',tid,'图片提交结果未知' if status=='submission_unknown' else '图片接口明确失败',status,str(e)); raise
         except Exception as e:
             log.exception('image task %s failed, detailed stack trace',tid)
-            db.task_update(tid,status='failed',error=f'图片生成失败：{type(e).__name__}: {e}；详细日志请查看 data 下的运行日志')
+            fields={'status':'result_pending' if resp is not None else 'failed',
+                    'error':f'图片响应后的本地处理失败，原响应已保留，禁止重新生成：{e}' if resp is not None else f'图片生成失败：{type(e).__name__}: {e}'}
+            if resp is not None:fields['response_json']=resp
+            db.task_update(tid,**fields)
             raise
 
     def _workflow_analyze(self):
@@ -1671,6 +1845,8 @@ def run(open_browser=False):
     _boot_phase("准备绑定本地服务端口")
     server=ThreadingHTTPServer((config.HOST,config.PORT),Handler)
     config.PID_PATH.write_text(str(os.getpid()),encoding='utf-8')
+    team_safety.recover()
+    storage_manager.reconcile_moves()
     _boot_phase("端口已绑定，正在初始化热点及商品数据表")
     url=f'http://{config.HOST}:{config.PORT}'
     log.info('Seedance Studio %s started at %s model=%s',config.APP_VERSION,url,settings.effective_video_model())
@@ -1688,6 +1864,7 @@ def run(open_browser=False):
     _task_poller_stop.clear()
     poller=threading.Thread(target=_background_task_poller,args=(_task_poller_stop,),name='video-task-poller',daemon=True)
     poller.start()
+    threading.Thread(target=storage_manager.worker,args=(_task_poller_stop,),name="storage-maintenance",daemon=True).start()
     if open_browser: threading.Timer(0.8,lambda:webbrowser.open(url)).start()
     _boot_phase("服务已就绪，等待浏览器连接")
     try:server.serve_forever()

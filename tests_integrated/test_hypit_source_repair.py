@@ -2,7 +2,7 @@ from pathlib import Path
 import json
 import pytest
 from core.hypit_cli_guard import validate_project_boundary
-from core.hypit_source_repair import repair_vocabulary_imports
+from core.hypit_source_repair import repair_vocabulary_imports, repair_timeline_origin
 
 
 def project(tmp_path,source):
@@ -45,3 +45,31 @@ def test_unknown_error_never_triggers_a_rewrite(tmp_path):
     before=(root/'main.svml').read_bytes()
     assert repair_vocabulary_imports(root,{'error':{'message':'Unknown output'}}) is None
     assert (root/'main.svml').read_bytes()==before
+
+
+def test_timeline_origin_repair_requires_real_diagnostic_and_preserves_source(tmp_path):
+    text = ('<svml><import as="t" from="@hypit/timeline-author@1"/>'
+            '<t:Timeline id="p" clock={clock} end="shot.end">'
+            '<t:Window id="shot" from="0" for={prepared.extent}/></t:Timeline></svml>')
+    root = project(tmp_path, text)
+    assert repair_timeline_origin(root, {'error': {'message': 'Unknown output'}}) is None
+    result = repair_timeline_origin(root, {'error': {'message': 'Timeline expression 0 is not an Instant.'}})
+    assert result['paid_calls'] == 0
+    assert (root/result['backup']).read_text('utf8') == text
+    assert (root/'main.svml').read_text('utf8') == text.replace('from="0"', 'from="start"')
+    assert repair_timeline_origin(root, {'error': {'message': 'Timeline expression 0 is not an Instant.'}}) is None
+
+
+@pytest.mark.parametrize('body', [
+    '<!-- <t:Window from="0"/> -->',
+    '<![CDATA[<t:Window from="0"/>]]>',
+    '<t:Window id="s" from="1" for="1s"/>',
+    '<t:Window id="s" from="0s" for="1s"/>',
+    '<other:Window id="s" from="0" for="1s"/>',
+    '<t:Window id="s" from="start" label=\'from="0"\' for="1s"/>',
+])
+def test_timeline_repair_does_not_change_other_semantics(tmp_path, body):
+    text = '<svml><import as="t" from="@hypit/timeline-author@1"/>' + body + '</svml>'
+    root = project(tmp_path, text)
+    assert repair_timeline_origin(root, {'error': {'message': 'Timeline expression 0 is not an Instant.'}}) is None
+    assert (root/'main.svml').read_text('utf8') == text

@@ -42,3 +42,17 @@ body:has(#page-hypit.active) .top-center-stack{display:none!important}
 }
 @media(max-width:1050px){#page-hypit .hypit-form-grid{grid-template-columns:minmax(0,1fr)}#page-hypit .hypit-step{padding:18px}}
 @media(max-width:600px){#page-hypit .hypit-heading{align-items:flex-start}#page-hypit h2{font-size:22px}#page-hypit .hypit-budget-row .hypit-field{width:100%}}
+
+/* Uploaded assets: stable action width, readable filenames, keyboard access. */
+#page-hypit .hypit-assets{scrollbar-width:thin;scrollbar-color:#39465d transparent;padding-right:4px}
+#page-hypit .hypit-assets .hypit-asset-row{align-items:center!important;gap:12px!important;padding:12px;margin:8px 0;min-height:56px;box-sizing:border-box;transition:border-color .15s,background .15s}
+#page-hypit .hypit-asset-row:hover{border-color:#566282;background:#172233}
+#page-hypit .hypit-asset-row:has(input:checked){border-color:#8964c9;background:#201b33}
+#page-hypit .hypit-asset-detail{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:3px}
+#page-hypit .hypit-asset-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e1e7f2;font-size:13px;line-height:1.5}
+#page-hypit .hypit-asset-kind{font-size:11px;color:#95a4bc;line-height:1.4}
+#page-hypit button.hypit-asset-remove{flex:0 0 52px;width:52px;min-width:52px;min-height:32px;height:32px;padding:0 10px;border:1px solid transparent;border-radius:7px;white-space:nowrap;word-break:keep-all;background:transparent;color:#b5a0af;font-weight:500;line-height:30px;cursor:pointer;transition:color .15s,background .15s,border-color .15s}
+#page-hypit button.hypit-asset-remove:hover{color:#ffb4bc;background:#3a202b;border-color:#683546}
+#page-hypit button.hypit-asset-remove:focus-visible{outline:2px solid #b39aff;outline-offset:3px;color:#ffb4bc}
+@media(pointer:coarse){#page-hypit button.hypit-asset-remove{min-height:44px;height:44px;line-height:42px}}
+@media(prefers-reduced-motion:reduce){#page-hypit .hypit-asset-row,#page-hypit button.hypit-asset-remove{transition:none}}

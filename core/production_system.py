@@ -88,11 +88,31 @@ def list_assets(q='',kind=''):
     sql+=' ORDER BY created_at DESC LIMIT 500'
     return db.all_(sql,tuple(ps))
 
-def quality_check(path:Path):
-    result={'ok':True,'issues':[],'metrics':{},'tools':tool_status()}
+def quality_check(path:Path, *, expected=None):
+    expected=expected or {}
+    result={'ok':True,'technical_status':'incomplete','issues':[],'metrics':{},'tools':tool_status(),
+            'scope':'本地技术检测；商品真实性、动作自然度和广告可用性仍须人工复核。'}
     meta=media.probe(path); result['metrics']['media']=meta
     if not meta.get('duration'):
-        result['ok']=False;result['issues'].append({'level':'error','message':'无法读取有效视频时长'});return result
+        result['ok']=False;result['technical_status']='failed';result['issues'].append({'level':'error','message':'无法读取有效视频时长'});return result
+    try:
+        target=float(expected.get('billing_duration') or expected.get('duration') or 0)
+        if target>0 and abs(float(meta['duration'])-target)>max(.5,target*.15):
+            result['issues'].append({'level':'error','message':'实际时长偏离本次要求，须先复核再计为可用成片'})
+        ratio=str(expected.get('ratio') or '')
+        if ':' in ratio and meta.get('width') and meta.get('height'):
+            a,b=map(float,ratio.split(':'));wanted=a/b
+            if wanted>0 and abs(meta['width']/meta['height']-wanted)/wanted>.03:
+                result['issues'].append({'level':'error','message':'实际画幅与本次要求不一致'})
+        if expected.get('generate_audio') is True and not meta.get('has_audio'):
+            result['issues'].append({'level':'error','message':'本次要求生成音频，但成片没有音轨'})
+        resolution=str(expected.get('local_export_resolution') or expected.get('output_resolution') or expected.get('resolution') or '').lower()
+        minimum={'480p':480,'540p':540,'720p':720,'1080p':1080}.get(resolution)
+        if minimum and meta.get('width') and meta.get('height') and min(meta['width'],meta['height'])<minimum-2:
+            result['issues'].append({'level':'error','message':'实际清晰度低于本次要求的输出规格'})
+    except (ValueError,TypeError,ZeroDivisionError):
+        result['issues'].append({'level':'info','message':'任务目标规格不完整，未自动判定规格符合性'})
+    frame_check_complete=False
     cv_ok=_module('cv2')
     if cv_ok:
         try:
@@ -100,20 +120,24 @@ def quality_check(path:Path):
             cap=cv2.VideoCapture(str(path)); total=int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0); fps=float(cap.get(cv2.CAP_PROP_FPS) or 0)
             sample_count=min(120,max(12,int(meta['duration']*2)))
             sharp=[];dark=[];dups=0;prev=None;read=0
-            for i in range(sample_count):
-                pos=int((max(total-1,1))*i/max(sample_count-1,1)); cap.set(cv2.CAP_PROP_POS_FRAMES,pos); ok,fr=cap.read()
-                if not ok:continue
-                g=cv2.cvtColor(fr,cv2.COLOR_BGR2GRAY); read+=1
-                sharp.append(float(cv2.Laplacian(g,cv2.CV_64F).var())); dark.append(float(g.mean()))
-                tiny=cv2.resize(g,(64,36))
-                if prev is not None and float(cv2.absdiff(tiny,prev).mean())<0.8:dups+=1
-                prev=tiny
-            cap.release()
+            try:
+                for i in range(sample_count):
+                    pos=int((max(total-1,1))*i/max(sample_count-1,1)); cap.set(cv2.CAP_PROP_POS_FRAMES,pos); ok,fr=cap.read()
+                    if not ok:continue
+                    g=cv2.cvtColor(fr,cv2.COLOR_BGR2GRAY); read+=1
+                    sharp.append(float(cv2.Laplacian(g,cv2.CV_64F).var())); dark.append(float(g.mean()))
+                    tiny=cv2.resize(g,(64,36))
+                    if prev is not None and float(cv2.absdiff(tiny,prev).mean())<0.8:dups+=1
+                    prev=tiny
+            finally:cap.release()
             if read:
+                frame_check_complete=read>=max(2,sample_count//2) and total>=2 and fps>0
                 result['metrics'].update({'sample_frames':read,'sharpness_median':round(statistics.median(sharp),2),'brightness_median':round(statistics.median(dark),2),'near_duplicate_pairs':dups})
                 if statistics.median(dark)<12: result['issues'].append({'level':'warn','message':'画面整体过暗，可能存在黑帧/曝光异常'})
+                if sum(v<3 for v in dark)/read>.8:result['issues'].append({'level':'error','message':'绝大多数采样帧接近全黑，不能直接计为可用成片'})
                 if statistics.median(sharp)<18: result['issues'].append({'level':'warn','message':'画面清晰度偏低或存在明显模糊'})
                 if dups>max(4,read*0.45): result['issues'].append({'level':'warn','message':'检测到较多近似重复帧，可能存在卡帧/静帧'})
+            if not frame_check_complete:result['issues'].append({'level':'info','message':'有效采样帧不足，帧级质检未完成'})
         except Exception as e: result['issues'].append({'level':'info','message':'OpenCV 质检未完成：'+str(e)[:180]})
     else: result['issues'].append({'level':'info','message':'未安装 OpenCV，已跳过帧级质检'})
     try:
@@ -126,6 +150,8 @@ def quality_check(path:Path):
     except Exception as e:
         result['metrics']['semantic_local_analysis']={'used':False,'reason':f'增强质检未完成：{type(e).__name__}: {e}'}
     result['ok']=not any(x['level']=='error' for x in result['issues'])
+    result['technical_status']=('failed' if not result['ok'] else 'incomplete' if not frame_check_complete else
+                                'warning' if any(x['level']=='warn' for x in result['issues']) else 'passed')
     return result
 
 def backup_bundle():

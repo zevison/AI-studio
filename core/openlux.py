@@ -1,5 +1,6 @@
 from __future__ import annotations
-import base64, json, mimetypes, time, urllib.error, urllib.parse, urllib.request, uuid
+import base64, json, mimetypes, os, tempfile, time, urllib.error, urllib.parse, urllib.request, uuid
+from http.client import IncompleteRead
 from pathlib import Path
 from . import config, tunnel, settings
 from .utils import find_url
@@ -46,7 +47,7 @@ def request_json(method, path, payload=None, timeout=None, retries=0, idempotenc
             if attempt<retries and retryable:
                 time.sleep(min(2**attempt,4)); continue
             raise last
-        except (urllib.error.URLError,TimeoutError,OSError) as e:
+        except (urllib.error.URLError,TimeoutError,OSError,IncompleteRead) as e:
             last=ApiError(f'网络请求失败：{e}',None,None,True)
             if attempt<retries:
                 time.sleep(min(2**attempt,4)); continue
@@ -83,7 +84,7 @@ def request_json_with_token(method, path, auth_token, payload=None, timeout=None
             if attempt<retries and retryable:
                 time.sleep(min(2**attempt,4)); continue
             raise last
-        except (urllib.error.URLError,TimeoutError,OSError) as e:
+        except (urllib.error.URLError,TimeoutError,OSError,IncompleteRead) as e:
             last=ApiError(f'账号接口网络请求失败：{e}',None,None,True)
             if attempt<retries:
                 time.sleep(min(2**attempt,4)); continue
@@ -249,18 +250,78 @@ def extract_status(resp):
     if s in {'succeeded','success','completed','complete','done'}: return 'completed'
     if s in {'failed','error','expired','cancelled','canceled'}: return 'failed'
     if s in {'queued','pending','submitted','running','processing','in_progress','in-progress'}: return 'running'
-    if find_url(resp): return 'completed'
+    if not s and extract_result_url(resp): return 'completed'
     return 'running'
 
 
-def extract_result_url(resp): return find_url(resp)
+def extract_result_url(resp):
+    """Only video output evidence; covers and echoed references are not results."""
+    def url(value):
+        return value if isinstance(value,str) and value.startswith(('https://','http://')) else None
+    def walk(node,output=False,depth=0):
+        if depth>20:return None
+        if isinstance(node,str):return url(node) if output else None
+        if isinstance(node,list):
+            return next((found for item in node if (found:=walk(item,output,depth+1))),None)
+        if not isinstance(node,dict):return None
+        if node.get('role') in {'reference_image','reference_video','reference_audio','first_frame','last_frame'}:
+            return None
+        if str(node.get('type') or '').startswith(('image','audio')):return None
+        for key in ('video_url','output_url','file_url','download_url'):
+            value=node.get(key)
+            found=url(value) or (url(value.get('url')) if isinstance(value,dict) else None)
+            if found:return found
+        candidate=url(node.get('url'))
+        if candidate and (output or urllib.parse.urlsplit(candidate).path.lower().endswith(('.mp4','.webm','.mov','.m4v','.mkv'))):return candidate
+        for key in ('output','outputs','result','results','artifacts','videos','creations','content','data','task'):
+            if key in node:
+                found=walk(node[key],output or key not in ('data','task'),depth+1)
+                if found:return found
+        return None
+    return walk(resp)
+
+
+def validate_task_identity(resp, expected):
+    """Refuse a response that explicitly identifies a different provider task."""
+    if not isinstance(resp,dict):raise ApiError('任务查询响应必须是 JSON 对象')
+    for node in (resp,resp.get('data'),resp.get('task')):
+        if not isinstance(node,dict):continue
+        for key in ('id','task_id'):
+            if node.get(key) is not None and str(node[key])!=str(expected):
+                raise ApiError('平台查询返回了不同的任务编号；原任务状态保留，未下载或重新生成。')
 
 
 def download(url:str, dest:Path):
+    """Publish a complete, decodable media file atomically; preserve prior output."""
+    dest=Path(dest)
+    limit=2*1024**3
     req=urllib.request.Request(url,headers={'User-Agent':f'SeedanceStudio/{config.APP_VERSION}'})
-    with urllib.request.urlopen(req,timeout=180) as r, dest.open('wb') as f:
-        while True:
-            b=r.read(1024*1024)
-            if not b: break
-            f.write(b)
+    temporary=None
+    started=time.monotonic()
+    try:
+        with urllib.request.urlopen(req,timeout=30,context=tls_context()) as r:
+            length=r.headers.get('Content-Length')
+            expected=int(length) if length is not None else None
+            if expected is not None and not 0<expected<=limit:raise ApiError('下载文件长度异常或超过2GB上限')
+            with tempfile.NamedTemporaryFile(prefix='.download-',suffix=dest.suffix,dir=dest.parent,delete=False) as f:
+                temporary=Path(f.name);received=0
+                while True:
+                    if time.monotonic()-started>300:raise TimeoutError('结果下载超过5分钟；可仅重试下载')
+                    chunk=r.read(1024*1024)
+                    if not chunk:break
+                    received+=len(chunk)
+                    if received>limit:raise ApiError('下载超过2GB上限')
+                    f.write(chunk)
+            if not received or (expected is not None and received!=expected):raise ApiError('结果文件下载不完整；未发布本地成片')
+        from . import media
+        if dest.suffix.lower() in {'.mp4','.mov','.webm','.m4v','.mkv'}:
+            metadata=media.probe(temporary)
+            if not metadata.get('ok') or not metadata.get('width') or not metadata.get('height'):
+                raise ApiError('下载内容不是可解析的视频；保留远程任务，仅允许重试下载')
+        elif dest.suffix.lower() in {'.png','.jpg','.jpeg','.webp'}:
+            from PIL import Image
+            with Image.open(temporary) as image:image.verify()
+        os.replace(temporary,dest)
+    finally:
+        if temporary is not None:temporary.unlink(missing_ok=True)
     return dest

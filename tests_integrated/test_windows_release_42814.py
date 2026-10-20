@@ -1,6 +1,8 @@
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-def owned(p):return p.is_file() and 'node_modules' not in p.relative_to(ROOT).parts
+def owned(p):
+    generated={'.git','.venv','node_modules','build','outputs','data','install_logs','__pycache__','.pytest_cache'}
+    return p.is_file() and not generated.intersection(p.relative_to(ROOT).parts)
 cmds=[p for p in ROOT.rglob('*') if owned(p) and p.suffix.lower() in {'.cmd','.bat'}]
 ps1s=[p for p in ROOT.rglob('*.ps1') if owned(p)]
 vbs=[p for p in ROOT.rglob('*.vbs') if owned(p)]

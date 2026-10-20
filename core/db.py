@@ -2,6 +2,7 @@ from __future__ import annotations
 import json, sqlite3, threading, time, uuid
 from contextlib import contextmanager
 from .config import DB_PATH
+from .sqlite_snapshot import snapshot_database
 
 _lock = threading.RLock()
 CURRENT_SCHEMA_VERSION = 390
@@ -78,14 +79,9 @@ def _backup_before_migration(old_version:int):
         return None
     backup_dir=DB_PATH.parent/'backups'
     backup_dir.mkdir(parents=True,exist_ok=True)
-    stamp=time.strftime('%Y%m%d_%H%M%S')
+    stamp=time.strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:8]
     dst=backup_dir/f'studio_pre_schema_{CURRENT_SCHEMA_VERSION}_{stamp}.db'
-    src=sqlite3.connect(DB_PATH)
-    out=sqlite3.connect(dst)
-    try:
-        src.backup(out)
-    finally:
-        out.close(); src.close()
+    snapshot_database(DB_PATH,dst)
     return dst
 
 
@@ -108,8 +104,11 @@ def connect():
 
 def init_db():
     old_version=_read_schema_version()
+    if old_version > CURRENT_SCHEMA_VERSION:
+        raise RuntimeError('数据库版本比当前程序更新，已停止启动以保护数据；请使用匹配版本或独立备份恢复。')
     _backup_before_migration(old_version)
     with _lock, connect() as c:
+        c.execute('BEGIN IMMEDIATE')
         deferred_indexes=[]
         for sql in SCHEMA:
             try:
@@ -214,6 +213,23 @@ def task_create(kind, fingerprint, request):
             (task_id, kind, fingerprint, 'pending', dumps(request), t, t))
     return task_id
 
+
+
+def video_task_snapshot(recent_limit=150):
+    """Recent history limits must never hide an older active task."""
+    recent_limit=max(1,min(500,int(recent_limit)))
+    return all_("SELECT * FROM tasks WHERE "+ACTIVE_VIDEO_WHERE+
+        " OR id IN (SELECT id FROM tasks WHERE kind='video' ORDER BY created_at DESC LIMIT ?) "
+        "ORDER BY created_at DESC",(recent_limit,))
+
+
+def pollable_video_tasks(limit=20):
+    """Unknown jobs without an acknowledged id cannot consume polling slots."""
+    return all_("""SELECT * FROM tasks WHERE kind='video'
+        AND status IN ('pending','running','result_pending','submission_unknown')
+        AND provider_task_id IS NOT NULL AND trim(provider_task_id)<>''
+        AND COALESCE(CASE WHEN json_valid(request_json) THEN json_extract(request_json,'$.mode') END,'')<>'hypit'
+        ORDER BY COALESCE(last_polled_at,0),created_at LIMIT ?""",(max(1,min(100,int(limit))),))
 
 
 def claim_video_submission(preview_token, dedupe_seconds, max_active, expected_mode=None):

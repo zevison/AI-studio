@@ -8,19 +8,29 @@ import shutil
 import stat
 import tempfile
 import zipfile
+import sys
+import traceback
 
 ROOT=Path(__file__).resolve().parents[1]
 
 
+def native_path(path):
+    """Use extended Windows paths for EVERY filesystem operation, not only open()."""
+    value=os.path.abspath(os.fspath(path))
+    if os.name=='nt' and not value.startswith('\\\\?\\'):
+        value=('\\\\?\\UNC\\'+value[2:]) if value.startswith('\\\\') else ('\\\\?\\'+value)
+    return Path(value)
+
+
 def digest(path):
     result=hashlib.sha256()
-    with path.open('rb') as stream:
+    with native_path(path).open('rb') as stream:
         while chunk:=stream.read(1024*1024):result.update(chunk)
     return result.hexdigest()
 
 
 def extract_verified(archive,destination,expected):
-    archive,destination=Path(archive),Path(destination)
+    archive,destination=native_path(archive),native_path(destination)
     if not re.fullmatch('[0-9a-f]{64}',expected) or digest(archive)!=expected:
         raise RuntimeError('Bundled runtime checksum mismatch; re-extract original installation ZIP')
     parent=destination.parent
@@ -34,7 +44,7 @@ def extract_verified(archive,destination,expected):
         if destination.is_symlink() or (hasattr(destination,'is_junction') and destination.is_junction()):
             raise PermissionError('Runtime directory cannot be a link')
         if destination.is_dir() and marker.is_file():
-            installed=json.loads(marker.read_text())
+            installed=json.loads(marker.read_text(encoding='utf8'))
             files=installed.get('files')
             if installed.get('sha256')==expected and isinstance(files,dict) and files:
                 for name,checksum in files.items():
@@ -45,6 +55,7 @@ def extract_verified(archive,destination,expected):
                 return 'reused'
         raise RuntimeError('Existing runtime directory is incomplete; preserved for diagnosis')
     temporary=Path(tempfile.mkdtemp(prefix='.install-',dir=parent))
+    failure=None
     try:
         with zipfile.ZipFile(archive) as bundle:
             names=set();total=0;files={}
@@ -64,9 +75,7 @@ def extract_verified(archive,destination,expected):
                 if info.is_dir():target.mkdir(parents=True,exist_ok=True);continue
                 target.parent.mkdir(parents=True,exist_ok=True)
                 # Explicit long-path prefix also handles unusually long npm filenames.
-                output=str(target.resolve())
-                if os.name=='nt':output='\\\\?\\'+output
-                with bundle.open(info) as incoming,open(output,'xb') as outgoing:
+                with bundle.open(info) as incoming,native_path(target).open('xb') as outgoing:
                     checksum=hashlib.sha256()
                     while chunk:=incoming.read(1024*1024):
                         checksum.update(chunk);outgoing.write(chunk)
@@ -74,11 +83,20 @@ def extract_verified(archive,destination,expected):
             (temporary/'.seedance-runtime.json').write_text(json.dumps({'sha256':expected,'files':files}),encoding='utf8')
         temporary.rename(destination)
         return 'installed'
+    except BaseException as exc:
+        failure=exc
+        raise
     finally:
-        if temporary.exists():
-            if temporary.resolve().parent!=parent.resolve() or not temporary.name.startswith('.install-'):
-                raise PermissionError('Unsafe staging cleanup target')
-            shutil.rmtree(temporary)
+        try:
+            if temporary.exists():
+                if temporary.resolve().parent!=parent.resolve() or not temporary.name.startswith('.install-'):
+                    raise PermissionError('Unsafe staging cleanup target')
+                def on_cleanup_error(func,path,exc_info):
+                    if not isinstance(exc_info[1],FileNotFoundError):raise exc_info[1]
+                shutil.rmtree(native_path(temporary),onerror=on_cleanup_error)
+        except Exception as cleanup_error:
+            if failure is None:raise
+            failure.add_note('Temporary cleanup also failed; original installation error preserved: '+str(cleanup_error))
 
 
 def install():
@@ -96,4 +114,9 @@ def install():
     return results
 
 
-if __name__=='__main__':print(json.dumps(install()))
+if __name__=='__main__':
+    try:print(json.dumps(install()),flush=True)
+    except Exception:
+        # PowerShell5.1 Stop must not truncate the primary error on native stderr.
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(1)

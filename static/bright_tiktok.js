@@ -6,6 +6,7 @@ const api=async(path,body)=>{const opt=body===undefined?{}:{method:'POST',header
  const res=await fetch(path,{...opt,cache:'no-store'});let j;
  try{j=await res.json()}catch{throw Error('后台服务未返回有效结果，请检查本地工作台是否仍在运行')}
  if(!res.ok||!j.ok)throw Error(j.error||`HTTP ${res.status} 操作失败`);return j.data};
+let lastStatusProduct=null;
 let submitting=false,polling=false,refreshing=false,allJobs=[],lastPolling=new Map(),timer=null;
 const statuses={submitting:'正在提交，等待服务商回执',running:'Bright Data 正在采集',ready:'采集完成，正在下载结果',done:'采集完成，已处理结果',failed:'Bright Data 采集失败',ready_partial:'部分成功，异常单独记录',provider_failed:'服务商返回错误数据',empty:'未找到有效视频',rejected:'请求被服务商拒绝',submission_unknown:'提交回执不确定，禁止再次付费提交',processing:'正在写入证据'};
 const endStates=new Set(['done','failed','rejected','submission_unknown']);
@@ -74,7 +75,7 @@ async function pollOne(id,explicit=false){if(polling)return;const j=allJobs.find
  }catch(e){notify('查询失败：'+e.message)}finally{polling=false}}
 async function refresh(){if(refreshing)return;refreshing=true;
  try{const jobs=await loadJobs();const j=jobs.find(x=>x.product_id===selected()&&activeStates.has(x.status));
-  if(j&&!polling)await pollOne(j.id);
+  if(j&&!polling)await pollOne(j.id);else if(!submitting&&!polling&&(lastStatusProduct!==selected()||$('bdStatus')?.textContent==='正在读取本地采集记录…'))notify('当前商品暂无进行中的采集。请预览关键词与额度，或展开历史任务。');lastStatusProduct=selected();
  }catch(e){notify('读取采集任务状态失败：'+e.message)}finally{refreshing=false}}
 async function preview(){const p=await api('/api/bright-tiktok/preview',{product_id:selected(),quantity:+$('bdCount').value});
  notify('预计采集关键词：'+p.terms.join(' / ')+'；总上限 '+p.quantity+' 条（全部关键词共享）。仅预览，不扣费。'+(p.warning||''));return p}

@@ -48,7 +48,7 @@ def models(force=False):
 
 
 def _files(raw):
-    if not isinstance(raw,list) or len(raw)>3:raise ValueError('每次最多上传3个附件')
+    if not isinstance(raw,list) or len(raw)>ai_assistant.MAX_CHAT_ATTACHMENTS:raise ValueError(f'每次最多上传{ai_assistant.MAX_CHAT_ATTACHMENTS}个附件')
     results=[]
     total=0
     for x in raw:

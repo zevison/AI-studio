@@ -57,7 +57,8 @@ function fillForm(){const p=current();if(!p)return;
  const n=p.keywords?.length||0;
  $('pmRadarState').innerHTML=n?`<span class="pm-keywords-ready">已生成 / 保存 ${n} 条关键词</span> · ${p.active?'可用于手动采集':'尚未启用采集关键词'}`:'尚无美区检索词；上传资料并完成 GPT 分析后自动产生。';
 }
-function drawSources(){const ss=state.sources||[];$('pmSources').innerHTML=ss.length?ss.map(s=>`<label class="pm-source"><input type="checkbox" class="pm-source-check" value="${esc(s.id)}" checked><div><b>${esc(s.title)}</b><div class="pm-sub">${esc(({image:'原始图片',document:'产品文档',link:'商品链接',text:'人工文字'})[s.kind]||s.kind)} · ${s.text_length||0}字 · ${new Date(s.created_at*1000).toLocaleString()}</div>${s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">查看原来源 ↗</a>`:''}<p>${esc(s.excerpt||s.note||'')}</p>${s.kind==='image'?`<button type="button" class="secondary pm-to-assets" data-sid="${esc(s.id)}">加入本地素材库</button>`:''}</div></label>`).join(''):'<div class="pm-sub">还没有资料。请先上传产品链接、说明书和实拍图片。</div>';
+function drawSources(){const ss=state.sources||[];$('pmSources').innerHTML=ss.length?ss.map(s=>`<label class="pm-source"><input type="checkbox" class="pm-source-check" value="${esc(s.id)}" checked><div><b>${esc(s.title)}</b><div class="pm-sub">${esc(({image:'原始图片',document:'产品文档',link:'商品链接',text:'人工文字'})[s.kind]||s.kind)} · ${s.text_length||0}字 · ${new Date(s.created_at*1000).toLocaleString()}</div>${s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">查看原来源 ↗</a>`:''}<p>${esc(s.excerpt||s.note||'')}</p><button type="button" class="secondary pm-source-remove" data-sid="${esc(s.id)}">删除资料</button>${s.kind==='image'?`<button type="button" class="secondary pm-to-assets" data-sid="${esc(s.id)}">加入本地素材库</button>`:''}</div></label>`).join(''):'<div class="pm-sub">还没有资料。请先上传产品链接、说明书和实拍图片。</div>';
+ $('pmSources').querySelectorAll('.pm-source-remove').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();work(async()=>{await api('/api/uploads/remove',{kind:'source',id:b.dataset.sid,product_id:pid});dropPreview();await reload(pid);notify('资料已删除，请重新分析商品知识，旧资料不再参与新分析。')})});
  $('pmSources').querySelectorAll('.pm-source-check').forEach(c=>c.addEventListener('change',dropPreview));
  $('pmSources').querySelectorAll('.pm-to-assets').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();work(async()=>{await api('/api/product-memory/image/to-assets',{product_id:pid,source_id:b.dataset.sid});notify('图片已加入视频素材库')})});
 }
@@ -104,10 +105,10 @@ async function refreshPrice(force=false){
  }catch(e){$('pmPriceStatus').textContent='价格检查失败：'+e.message}
 }
 async function reload(forcedId=null){
- const old=forcedId||pid;
+ const old=forcedId||window.ProductFlow?.get()||pid;window.ProductFlow?.set(old);const fresh=window.ProductFlow?.begin('products')||(()=>true);
  const newState=await api('/api/product-memory/state'+(old?'?product_id='+encodeURIComponent(old):''));
  const newOptions=(await api('/api/hot-radar/state')).options;
- state=newState;options=newOptions;pid=state.product_id||old||state.products[0]?.id||null;
+ if(!fresh())return;state=newState;options=newOptions;pid=state.product_id||old||state.products[0]?.id||null;window.ProductFlow?.set(pid);
  updateProductSelect();fillForm();drawSources();drawOptions();drawMemory();dropPreview();dirty=false;
 }
 
@@ -225,16 +226,15 @@ $('pmAnalyze')?.addEventListener('click',()=>work(async()=>{
 $('pmScanNow')?.addEventListener('click',()=>work(async()=>{
  if(dirty)await saveProduct();
  if(!(current()?.keywords||[]).length)throw Error('此商品还没有可用关键词，需先完成 GPT 分析或手动保存关键词');
- if(typeof activatePage==='function')activatePage('radar');
- await window.HotRadar?.selectProduct?.(pid);
+ window.ProductFlow?.set(pid);if(typeof activatePage==='function')activatePage('radar');
  setFeedback('已进入手动热点收集。请先预览关键词与额度，确认后才会发起 Bright Data 付费采集。');
 }));
 $('pmViewRadar')?.addEventListener('click',()=>{
  if(dirty){notify('当前有未保存的商品修改，请先保存后进入热点雷达。',true);return}
- if(typeof activatePage==='function')activatePage('radar');window.HotRadar?.selectProduct?.(pid);
+ window.ProductFlow?.set(pid);if(typeof activatePage==='function')activatePage('radar');
 });
 $('pmToVideo')?.addEventListener('click',()=>{const p=current();if(!p)return;const verified=(p.facts||[]).filter(x=>x.status==='verified');if(!verified.length){notify('请先确认商品事实，不能把未经核实的模型推测直接用于广告',true);return}const target=document.getElementById('videoPrompt');if(!target){notify('当前版本未找到视频提示词输入框',true);return}const t=`【商品已确认事实：${p.name}】\n${verified.map(x=>'• '+x.text).join('\n')}\n禁止宣传：${(p.restrictions||[]).join('；')}\n视频不得虚构商品功能或外观。`;target.value=[target.value,t].filter(Boolean).join('\n\n');target.dispatchEvent(new Event('input',{bubbles:true}));if(typeof activatePage==='function')activatePage('video');notify('已引用真实商品事实')});
-$('pmToRadar')?.addEventListener('click',()=>{if(typeof activatePage==='function')activatePage('radar')});
+$('pmToRadar')?.addEventListener('click',()=>{if(dirty){notify('请先保存当前商品修改',true);return}window.ProductFlow?.set(pid);if(typeof activatePage==='function')activatePage('radar')});
 window.ProductMemory={load:()=>work(async()=>{if(dirty){setFeedback('仍有未保存修改，未自动刷新表单，避免覆盖。');return}await reload(pid);await reloadCatalog();switchView(view)}),selectProduct:id=>work(async()=>{await reload(id);switchView('editor')})};
 })();
 

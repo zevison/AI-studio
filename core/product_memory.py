@@ -63,11 +63,13 @@ def _ensure_product(pid):
     return p['id']
 
 def sources(pid):
+    from . import upload_lifecycle
     _ensure_product(pid)
     items=db.all_('SELECT id,product_id,kind,title,url,original_name,sha256,substr(extracted_text,1,900) AS excerpt, length(extracted_text) AS text_length,note,status,error,created_at FROM product_sources WHERE product_id=? ORDER BY created_at DESC',(pid,))
-    return items
+    return upload_lifecycle.filter_rows(items,'source')
 
 def state(pid=None):
+    from . import upload_lifecycle
     ensure_schema()
     ps=hot_radar.products()
     if pid is None:pid=ps[0]['id'] if ps else None
@@ -81,11 +83,14 @@ def state(pid=None):
         counts['scripts']=int(db.one("SELECT COUNT(*) AS n FROM radar_scripts WHERE product_id=? AND status='completed'",(pid,))['n'])
     except (KeyError,sqlite3.OperationalError):pass
     return {'products':ps,'product_id':pid,'sources':sources(pid),
-            'memory':_load(r['summary_json'],{}) if r else {},'memory_version':r['version'] if r else 0,
+            'memory':_load(r['summary_json'],{}) if r and not upload_lifecycle.memory_stale(pid,r.get('updated_at')) else {},'memory_version':r['version'] if r else 0,
+            'memory_requires_refresh':bool(r and upload_lifecycle.memory_stale(pid,r.get('updated_at'))),
             'history':history,'radar_status':counts}
 
 
 def catalog():
+    from . import upload_lifecycle
+    upload_lifecycle.ensure()
     """Read-only product directory: one row per persisted product, never creates data."""
     ensure_schema()
     result = []
@@ -95,7 +100,7 @@ def catalog():
         m = db.one('SELECT version,updated_at FROM product_memories WHERE product_id=?', (pid,))
         src = db.one("""SELECT COUNT(*) AS source_count,
             SUM(CASE WHEN kind='image' THEN 1 ELSE 0 END) AS image_count
-            FROM product_sources WHERE product_id=?""", (pid,))
+            FROM product_sources WHERE product_id=? AND NOT EXISTS(SELECT 1 FROM removed_uploads WHERE kind='source' AND item_id=product_sources.id)""", (pid,))
         result.append({
             'id':pid, 'name':product['name'], 'is_draft':bool(product.get('is_draft')),
             'active':bool(product['active']), 'keyword_count':len(product['keywords']),
@@ -110,12 +115,14 @@ def catalog():
 
 
 def thumbnail_bytes(product_id):
+    from . import upload_lifecycle
+    upload_lifecycle.ensure()
     """Return the latest verified local image for this product, or None.
 
     Path is constrained to the product knowledge folder. No remote fetch or GPT.
     """
     _ensure_product(product_id)
-    row=db.one("SELECT stored_path FROM product_sources WHERE product_id=? AND kind='image' AND status='ready' ORDER BY created_at DESC LIMIT 1",(product_id,))
+    row=db.one("SELECT stored_path FROM product_sources WHERE product_id=? AND kind='image' AND status='ready' AND NOT EXISTS(SELECT 1 FROM removed_uploads WHERE kind='source' AND item_id=product_sources.id) ORDER BY created_at DESC LIMIT 1",(product_id,))
     if not row or not row['stored_path']: return None
     root=SOURCE_DIR.resolve()
     path=Path(row['stored_path']).resolve()
@@ -286,6 +293,8 @@ def add_text(payload):
     return {'id':sid,'duplicate':False,'extracted_chars':len(txt)}
 
 def _source_rows(pid,ids):
+    from . import upload_lifecycle
+    upload_lifecycle.validate_request(ids)
     _ensure_product(pid)
     ids=list(dict.fromkeys(str(i) for i in ids))[:12]
     if not ids:raise ValueError('请先选择至少一份产品资料')

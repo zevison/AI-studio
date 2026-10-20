@@ -21,12 +21,19 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $root
 $pyVersion='3.12.10'
 $arch='amd64'
-if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { $arch='arm64' }
 $pyName="python-$pyVersion-$arch.exe"
 $officialUrl="https://www.python.org/ftp/python/$pyVersion/$pyName"
 $perUserTarget=Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312'
 $logDir=Join-Path $root 'install_logs'
-New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+try {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    $probe=Join-Path $logDir ([Guid]::NewGuid().ToString('N')+'.write-test')
+    [IO.File]::WriteAllText($probe,'write check')
+    Remove-Item -LiteralPath $probe -Force
+} catch {
+    Write-Host 'This installation folder is not writable. Extract the complete ZIP into a writable local folder, then run 01_INSTALL.cmd. Existing files were preserved.' -ForegroundColor Red
+    exit 12
+}
 $diagnosticLog=Join-Path $logDir 'python_setup_v426.log'
 
 # Colored, stage-based installation progress. Percent reflects completed steps
@@ -66,7 +73,20 @@ function Download-OfficialPython([string]$url, [string]$output) {
         $outputStream=[System.IO.File]::Open($output,[System.IO.FileMode]::Create,[System.IO.FileAccess]::Write,[System.IO.FileShare]::None)
         $buffer=New-Object byte[] 262144
         $received=[long]0;$last=[datetime]::UtcNow.AddSeconds(-5)
-        while(($n=$inputStream.Read($buffer,0,$buffer.Length)) -gt 0) {
+        $deadline=[datetime]::UtcNow.AddMinutes(8)
+        while($true) {
+            if([datetime]::UtcNow -ge $deadline) {throw 'Python body download exceeded 8 minutes; rerun setup to retry.'}
+            # ResponseHeadersRead ends HttpClient's request timeout at headers.
+            # Bound each body read too; cancellation alone is not reliable on
+            # every .NET Framework stream, so explicitly close a stalled stream.
+            $readTask=$inputStream.ReadAsync($buffer,0,$buffer.Length)
+            $remaining=[Math]::Max(1,[Math]::Min(30000,($deadline-[datetime]::UtcNow).TotalMilliseconds))
+            if(-not $readTask.Wait([int]$remaining)) {
+                $inputStream.Dispose()
+                throw 'Python download stalled for 30 seconds; check network/proxy and rerun setup.'
+            }
+            $n=$readTask.GetAwaiter().GetResult()
+            if($n -eq 0){break}
             $outputStream.Write($buffer,0,$n)
             $received+=$n
             if(([datetime]::UtcNow-$last).TotalMilliseconds -gt 600) {
@@ -109,14 +129,17 @@ function Test-Python([string]$exe, [string[]]$prefix=@()) {
         $proc=New-Object System.Diagnostics.Process
         $proc.StartInfo=$psi
         if (-not $proc.Start()) { throw 'Process.Start returned false' }
-        $stdout=$proc.StandardOutput.ReadToEnd().Trim()
-        $stderr=$proc.StandardError.ReadToEnd().Trim()
+        $stdoutTask=$proc.StandardOutput.ReadToEndAsync()
+        $stderrTask=$proc.StandardError.ReadToEndAsync()
         if (-not $proc.WaitForExit(12000)) {
             try {$proc.Kill()} catch {}
             Log-Line ('Python check TIMEOUT: '+$exe)
             return $false
         }
-        $m=[regex]::Match($stdout,'(?m)^3\s+(10|11|12)\s+64\s*$')
+        $stdout=$stdoutTask.GetAwaiter().GetResult().Trim()
+        $stderr=$stderrTask.GetAwaiter().GetResult().Trim()
+        # The shipped wheel constraints are qualified for CPython 3.12 x64.
+        $m=[regex]::Match($stdout,'(?m)^3\s+12\s+64\s*$')
         if ($proc.ExitCode -eq 0 -and $m.Success) {return $true}
         $details=('exit='+$proc.ExitCode+' stdout='+$stdout+' stderr='+$stderr)
         if ($details.Length -gt 650) {$details=$details.Substring(0,650)}
@@ -125,6 +148,8 @@ function Test-Python([string]$exe, [string[]]$prefix=@()) {
     } catch {
         Log-Line ('Python cannot start: '+$exe+' : '+$_.Exception.Message)
         return $false
+    } finally {
+        if ($proc) {$proc.Dispose()}
     }
 }
 
@@ -264,11 +289,30 @@ function Show-PythonCandidates {
     $cmd=Get-Command py.exe -ErrorAction SilentlyContinue
     if ($cmd) {Log-Line ('Python Launcher: '+$cmd.Source)} else {Log-Line 'Python Launcher: not found'}
 }
+function Acquire-SetupLock([string]$folder) {
+    New-Item -ItemType Directory -Path $folder -Force | Out-Null
+    return [System.IO.File]::Open((Join-Path $folder 'setup.lock'),[System.IO.FileMode]::OpenOrCreate,[System.IO.FileAccess]::ReadWrite,[System.IO.FileShare]::None)
+}
+$installLock=$null
 try {
     Draw-Phase 0 'Checking compatible Python and Windows environment'
+    if (-not [Environment]::Is64BitOperatingSystem -or
+        $env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') {
+        throw 'This complete package supports Windows x64 only. ARM64 and 32-bit Windows are not qualified; no dependencies were installed.'
+    }
     Log-Line '============================================================='
     Log-Line 'Seedance Studio V5.2.0 | Windows new PC setup + PEP514 detection'
     Log-Line 'Single installer entry: 01_INSTALL.cmd. Existing Python is reused when verified.'
+    if(-not $CheckOnly -and -not $DiagnoseOnly) {
+        # All releases share the same offline SDK cache. Serialize the complete
+        # install, including Python setup and runtime extraction, across roots.
+        $lockFolder=Join-Path $env:LOCALAPPDATA 'SeedanceStudio'
+        try {
+            $installLock=Acquire-SetupLock $lockFolder
+        } catch {
+            throw 'Another installation is running, or the per-user setup lock is not writable. Close the other installer or check folder permissions, then rerun 01_INSTALL.cmd.'
+        }
+    }
     $python=Detect-Python
     if (-not $python) {
         Show-PythonCandidates
@@ -280,6 +324,8 @@ try {
     $exe=[string]$python.Exe;$arguments=@($python.Args)
     if (-not(Test-Python -exe $exe -prefix $arguments)) { throw 'Final interpreter self-check failed.' }
     if (-not $CheckOnly -and -not $DiagnoseOnly) {
+        & $exe @arguments (Join-Path $root 'tools\check_install_idle.py')
+        if ($LASTEXITCODE -ne 0) { throw 'Studio is running; stop it normally before installing. No runtime extraction was started.' }
         & $exe @arguments (Join-Path $root 'tools\install_hypit_bundle.py')
         if ($LASTEXITCODE -ne 0) { throw 'Offline Hypit runtime extraction failed; existing runtime and data were preserved.' }
     }
@@ -320,4 +366,6 @@ try {
     Log-Line ('Diagnostic log: '+$diagnosticLog)
     Log-Line 'Your data, API settings and previous installation were NOT erased.'
     exit 3
+} finally {
+    if($installLock){$installLock.Dispose()}
 }

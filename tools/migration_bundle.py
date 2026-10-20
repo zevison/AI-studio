@@ -20,39 +20,62 @@ def do_export(include_outputs=False):
     r=backup_manager.create_backup(include_outputs);print('[OK] 已创建迁移包：',r['path']);return 0
 
 
+def extract_backup(src, destination):
+    """Bounded, manifest-checked extraction; no file is published into Studio here."""
+    import os, re, stat
+    from pathlib import PurePosixPath
+    with zipfile.ZipFile(src) as archive:
+        infos=archive.infolist()
+        if len(infos)>200000:raise ValueError('Migration archive has too many entries')
+        names=set();size=0
+        for item in infos:
+            name=item.filename;parts=PurePosixPath(name).parts
+            if (not parts or item.orig_filename!=name or name.startswith('/') or '\\' in name or
+                any(x in ('..','.') or x.rstrip(' .')!=x or re.search(r'[<>:"|?*\x00-\x1f]',x) or
+                    x.split('.')[0].upper() in {'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(1,10)),*(f'LPT{i}' for i in range(1,10))} for x in parts)
+                or stat.S_ISLNK(item.external_attr>>16) or name.casefold().rstrip('/') in names):
+                raise ValueError('Unsafe or duplicate migration entry')
+            names.add(name.casefold().rstrip('/'));size+=item.file_size
+        if size>shutil.disk_usage(destination).free-1024**3:raise OSError('Insufficient temporary space for migration')
+        manifest_info=next((i for i in infos if i.filename=='backup_manifest.json'),None)
+        if not manifest_info or manifest_info.file_size>2*1024**2:raise ValueError('Missing or oversized backup manifest')
+        manifest=json.loads(archive.read(manifest_info).decode('utf-8-sig'))
+        if not isinstance(manifest,dict) or manifest.get('version') not in {'5.0.0','5.1.1','5.2.0'}:
+            raise ValueError('Unsupported backup version')
+        declared=manifest.get('files')
+        actual=[i.filename for i in infos if not i.is_dir() and i.filename!='backup_manifest.json']
+        if not isinstance(declared,list) or len(declared)!=len(set(declared)) or set(actual)!=set(declared):
+            raise ValueError('Backup manifest differs from archive contents')
+        for item in infos:
+            if item.is_dir() or item.filename=='backup_manifest.json':continue
+            name=item.filename
+            if name not in {'.env','data/studio.db','data/audio_subjects.db','data/secrets.json','data/shared_profile.json','data/current_url.txt'} and not name.startswith(('data/assets/','data/outputs/','data/product_knowledge/','data/hypit_projects/','data/hypit_agent_sessions/','data/hypit_token_grants/','data/hypit_video_operations/')):
+                raise ValueError('Unexpected file in migration backup')
+            path=destination.joinpath(*PurePosixPath(name).parts)
+            path.parent.mkdir(parents=True,exist_ok=True)
+            with archive.open(item) as incoming,path.open('xb') as outgoing:
+                shutil.copyfileobj(incoming,outgoing,1024*1024)
+        (destination/'core').mkdir()
+        (destination/'core/config.py').write_text('APP_VERSION = '+repr(manifest['version']),encoding='utf8')
+        (destination/'data').mkdir(exist_ok=True)
+        return manifest
+
+
 def do_import(src:Path|None):
+    from safe_migrate import stopped, database, migrate
     src=src or choose_zip()
-    if not src or not src.exists():print('[INFO] 未选择迁移包。');return 2
-    print('[安全] 先备份当前配置/数据库/素材，再导入。')
-    current=backup_manager.create_backup(False);print('[OK] 当前环境备份：',current['path'])
-    with tempfile.TemporaryDirectory() as td:
-        d=Path(td)
-        with zipfile.ZipFile(src) as z:
-            bad=[n for n in z.namelist() if n.startswith('/') or '..' in Path(n).parts]
-            if bad:raise RuntimeError('迁移包包含非法路径，已拒绝导入。')
-            z.extractall(d)
-        manifest=d/'backup_manifest.json'
-        if not manifest.exists():raise RuntimeError('这不是 V3.9.0 迁移备份：缺少 backup_manifest.json')
-        allowed=['.env','data/studio.db','data/secrets.json','data/shared_profile.json']
-        for rel in allowed:
-            srcp=d/rel
-            if srcp.exists():
-                dst=ROOT/rel;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(srcp,dst);print('[OK] 恢复',rel)
-        src_assets=d/'data'/'assets'
-        if src_assets.exists():
-            config.ASSET_DIR.mkdir(parents=True,exist_ok=True)
-            for f in src_assets.rglob('*'):
-                if f.is_file():
-                    rel=f.relative_to(src_assets);dst=config.ASSET_DIR/rel;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(f,dst)
-            print('[OK] 素材库已恢复')
-        src_out=d/'data'/'outputs'
-        if src_out.exists():
-            config.OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
-            for f in src_out.rglob('*'):
-                if f.is_file():
-                    rel=f.relative_to(src_out);dst=config.OUTPUT_DIR/rel;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(f,dst)
-            print('[OK] 生成结果已恢复')
-    print('[完成] 迁移导入完成。请重新启动 Seedance Studio；旧数据库会自动非破坏升级。')
+    if not src or not src.is_file():print('[INFO] No backup selected.');return 2
+    stopped(ROOT)
+    database(config.DB_PATH,fresh=True)
+    # Reuse exactly the stopped-install migration transaction and rollback path.
+    # Existing credentials/configuration are never overwritten or merged.
+    with tempfile.TemporaryDirectory(prefix='seedance-restore-') as td:
+        stage=Path(td)
+        manifest=extract_backup(src,stage)
+        if manifest.get('data_root') is not None and not isinstance(manifest['data_root'],str):raise ValueError('Invalid source data root')
+        origin=manifest.get('data_root') or (str(Path(manifest['root'])/'data') if isinstance(manifest.get('root'),str) else None)
+        receipt=migrate(stage,ROOT,source_data_root=origin)
+    print('[OK] Backup restored into a fresh installation; previous folder retained. Files:',receipt['copied_files'])
     return 0
 
 

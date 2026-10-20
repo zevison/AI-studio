@@ -1,0 +1,31 @@
+<?svml using="@hypit/markup@1"?>
+<svml>
+  <import as="time" from="@hypit/timeline-author@1"/>
+  <import as="media" from="@hypit/media@1"/>
+  <import as="mediaop" from="@hypit/media-operations@1"/>
+  <import as="space" from="@hypit/spatial@1"/>
+  <import as="visual" from="@hypit/visual-track@1"/>
+  <import as="film" from="@hypit/film@1"/>
+  <import as="html" from="@hypit/html-video@1"/>
+  <import as="style" source="./look.svs"/>
+
+  <time:Clock id="clock" frame-rate="24"/>
+  <media:Video id="source" src="./assets/material-1.mp4"/>
+  <mediaop:Normalize id="sourcemedia" source={source} clock={clock} video="primary-moving" audio="none" span-authority="video"/>
+  <mediaop:Transform id="cut" source={sourcemedia.media}>
+    <mediaop:Trim start="0s" end="1s"/>
+  </mediaop:Transform>
+  <mediaop:Normalize id="cutmedia" source={cut.video} clock={clock} video="primary-moving" audio="none" span-authority="video"/>
+
+  <time:Timeline id="program" clock={clock} end="shot.end">
+    <time:Window id="shot" from="start" for={cutmedia.extent}/>
+  </time:Timeline>
+  <space:Canvas id="canvas" width="320" height="240"/>
+  <visual:Track id="picture" timeline={program.timeline}>
+    <visual:Clip id="shot" media={cutmedia.media} during={program.shot} frame={canvas.bounds} z="10" fit="contain"/>
+  </visual:Track>
+  <film:Film id="main" canvas={canvas.canvas} timeline={program.timeline} appearance={style.film.main}>
+    <film:Track source={picture.visual}/>
+  </film:Film>
+  <html:Video id="final" composition={main.composition} timeline={program.timeline}/>
+</svml>

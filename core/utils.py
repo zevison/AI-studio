@@ -1,5 +1,7 @@
 from __future__ import annotations
 import hashlib, json, mimetypes, os, re, urllib.parse
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 
 
@@ -46,26 +48,21 @@ def guess_kind(filename: str, mime: str='') -> str:
 
 
 def parse_multipart(body: bytes, content_type: str):
-    m=re.search(r'boundary=(?:"([^"]+)"|([^;]+))', content_type)
-    if not m: raise ValueError('缺少 multipart boundary')
-    boundary=(m.group(1) or m.group(2)).encode()
+    # MIME framing consumes exactly its CRLF; strip/rstrip corrupts real bytes.
+    if '\r' in content_type or '\n' in content_type:raise ValueError('无效 multipart 类型')
+    message=BytesParser(policy=policy.default).parsebytes(
+        ('Content-Type: '+content_type+'\r\nMIME-Version: 1.0\r\n\r\n').encode('utf-8')+body)
+    if message.get_content_type()!='multipart/form-data' or not message.get_boundary():
+        raise ValueError('缺少 multipart boundary')
+    if message.defects or not message.is_multipart():raise ValueError('multipart 请求不完整')
     parts=[]
-    for raw in body.split(b'--'+boundary):
-        raw=raw.strip(b'\r\n')
-        if not raw or raw==b'--': continue
-        if raw.endswith(b'--'): raw=raw[:-2]
-        head, sep, data=raw.partition(b'\r\n\r\n')
-        if not sep: continue
-        data=data.rstrip(b'\r\n')
-        headers={}
-        for line in head.decode('utf-8','replace').split('\r\n'):
-            if ':' in line:
-                k,v=line.split(':',1); headers[k.lower().strip()]=v.strip()
-        cd=headers.get('content-disposition','')
-        nm=re.search(r'name="([^"]+)"',cd)
-        fn=re.search(r'filename="([^"]*)"',cd)
-        parts.append({'name':nm.group(1) if nm else '', 'filename':fn.group(1) if fn else None,
-                      'content_type':headers.get('content-type','application/octet-stream'), 'data':data})
+    for part in message.iter_parts():
+        if part.is_multipart() or part.defects:raise ValueError('不支持嵌套或损坏的 multipart')
+        data=part.get_payload(decode=True)
+        if not isinstance(data,bytes):raise ValueError('上传内容无效')
+        parts.append({'name':part.get_param('name',header='content-disposition') or '',
+                      'filename':part.get_filename(),
+                      'content_type':part.get('Content-Type','application/octet-stream'), 'data':data})
     return parts
 
 

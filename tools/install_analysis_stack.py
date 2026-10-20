@@ -3,6 +3,8 @@ import argparse, hashlib, importlib.metadata, json, os, shutil, subprocess, sys,
 from urllib.error import URLError
 from download_progress import download_file
 from pathlib import Path
+from contextlib import contextmanager
+import time
 from shared_runtime import copy_previous_asset, cache_asset, ASSETS
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -18,6 +20,28 @@ FF_ZIP_SHA256='60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba'
 FF_SOURCES=(('Gyan.dev 7z (34 MB)',FF_URL,'7z',FF_SEVEN_SHA256),
             ('Official GitHub mirror 7z (34 MB)',FF_BACKUP_URL,'7z',FF_SEVEN_SHA256),
             ('Gyan.dev ZIP compatibility fallback (109 MB)',FF_ZIP_URL,'zip',FF_ZIP_SHA256))
+
+
+@contextmanager
+def ffmpeg_scratch():
+    """A transient Windows scanner lock must not invalidate verified binaries."""
+    parent=Path(tempfile.gettempdir()).resolve()
+    scratch=Path(tempfile.mkdtemp(prefix='seedance_ffmpeg_',dir=parent))
+    try:
+        yield str(scratch)
+    finally:
+        if scratch.resolve().parent!=parent or not scratch.name.startswith('seedance_ffmpeg_') or scratch.is_symlink():
+            raise PermissionError('Unsafe FFmpeg scratch cleanup path')
+        for attempt in range(5):
+            try:
+                shutil.rmtree(scratch)
+                break
+            except FileNotFoundError:
+                break
+            except OSError as exc:
+                if attempt==4:
+                    print(f'[WARN] FFmpeg temporary cleanup deferred: {type(exc).__name__}; verified executables remain usable. Scratch: {scratch}',flush=True)
+                else:time.sleep(.2*(attempt+1))
 
 
 def run(cmd, timeout=1800):
@@ -44,6 +68,8 @@ def install_pip(specs, *, no_deps=False):
 
 def studio_is_running():
     """Prevent hot replacement of .pyd / DLL files used by a running Studio."""
+    from workspace_install_guard import any_workspace_running
+    if any_workspace_running(ROOT):return True
     candidates=[]
     runtime_port=ROOT/'.runtime_port'
     if runtime_port.exists():
@@ -220,7 +246,7 @@ def install_ffmpeg_bundle():
         sources.sort(key=lambda item:0 if item[2]=='zip' else 1)
     for idx,(name,url,kind,expected_hash) in enumerate(sources,1):
         try:
-            with tempfile.TemporaryDirectory(prefix='seedance_ffmpeg_') as tmp:
+            with ffmpeg_scratch() as tmp:
                 work=Path(tmp)
                 archive=work/('ffmpeg.'+kind)
                 print(f'[FFmpeg] Source {idx}/{len(sources)}: {name}',flush=True)

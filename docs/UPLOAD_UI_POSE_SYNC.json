@@ -1,0 +1,38 @@
+{
+  "source": "C:\\Users\\Administrator\\Documents\\Codex\\2026-10-16\\start-here-md-seedance-studio-hypit\\source",
+  "backup": "D:\\codex\\2026-10-16\\sites-plugin-sites-openai-curated-remote\\work\\source-sync-backups\\20261019_160437",
+  "changed": {
+    "app.py": "2909f930b04aef4e5bda197ff3c4e34d3e732751fb77b4b26868de6225d1cb30",
+    "core/product_memory.py": "afc79b23567e4e1e405afc4e4a6c2920c62cddb094a95513d3aade73eb6bcbf8",
+    "static/app.js": "b07a3f83207819b1120578b77ba1fe167983b67fd3689a3cf6f9749a7feb79cb",
+    "static/assistant_bright.js": "510da68075788b072b7047a78884f73e539c7ed7bb07bc1c0d3c74f08a843ff8",
+    "static/product_memory.js": "5821f00adae8a197cb2ba103849e5f175a00d690512035df8905001eb48996c3",
+    "static/hypit_studio.js": "7a67945b86f86983770a135fca8a9386bc903d0b6a0e4bf0c8f253dca0fd5c70",
+    "static/hypit_studio.css": "d63b427540cc246025f6abbd21c0442a1885bdf50a40f48363bcba9562e15ec7",
+    "core/upload_lifecycle.py": "e9f3ba35ea0e569eec98becee5e679c528b0eeea6654eac94ef5c2efc26870d2",
+    "static/index.html": "a06997d949b64be60ce1178d9454dd5eac74d795bb21e01d2869742d4d4f070c",
+    "tests_integrated/test_upload_lifecycle_fix.py": "5162d8b5f3820b2daf0c41aa2ac738456394a94e67dfeec6cf0d27096cdc7286"
+  },
+  "pose_integration_already_identical": [
+    "core/pose_runtime.py",
+    "tools/install_pose_runtime.py",
+    "tools/pose_constraints.txt",
+    "tools/pose_worker.py",
+    "tools/install_analysis_stack.py",
+    "core/system_health.py",
+    "core/smart_analysis.py",
+    "core/production_system.py",
+    "tools/bootstrap_install.py"
+  ],
+  "user_data_copied": false,
+  "validation": {
+    "upload_lifecycle_tests_passed": 12,
+    "javascript_syntax_files_passed": 4,
+    "red_team": [
+      "concurrent removal/submission protected",
+      "old project cannot reference removed upload"
+    ],
+    "paid_calls": 0,
+    "full_clean_install_rerun": false
+  }
+}

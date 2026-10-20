@@ -14,9 +14,9 @@ def analyze(frames,models,frame_root):
         if model.is_symlink() or model.stat().st_size>20*1024**2 or hashlib.sha256(model.read_bytes()).hexdigest()!=checksum:
             raise PermissionError('MediaPipe model integrity check failed')
     pose_options=mp.tasks.vision.PoseLandmarkerOptions(base_options=mp.tasks.BaseOptions(
-        model_asset_path=str(models/'pose_landmarker_lite.task')),num_poses=1,min_pose_detection_confidence=.45)
+        model_asset_buffer=(models/'pose_landmarker_lite.task').read_bytes()),num_poses=1,min_pose_detection_confidence=.45)
     hand_options=mp.tasks.vision.HandLandmarkerOptions(base_options=mp.tasks.BaseOptions(
-        model_asset_path=str(models/'hand_landmarker.task')),num_hands=2,min_hand_detection_confidence=.45)
+        model_asset_buffer=(models/'hand_landmarker.task').read_bytes()),num_hands=2,min_hand_detection_confidence=.45)
     pose_hits=hand_hits=0;wrists=[];total=0
     with mp.tasks.vision.PoseLandmarker.create_from_options(pose_options) as pose, \
          mp.tasks.vision.HandLandmarker.create_from_options(hand_options) as hands:
@@ -26,7 +26,13 @@ def analyze(frames,models,frame_root):
                 raise PermissionError('Frame is outside the analysis cache')
             size=file.stat().st_size;total+=size
             if size>16*1024**2 or total>64*1024**2:raise ValueError('Analysis frames exceed byte limit')
-            image=mp.Image.create_from_file(str(file))
+            # Native Windows path readers in OpenCV/MediaPipe reject some Unicode paths.
+            from PIL import Image
+            import numpy as np
+            with Image.open(file) as loaded:
+                if loaded.width*loaded.height>16_777_216:raise ValueError('Analysis image exceeds pixel limit')
+                pixels=np.asarray(loaded.convert('RGB'))
+            image=mp.Image(image_format=mp.ImageFormat.SRGB,data=np.ascontiguousarray(pixels))
             pr,hr=pose.detect(image),hands.detect(image)
             if pr.pose_landmarks:
                 pose_hits+=1;lm=pr.pose_landmarks[0]

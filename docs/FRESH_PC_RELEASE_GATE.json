@@ -1,0 +1,70 @@
+{
+  "classification": "B",
+  "label": "Awaiting final acceptance",
+  "release_passed": false,
+  "version": "5.2.0",
+  "revision": "R3.8-release-candidate",
+  "known_unresolved_p0_p1": [],
+  "gates": {
+    "source_and_regression": {
+      "status": "passed",
+      "evidence": "scoped-regression-provenance.json"
+    },
+    "real_official_agent_and_cli": {
+      "status": "passed_after_local_syntax_repair",
+      "evidence": "validation-after-timeline-fix.json"
+    },
+    "real_text_video_and_runtime_export": {
+      "status": "passed",
+      "evidence": "live-success.json"
+    },
+    "http_status_output_and_process_restart": {
+      "status": "passed",
+      "evidence": "http-restart-acceptance.json",
+      "clean_windows": false
+    },
+    "real_fresh_windows_install": {
+      "status": "pending_real_environment",
+      "evidence": "isolation-environment.json"
+    },
+    "real_windows_reboot": {
+      "status": "pending_real_environment"
+    },
+    "real_fresh_windows_upgrade_rollback_uninstall": {
+      "status": "pending_real_environment"
+    },
+    "reference_voice_audio_all_modes": {
+      "status": "not_verified",
+      "note": "Voice cloning unsupported; mixed reference modes experimental"
+    },
+    "real_tiktok_collect_to_product_script_video": {
+      "status": "not_verified",
+      "note": "No Bright Data grant; this text-only test is not the TikTok workflow"
+    },
+    "real_account_billing": {
+      "status": "passed",
+      "evidence": "billing-summary.json",
+      "llm_usd": "0.002694",
+      "video_usd": "0.840698",
+      "total_usd": "0.843392"
+    },
+    "actual_acknowledged_worker_crash_recovery": {
+      "status": "passed",
+      "evidence": "live-success.json",
+      "new_video_submissions": 0
+    }
+  },
+  "stable_stamp_allowed": false,
+  "remaining_resources": [
+    "Clean Windows 10 build19041+ / Windows11 x64 computer and returned lifecycle evidence",
+    "Real TikTok source/account and separately bounded collection authorization if the full external collection workflow is part of release acceptance"
+  ],
+  "fee_authorization": {
+    "llm_max_calls": 4,
+    "llm_usd": "0.25",
+    "video_max_calls": 1,
+    "video_usd": "3.00",
+    "total_usd": "3.25"
+  },
+  "production_deployed": false
+}

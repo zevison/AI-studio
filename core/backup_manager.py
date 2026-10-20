@@ -9,6 +9,19 @@ import uuid
 import zipfile
 from pathlib import Path
 from . import config
+from .sqlite_snapshot import snapshot_database as _snapshot_database
+
+
+def _files(base):
+    if base.is_symlink() or (hasattr(base,'is_junction') and base.is_junction()):
+        raise PermissionError('备份目录链接已拒绝')
+    for folder,dirs,names in os.walk(base,followlinks=False):
+        for name in dirs+names:
+            path=Path(folder)/name
+            if path.is_symlink() or (hasattr(path,'is_junction') and path.is_junction()):
+                raise PermissionError('备份目录含链接；已停止，防止越界读取')
+        for name in names:
+            if not name.endswith(('-wal','-shm')):yield Path(folder)/name
 
 
 def create_backup(include_outputs=False, *, destination_dir=None, filename_prefix='SeedanceStudio_backup'):
@@ -22,30 +35,25 @@ def create_backup(include_outputs=False, *, destination_dir=None, filename_prefi
     stamp=time.strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:8]
     dst=outdir/f'{filename_prefix}_{stamp}.zip'
     manifest={'created_at':time.time(),'version':config.APP_VERSION,
-              'root':str(config.ROOT),'include_outputs':bool(include_outputs),'files':[]}
+              'root':str(config.ROOT),'data_root':str(config.DATA_DIR),'include_outputs':bool(include_outputs),'files':[],
+              'consistency_scope':'Per-database online snapshots and stable file copies; stop all work for a whole-workspace snapshot'}
     with tempfile.TemporaryDirectory(prefix='seedance_backup_') as tmp:
         tempdir=Path(tmp)
         snapshot=tempdir/'studio.db'
         if config.DB_PATH.is_file():
             # SQLite online backup incorporates committed WAL pages consistently.
             # Fail rather than produce a deceptively successful incomplete backup.
-            source=sqlite3.connect(config.DB_PATH.resolve().as_uri()+'?mode=ro',uri=True,timeout=30)
-            try:
-                target=sqlite3.connect(snapshot)
-                try:
-                    source.backup(target, pages=256, sleep=0.1)
-                    check=target.execute('PRAGMA quick_check').fetchone()
-                    if not check or check[0]!='ok':
-                        raise RuntimeError('数据库一致性验证未通过，已取消生成备份。')
-                finally:target.close()
-            finally:source.close()
+            _snapshot_database(config.DB_PATH,snapshot)
         include=[]
-        for p in (config.ROOT/'.env',config.DATA_DIR/'secrets.json'):
+        if (config.DATA_DIR/'audio_subjects.db').is_file():include.append(config.DATA_DIR/'audio_subjects.db')
+        configuration=[config.DATA_DIR/'secrets.json']
+        if getattr(config,'WORKSPACE_ID','owner')=='owner':configuration.append(config.ROOT/'.env')
+        for p in configuration:
             if p.is_file():include.append(p)
-        for base in (config.ASSET_DIR,):
-            if base.is_dir():include.extend(p for p in base.rglob('*') if p.is_file() and not p.is_symlink())
+        for base in (config.ASSET_DIR,*(config.DATA_DIR/name for name in ('product_knowledge','hypit_projects','hypit_agent_sessions','hypit_token_grants','hypit_video_operations'))):
+            if base.is_dir():include.extend(_files(base))
         if include_outputs and config.OUTPUT_DIR.is_dir():
-            include.extend(p for p in config.OUTPUT_DIR.rglob('*') if p.is_file() and not p.is_symlink())
+            include.extend(_files(config.OUTPUT_DIR))
         for p in (config.DATA_DIR/'shared_profile.json',config.DATA_DIR/'current_url.txt'):
             if p.is_file():include.append(p)
         partial=outdir/(dst.name+'.partial')
@@ -55,8 +63,17 @@ def create_backup(include_outputs=False, *, destination_dir=None, filename_prefi
                     z.write(snapshot,'data/studio.db')
                     manifest['files'].append('data/studio.db')
                 for p in include:
-                    rel=p.relative_to(config.ROOT).as_posix()
-                    z.write(p,rel)
+                    if p.is_symlink() or (hasattr(p,'is_junction') and p.is_junction()):raise PermissionError('备份文件链接已拒绝')
+                    # A workspace backup must restore into its own data root,
+                    # never under the exporting host's workspace identifier.
+                    rel=('data/'+p.relative_to(config.DATA_DIR).as_posix()
+                         if p.is_relative_to(config.DATA_DIR) else p.relative_to(config.ROOT).as_posix())
+                    if p.suffix.lower() in {'.db','.sqlite','.sqlite3'}:
+                        auxiliary=tempdir/'auxiliary'/Path(rel)
+                        _snapshot_database(p,auxiliary);z.write(auxiliary,rel)
+                    else:
+                        before=p.stat();z.write(p,rel);after=p.stat()
+                        if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):raise RuntimeError('文件在备份中变化，未发布备份；停止任务后重试')
                     manifest['files'].append(rel)
                 z.writestr('backup_manifest.json',json.dumps(manifest,ensure_ascii=False,indent=2))
             with zipfile.ZipFile(partial) as z:

@@ -696,6 +696,10 @@ def _script_sources(product_id,ids):
     return selected
 
 
+def _script_preview_hash(model, system, user_text, out_tokens, estimate):
+    return hashlib.sha256(_json([model,system,user_text,out_tokens,estimate]).encode()).hexdigest()
+
+
 def script_preview(payload):
     ensure_schema()
     pid=_clean(payload.get('product_id'),100)
@@ -761,6 +765,7 @@ def script_preview(payload):
     ir=price.get('input_usd_per_million');orr=price.get('output_usd_per_million')
     estimate=(in_tokens*ir+out_tokens*orr)/1e6 if ir is not None and orr is not None else None
     return {'model':model,'product_id':pid,'source_ids':[x['id'] for x in selected],
+            'preview_hash':_script_preview_hash(model,system,user_text,out_tokens,estimate),
             'system':system,'user_text':user_text,'estimated_input_tokens':in_tokens,
             'max_output_tokens':out_tokens,'estimated_cost_usd':estimate,
             'price_verified':bool(price.get('available')),'price':price,'source_count':len(selected),'evidence_warnings':selected_warnings,'visual_source_confirmed':True,
@@ -788,6 +793,8 @@ def generate_script(payload):
     # Explicit per-call approval; never invoked from scheduler.
     if payload.get('approve_paid') is not True:raise ValueError('需单次确认付费 GPT 脚本生成')
     preview=script_preview(payload)
+    if not preview.get('preview_hash') or payload.get('preview_hash')!=preview['preview_hash']:
+        raise ValueError('商品事实、来源视频、模型或报价已变化，请重新预检后再确认；未提交付费请求')
     if not secrets_store.get('openlux_api_key'):
         raise ValueError('尚未配置 OpenLux 密钥，未提交付费调用')
     estimate=preview['estimated_cost_usd']

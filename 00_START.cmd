@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 if errorlevel 1 (
   echo [ERROR] Cannot open Seedance Studio folder.
@@ -16,12 +16,17 @@ if not exist ".venv\Scripts\python.exe" (
   pause
   exit /b 12
 )
-if not exist "%SystemRoot%\System32\wscript.exe" (
-  echo [ERROR] Windows Script Host is unavailable. Check Windows system policy.
+".venv\Scripts\python.exe" -c "import sys,struct;sys.exit(0 if sys.version_info[:2]==(3,12) and struct.calcsize('P')==8 else 1)"
+if errorlevel 1 (
+  echo [ERROR] Local Python is broken or incompatible. Run 01_INSTALL.cmd to repair it.
   pause
-  exit /b 13
+  exit /b 12
 )
-rem Start the existing version-aware hidden launcher; no persistent CMD window.
-rem It will open the correct local workbench in the browser and reuse existing tasks.
+if not exist "%SystemRoot%\System32\wscript.exe" goto fallback
 "%SystemRoot%\System32\wscript.exe" //nologo "%CD%\tools\launch_silent.vbs"
-exit /b %ERRORLEVEL%
+if not errorlevel 1 exit /b 0
+:fallback
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%CD%\tools\launch_hidden.ps1"
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" pause
+exit /b %RC%

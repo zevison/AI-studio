@@ -1,3 +1,8 @@
+V5.2.0 / R3.7-audit-candidate | 2026-10-20
+全链路审计后的完整安装候选包；尚未通过全新 Windows 实机验收，不是正式稳定版。
+Python: 429 passed; Frontend: 33 passed; Official SDK: 40 passed; paid calls this audit: 0.
+Details: docs/R3.7_ installation guide and audit evidence.
+
 V5.2.0｜2026-10-19｜官方 Hypit 深度集成与完整安装包
 - 官方 Agent 工程编写、即时编译反馈、生成参数预检、动态 Film、Studio、本地合成接入。
 - Seedance 2.5 文生视频及单视频参考编辑实测；费用预检、独立授权、持久化去重、未知状态隔离、原任务只读恢复。

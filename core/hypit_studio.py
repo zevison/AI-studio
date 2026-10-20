@@ -24,7 +24,7 @@ from .hypit_cli_guard import validate_project_boundary
 from .hypit_llm_transport import create_bounded_adapter
 from .hypit_production_gate import source_digest
 from .hypit_token_budget import TokenGrant
-from .hypit_source_repair import repair_vocabulary_imports
+from .hypit_source_repair import repair_vocabulary_imports, repair_timeline_origin
 from .hypit_paid_project import exact_text_request, reference_source_spec, production_lifecycle
 from .hypit_openlux_gateway import request_sha256
 from .hypit_video_quote import quote_video
@@ -339,8 +339,19 @@ class HypitStudio:
         self.update(pid,metadata={'video_quote':quote})
         return quote
 
+    def _creative_guard(self,pid):
+        """Reopening a bound project cannot bypass updated product approvals."""
+        meta=self.get(pid).get('metadata') or {}
+        if not meta.get('creative_job_id'):return
+        from . import creative_production
+        job=creative_production._get(meta['creative_job_id'])
+        if job.get('hypit_project_id')!=pid:
+            raise ValueError('工程不再属于当前制作审核任务，请保留旧版并重新复核')
+        creative_production.hypit_handoff({'id':job['id'],'product_asset_ids':meta.get('product_asset_ids',[])},self)
+
     def build_paid(self,pid,request):
         recovering=request.get('recover') is True
+        if not recovering:self._creative_guard(pid)
         if request.get('approve_video_charges') is not True:
             raise PermissionError('Explicit video spending consent required')
         try:limit=Decimal(str(request.get('limit_usd')))
@@ -530,11 +541,12 @@ class HypitStudio:
                 for value in secret_values:
                     if isinstance(value, str) and len(value) >= 8:
                         problem = problem.replace(value, '[REDACTED]')
-                self.update(pid, status='blocked', error=problem)
                 remote=self.get(pid)['metadata'].get('remote_video_task') or {}
                 uncertain=remote.get('phase') in {'pending','submitted','submission_unknown'}
                 db.task_update(tid, status='submission_unknown' if uncertain else 'failed', error=problem,
                     **({'provider_task_id':remote['task_id']} if remote.get('task_id') else {}))
+                # Publish the terminal project state only after its task is durable.
+                self.update(pid, status='blocked', error=problem)
             finally:
                 with self.lock:
                     if self.threads.get(pid) is threading.current_thread():
@@ -552,6 +564,7 @@ class HypitStudio:
     def author(self, pid, request, *, grant_override=None, bank_override=None):
         if request.get('approve_token_charges') is not True:
             raise PermissionError('需要明确确认本次 Agent Token 预算')
+        self._creative_guard(pid)
         calls = request.get('max_calls')
         try:
             budget = Decimal(str(request.get('limit_usd')))
@@ -683,8 +696,10 @@ class HypitStudio:
         tools = self.tools(pid)
         before = source_digest(self.path(pid))
         check = tools.call('validate', {'command': 'check', 'source': 'main.svml'})
-        if not check['ok']:
-            repair = repair_vocabulary_imports(self.path(pid), check.get('document'))
+        for repair_function in (repair_vocabulary_imports, repair_timeline_origin):
+            if check['ok']:
+                break
+            repair = repair_function(self.path(pid), check.get('document'))
             if repair:
                 self.update(pid, metadata={'syntax_repair':repair})
                 before = source_digest(self.path(pid))
@@ -735,6 +750,7 @@ class HypitStudio:
         return json.loads(process.stdout)
 
     def build(self, pid):
+        self._creative_guard(pid)
         proof = self.validate(pid)
         if not proof['ok']:
             raise PermissionError('官方工程预检未通过，禁止构建')

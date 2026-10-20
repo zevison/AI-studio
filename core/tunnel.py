@@ -9,7 +9,7 @@ _lock=threading.RLock(); _proc=None; _url=None; _selected_url=None; _selected_pr
 
 
 def _secret():
-    seed=(config.OPENLUX_API_KEY or str(config.ROOT.resolve())+'|seedance-local')+'|asset-link-v241'
+    seed=(config.OPENLUX_API_KEY or str(config.DATA_DIR.resolve())+'|seedance-local')+'|asset-link-v241'
     return hashlib.sha256(seed.encode('utf-8')).digest()
 
 

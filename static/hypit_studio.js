@@ -106,7 +106,7 @@
         el('hypitSource').textContent = (await api('/api/hypit/source?id=' + row.id + '&file=main.svml')).content;
         el('hypitSource').parentElement.open = true;
       }));
-      extra.append(button('打开可视化编辑器', async () => {
+      if(!window.STUDIO_CONTEXT?.remote) extra.append(button('打开可视化编辑器', async () => {
         const result = await write('studio', {id:row.id});
         const link = document.createElement('a'); link.href = result.url;
         link.target = '_blank'; link.rel = 'noopener'; link.textContent = '点击打开可视化编辑器';
@@ -145,7 +145,15 @@
       checkbox.checked=chosen.has(asset.id);
       checkbox.onchange = () => el('hypitAudioOptions').classList.toggle('hidden',
         !el('hypitAssets').querySelector('input[data-kind="audio"]:checked'));
-      label.append(checkbox,document.createTextNode(`${asset.original_name || asset.stored_name || '未命名素材'} · ${{video:'视频',image:'图片',audio:'音频'}[asset.kind] || '素材'}`)); el('hypitAssets').append(label);
+      label.classList.add('hypit-asset-row');
+      const detail=document.createElement('span');detail.className='hypit-asset-detail';
+      const name=document.createElement('span');name.className='hypit-asset-name';
+      name.textContent=asset.original_name || asset.stored_name || '未命名素材';name.title=name.textContent;
+      const kind=document.createElement('span');kind.className='hypit-asset-kind';
+      kind.textContent={video:'视频',image:'图片',audio:'音频'}[asset.kind] || '素材';
+      detail.append(name,kind);label.append(checkbox,detail);
+      const remove=document.createElement('button');remove.type='button';remove.className='hypit-asset-remove';remove.textContent='删除';remove.title='从可选素材中删除';remove.setAttribute('aria-label','删除素材 '+(asset.original_name||asset.id));
+      remove.onclick=event=>{event.preventDefault();event.stopPropagation();action(async()=>{await window.removeStudioUpload(asset.id);await refresh();});};label.append(remove);el('hypitAssets').append(label);
     }
     el('hypitAudioOptions').classList.toggle('hidden', !el('hypitAssets').querySelector('input[data-kind="audio"]:checked'));
     await refreshProjects();

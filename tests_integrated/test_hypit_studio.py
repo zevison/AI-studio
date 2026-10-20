@@ -13,6 +13,18 @@ from core.hypit_account import token_quote
 from core.hypit_studio import HypitStudio
 
 
+def test_direct_project_open_cannot_bypass_creative_review(product,monkeypatch):
+    from core import creative_production
+    row=create(product)
+    product.update(row['id'],metadata={'creative_job_id':'review-job'})
+    monkeypatch.setattr(creative_production,'_get',lambda _: {'id':'review-job','hypit_project_id':row['id']})
+    def revoked(*args):raise ValueError('商品事实已撤销')
+    monkeypatch.setattr(creative_production,'hypit_handoff',revoked)
+    with pytest.raises(ValueError,match='已撤销'):product.author(row['id'],{'approve_token_charges':True})
+    with pytest.raises(ValueError,match='已撤销'):product.build(row['id'])
+    with pytest.raises(ValueError,match='已撤销'):product.build_paid(row['id'],{})
+
+
 @pytest.fixture
 def product(tmp_path, monkeypatch):
     monkeypatch.setattr(db, 'DB_PATH', tmp_path/'studio.db')

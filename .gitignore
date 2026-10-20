@@ -1,4 +1,7 @@
 .env
+.env.*
+!.env.example
+!.env.*.example
 data/
 node_modules/
 __pycache__/
@@ -18,3 +21,37 @@ tools/hypit_browser/
 tools/*-payload.zip
 installers/ffmpeg-*.zip
 installers/ffmpeg-*.7z
+
+# Local credentials, user records and transient state (never publish).
+*.dpapi
+*.pem
+*.key
+*.p12
+secrets.json
+secrets.*.json
+profile.json
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+.runtime_port
+.runtime_*
+.agent_backups/
+.hypit-html-browser-program/
+.cache/
+.npm/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Repository-local build output; the provider's dist/ remains versioned.
+/build/
+/dist/
+/outputs/
+/artifacts/
+/PACKAGE_FILE_MANIFEST.txt
+/tools/hypit_bundle.json
+/installers/*.exe
+/installers/*.msi

@@ -4,6 +4,16 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../static/app.js'),'utf8');
+test('saved image preview does not call a removed alias initializer',()=>{
+ const nodes=new Map();
+ const context={state:{},$:id=>{if(!nodes.has(id))nodes.set(id,{disabled:true,innerHTML:''});return nodes.get(id)}};
+ vm.createContext(context);
+ const start=source.indexOf('function setCurrentImage(');
+ vm.runInContext(source.slice(start,source.indexOf('\n',start)),context);
+ context.setCurrentImage({id:'fixture',url:'/public/assets/fixture.png'});
+ assert.match(nodes.get('#imageResult').innerHTML,/fixture.png/);
+ assert.equal(nodes.get('#addImageToVideo').disabled,false);
+});
 const body=source.slice(source.indexOf('async function restoreWorkspaceDraft()'),source.indexOf('const DRAFT_IDS='));
 for(const touched of [false,true])test('startup restore respects navigationTouched='+touched,async()=>{
   let activated=[],scrolled=0;const nodes=new Map();
@@ -22,4 +32,13 @@ test('finished task duration stops increasing after completion',()=>{
   const task={created_at:100,updated_at:110,status:'completed'};
   assert.equal(context.taskElapsedSeconds(task,99999),10);
   assert.equal(context.taskElapsedSeconds({...task,status:'running'},150),50);
+});
+
+test('completed local task shows its real local ID instead of waiting for a provider ID',()=>{
+ const context={esc:v=>String(v),fmtElapsed:v=>String(v),taskElapsedSeconds:()=>1,taskCenterTypeLabel:()=> 'Hypit',taskCenterStatusClass:()=>'',taskWorkspace:()=> 'hypit',statusLabel:v=>v,taskCenterTitle:()=> 'Local export'};
+ vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function globalTaskCard('),source.indexOf('\n',source.indexOf('function globalTaskCard('))),context);
+ const html=context.globalTaskCard({id:'local-123',status:'completed'},true);
+ assert.match(html,/local-123（本地编号）/);assert.doesNotMatch(html,/等待平台任务号/);
+ const remote=context.globalTaskCard({id:'local-123',status:'completed',provider_task_id:'provider-456'},true);
+ assert.match(remote,/Task ID：provider-456/);
 });

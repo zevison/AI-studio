@@ -1,0 +1,30 @@
+name: Build Windows candidate
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: npm ci --ignore-scripts --prefix tools/hypit_provider --no-audit --no-fund
+      - run: npm run build:offline --prefix tools/hypit_provider
+      - run: python tools/repository_safety.py
+      - run: python tools/dev_check.py
+      - run: python tools/build_windows_release.py --output build/SeedanceStudio_Candidate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SeedanceStudio-Windows-Candidate
+          path: |
+            build/SeedanceStudio_Candidate.zip
+            build/SeedanceStudio_Candidate.zip.sha256
+            build/SeedanceStudio_Candidate.receipt.json
