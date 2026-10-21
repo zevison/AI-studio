@@ -184,6 +184,16 @@ def verify_and_open(port, info):
     (DATA/'.launch_pending.json').unlink(missing_ok=True)
     log(f'READY version={EXPECTED_VERSION} port={port} pid={info.get("pid")} root={ROOT}')
     webbrowser.open_new(url)
+    # Background-only read/check; no task cancellation or forced restart.
+    updater = ROOT / 'tools' / 'update_client.py'
+    if updater.is_file():
+        try:
+            subprocess.Popen([sys.executable, str(updater), '--check'],
+                             cwd=str(ROOT), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             creationflags=background_flags(), close_fds=True)
+        except OSError as exc:
+            log('Update check could not start: ' + type(exc).__name__)
 
 def await_backend(port,seconds,process=None,pid=None):
     deadline=time.monotonic()+seconds
@@ -291,6 +301,18 @@ def main():
             if info:
                 verify_and_open(port,info);return
             raise RuntimeError('已有后台程序仍在启动，未再次启动以防任务重复。\n'+boot_stage())
+        updater = ROOT / 'tools' / 'update_client.py'
+        if updater.is_file():
+            try:
+                update = subprocess.run([sys.executable, str(updater), '--apply-ready'],
+                                        cwd=str(ROOT), stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                        timeout=25, creationflags=background_flags())
+                if update.returncode == 10:
+                    log('Signed queued update started; current launcher exiting before install')
+                    return
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                log('Deferred update launch: ' + type(exc).__name__)
         port=choose_port(settings_port())
         env=os.environ.copy()
         env['PORT']=str(port)
