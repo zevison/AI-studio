@@ -39,6 +39,17 @@ def _build_key(build: str):
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+def _parse_feed(body: str) -> dict:
+    """Parse the release feed; tolerate a stray UTF-8 BOM or a PowerShell '@{...}' prefix."""
+    text = body.lstrip('\ufeff').strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        if text.startswith('@'):
+            return json.loads(text[1:])
+        raise
+
+
 def check_remote(timeout: int = 8) -> dict:
     """Fetch the remote latest-release.json and compare with local version.
 
@@ -77,10 +88,14 @@ def check_remote(timeout: int = 8) -> dict:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read(65536).decode('utf-8', errors='replace')
-        doc = json.loads(body)
+        doc = _parse_feed(body)
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         # Covers URLError/HTTPError/TimeoutError/ConnectionResetError and bad JSON.
         result['error'] = f'{type(exc).__name__}: {exc}'
+        return result
+
+    if not isinstance(doc, dict):
+        result['error'] = 'Release feed is not a JSON object'
         return result
 
     rv = doc.get('version', '')
