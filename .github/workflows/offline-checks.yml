@@ -25,4 +25,15 @@ jobs:
       - run: npm ci --ignore-scripts --prefix tools/hypit_provider --no-audit --no-fund
       - run: npm run build:offline --prefix tools/hypit_provider
       - run: python tools/repository_safety.py
-      - run: python tools/dev_check.py
+      - name: Full offline regression
+        run: python tools/dev_check.py
+      - name: Show isolated failure log
+        if: failure()
+        shell: bash
+        run: |
+          for f in build/checks/python.log build/checks/frontend.log build/checks/typescript.log build/checks/sdk.log; do
+            if [ -f "$f" ]; then
+              echo "=== $f ==="
+              tail -n 100 "$f"
+            fi
+          done
