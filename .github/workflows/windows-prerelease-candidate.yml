@@ -43,12 +43,33 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate_tag }}
         run: |
           python tools/release_preflight.py --tag "$env:CANDIDATE_TAG" --archive build/SeedanceStudio_Candidate.zip
+      - name: Install Inno Setup compiler
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+      - name: Compile real Chinese EXE setup
+        shell: pwsh
+        run: |
+          $iscc=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'Inno Setup 6 compiler not found' }
+          & $iscc '/DAppVersion=5.2.0' 'packaging\SeedanceStudio.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Inno compiler failed' }
+          $exe='build\installer\SeedanceStudio_Setup_5.2.0_Candidate.exe'
+          if (-not (Test-Path $exe)) { throw 'EXE output missing' }
+          $hash=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii -Path ($exe+'.sha256') -Value $hash
+      - name: Windows installation and data-preservation smoke test
+        shell: pwsh
+        run: |
+          & tools\verify_windows_exe.ps1 -Installer build\installer\SeedanceStudio_Setup_5.2.0_Candidate.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Installer smoke test failed' }
       - uses: actions/upload-artifact@v4
         with:
-          name: SeedanceStudio-Candidate-Verified
+          name: SeedanceStudio-Windows-EXE-Candidate
           retention-days: 30
           if-no-files-found: error
           path: |
-            build/SeedanceStudio_Candidate.zip
-            build/SeedanceStudio_Candidate.zip.sha256
+            build/installer/SeedanceStudio_Setup_5.2.0_Candidate.exe
+            build/installer/SeedanceStudio_Setup_5.2.0_Candidate.exe.sha256
             build/SeedanceStudio_Candidate.receipt.json
