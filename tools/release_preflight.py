@@ -66,9 +66,9 @@ def validate_candidate(tag: str, archive: Path, root: Path = ROOT) -> dict:
     with zipfile.ZipFile(archive) as bundle:
         if bundle.testzip() is not None:
             raise ValueError("ZIP CRC failed")
-        source = bundle.read(prefix + "core/config.py").decode("utf-8-sig")
-        if source != (root / "core/config.py").read_text(encoding="utf-8-sig"):
-            raise ValueError("Packaged source version differs from current commit")
+        source = bundle.read(prefix + "core/config.py")
+        if source != (root / "core/config.py").read_bytes():
+            raise ValueError("Packaged source bytes differ from current commit")
         included_register = json.loads(bundle.read(prefix + "VERSION_REGISTER.json"))
         if included_register.get("assigned_release_version") != version:
             raise ValueError("Packaged release registry mismatch")
