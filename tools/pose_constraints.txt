@@ -12,7 +12,7 @@ mediapipe==1.1.1
 numpy==2.5.4
 opencv-contrib-python==5.0.0.93
 packaging==26.3
-pillow==12.3.0
+pillow==13.0.0
 pycparser==3.11
 pyparsing==3.3.3
 python-dateutil==2.9.0.post0

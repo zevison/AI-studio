@@ -2,7 +2,7 @@
 # required for offline unit tests. Runtime ranges remain in requirements.txt.
 -r requirements.txt
 pytest==9.1.1
-Pillow==12.3.0
+Pillow==13.0.0
 numpy==2.5.4
 imageio-ffmpeg==0.6.0
 alibabacloud-oss-v2==1.4.0
