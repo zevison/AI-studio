@@ -9,7 +9,7 @@
     "prepare:sdk": "node scripts/apply-sdk-security-patches.mjs"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "@types/node": "22.15.30"
   },
   "dependencies": {
