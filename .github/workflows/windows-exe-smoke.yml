@@ -1,0 +1,54 @@
+name: Windows installer smoke
+on:
+  pull_request:
+    paths:
+      - 'installers/SeedanceStudio.nsi'
+      - 'tools/update_client.py'
+      - 'tests_integrated/test_update_client.py'
+      - '.github/workflows/windows-exe-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-installer-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pure Python security tests
+        shell: pwsh
+        run: python -m unittest discover -s tests_integrated -p test_update_client.py
+      - name: Install NSIS compiler
+        shell: pwsh
+        run: choco install nsis --yes --no-progress
+      - name: Compile Chinese EXE and perform real Windows fixture installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $payload = Join-Path $env:RUNNER_TEMP 'SeedanceFixture'
+          $studio = Join-Path $payload 'Studio'
+          New-Item -ItemType Directory -Force (Join-Path $studio 'tools') | Out-Null
+          Set-Content -Path (Join-Path $studio '00_START.cmd') -Value '@echo off' -Encoding Ascii
+          Set-Content -Path (Join-Path $studio 'tools\install_new_pc.ps1') -Value "exit 0" -Encoding Ascii
+          $exe = Join-Path $env:RUNNER_TEMP 'SeedanceStudio-smoke-Setup.exe'
+          $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if(-not (Test-Path $nsis)) {throw 'NSIS compiler not installed'}
+          & $nsis "/DPRODUCT_VERSION=5.2.0" "/DRELEASE_ID=v5.2.0-rc.1" "/DPAYLOAD_DIR=$payload" "/DOUTPUT_EXE=$exe" 'installers\SeedanceStudio.nsi'
+          if($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)) {throw 'EXE compiler failed'}
+          $header = [IO.File]::ReadAllBytes($exe)[0..1]
+          if($header[0] -ne 77 -or $header[1] -ne 90) {throw 'Output is not a Windows PE EXE'}
+          $process = Start-Process -FilePath $exe -ArgumentList '/S' -Wait -PassThru
+          if($process.ExitCode -ne 0) {throw "EXE installation failed: $($process.ExitCode)"}
+          $app = (Get-ItemProperty -Path 'HKCU:\Software\SeedanceStudio').CurrentAppRoot
+          if(-not (Test-Path (Join-Path $app '00_START.cmd'))) {throw 'Installed app entry missing'}
+          $backupFile = Join-Path $app 'data\preserve.txt'
+          New-Item -ItemType Directory -Force (Split-Path $backupFile) | Out-Null
+          Set-Content $backupFile 'critical user data'
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'Programs\SeedanceStudio\Uninstall-SeedanceStudio.exe'
+          $removed = Start-Process -FilePath $uninstaller -ArgumentList '/S' -PassThru -Wait
+          if($removed.ExitCode -ne 0) {throw 'Uninstaller error'}
+          if(-not (Test-Path $backupFile)) {throw 'Uninstall deleted user data'}
+          if(Test-Path 'HKCU:\Software\SeedanceStudio') {throw 'Registration remained after uninstall'}
+          Write-Host 'WINDOWS FIXTURE PASS: NSIS compiled, installed, data preserved, unregistered'

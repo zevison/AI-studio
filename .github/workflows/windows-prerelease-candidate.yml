@@ -1,0 +1,99 @@
+name: Windows prerelease candidate
+on:
+  pull_request:
+    paths: ['.github/workflows/windows-prerelease-candidate.yml']
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: 'Existing matching candidate tag (for example v5.2.0-rc.1)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Validate tag and source version before expensive work
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
+        run: |
+          python -c "import os; from tools.release_preflight import declared_version, validate_tag; from pathlib import Path; validate_tag(os.environ['CANDIDATE_TAG'],declared_version(Path('core/config.py')))"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: npm ci --ignore-scripts --prefix tools/hypit_provider --no-audit --no-fund
+      - run: npm run build:offline --prefix tools/hypit_provider
+      - run: python tools/repository_safety.py
+      - run: python tools/dev_check.py
+      - run: python -m unittest discover -s tests_integrated -p test_release_preflight.py
+      - run: python tools/build_windows_release.py --output build/SeedanceStudio_Candidate
+      - name: Check candidate receipt and packaged files
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
+        run: |
+          python tools/release_preflight.py --tag "$env:CANDIDATE_TAG" --archive build/SeedanceStudio_Candidate.zip
+      - name: Install NSIS compiler
+        shell: pwsh
+        run: |
+          choco install nsis --yes --no-progress
+          if($LASTEXITCODE -ne 0){throw 'NSIS compiler installation failed'}
+      - name: Compile Chinese EXE from verified candidate folder
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if(-not (Test-Path $nsis)){throw 'NSIS compiler missing'}
+          $version = $env:CANDIDATE_TAG -replace '^v(\d+\.\d+\.\d+)-rc\.\d+$','$1'
+          $exe = Join-Path $PWD ('build/SeedanceStudio-' + $env:CANDIDATE_TAG + '-Setup.exe')
+          & $nsis ('/DPRODUCT_VERSION='+$version) ('/DRELEASE_ID='+$env:CANDIDATE_TAG) ('/DPAYLOAD_DIR='+((Resolve-Path 'build/SeedanceStudio_Candidate').Path)) ('/DOUTPUT_EXE='+$exe) 'installers/SeedanceStudio.nsi'
+          if($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)){throw 'EXE compilation failed'}
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          if($bytes[0] -ne 77 -or $bytes[1] -ne 90){throw 'Output does not have Windows PE header'}
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
+          Set-Content -Path ($exe + '.sha256') -Value ($hash + '  ' + (Split-Path $exe -Leaf)) -Encoding ascii
+          Write-Host ('Candidate EXE (unsigned, not stable): ' + (Split-Path $exe -Leaf))
+      - name: Verify actual complete EXE on clean Windows runner
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $PWD ('build/SeedanceStudio-' + $env:CANDIDATE_TAG + '-Setup.exe')
+          $proc = Start-Process -FilePath $exe -ArgumentList '/S' -Wait -PassThru
+          if($proc.ExitCode -ne 0){throw ('Full EXE install failed: '+$proc.ExitCode)}
+          $root = (Get-ItemProperty -Path 'HKCU:\Software\SeedanceStudio').CurrentAppRoot
+          foreach($item in @('app.py','core/config.py','00_START.cmd','.venv/Scripts/python.exe')){
+            if(-not (Test-Path (Join-Path $root $item))){throw ('Missing installed component: '+$item)}
+          }
+          $key = Join-Path $root 'data/verify-preserved.txt'
+          New-Item -ItemType Directory -Force (Split-Path $key) | Out-Null
+          Set-Content -Path $key -Value 'retain-user-data'
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'Programs/SeedanceStudio/Uninstall-SeedanceStudio.exe'
+          $unproc = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+          if($unproc.ExitCode -ne 0){throw ('Uninstall failed: '+$unproc.ExitCode)}
+          if((Get-Content -Path $key -Raw).Trim() -ne 'retain-user-data'){throw 'Uninstall lost user data'}
+          Write-Host 'HOSTED WINDOWS PASS: full EXE installed, Python environment present, user file retained on uninstall; OS restart and old data upgrade remain separate gates'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SeedanceStudio-Windows-EXE-Candidate
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            build/SeedanceStudio-v*-Setup.exe
+            build/SeedanceStudio-v*-Setup.exe.sha256
+            build/SeedanceStudio_Candidate.receipt.json

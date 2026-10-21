@@ -1,6 +1,8 @@
 name: Offline source checks
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [master]
 permissions:
   contents: read
 jobs:
@@ -23,4 +25,23 @@ jobs:
       - run: npm ci --ignore-scripts --prefix tools/hypit_provider --no-audit --no-fund
       - run: npm run build:offline --prefix tools/hypit_provider
       - run: python tools/repository_safety.py
-      - run: python tools/dev_check.py
+      - name: Full offline regression
+        run: python tools/dev_check.py
+      - name: Show isolated failure log
+        if: failure()
+        shell: bash
+        run: |
+          for f in build/checks/python.log build/checks/frontend.log build/checks/typescript.log build/checks/sdk.log; do
+            if [ -f "$f" ]; then
+              echo "=== $f ==="
+              tail -n 100 "$f"
+            fi
+          done
+      - name: Upload offline failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-failures-${{ matrix.os }}
+          path: build/checks/*.log
+          retention-days: 3
+          if-no-files-found: ignore

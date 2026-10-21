@@ -49,7 +49,7 @@ def version(root):
     for node in ast.parse(file.read_text(encoding='utf8')).body:
         if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='APP_VERSION' for t in node.targets):
             value=ast.literal_eval(node.value)
-            if value not in {'5.0.0','5.1.1','5.2.0'}:raise ValueError('Unsupported source version')
+            if not __import__('re').fullmatch(r'5\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)',str(value)):raise ValueError('Unsupported source version')
             return value
     raise ValueError('Source version is unknown')
 
@@ -103,7 +103,9 @@ def migrate(old,destination,*,fail_after=None,source_data_root=None):
     old,destination=old_input.resolve(strict=True),new_input.resolve(strict=True)
     if old==destination or old.is_relative_to(destination) or destination.is_relative_to(old):
         raise PermissionError('Source and destination must be separate installation folders')
-    old_version=version(old);version(destination);stopped(old);stopped(destination)
+    old_version=version(old);destination_version=version(destination)
+    if tuple(map(int,old_version.split('.'))) > tuple(map(int,destination_version.split('.'))):raise PermissionError('Downgrade migration is forbidden')
+    stopped(old);stopped(destination)
     source,target=old/'data',destination/'data'
     if not source.is_dir() or linked(source) or linked(target):raise PermissionError('Regular data directory required')
     for base in (target/'assets',target/'outputs'):
