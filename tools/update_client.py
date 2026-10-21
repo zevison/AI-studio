@@ -137,10 +137,15 @@ def verify_signature(file: Path, expected: str) -> None:
         "$actual=[BitConverter]::ToString($h).Replace('-','');"
         "if($actual -ne $args[1]){exit 32}"
     )
+    env = os.environ.copy()
+    env["STUDIO_VERIFY_FILE"] = str(file)
+    env["STUDIO_VERIFY_PIN"] = expected.upper()
+    script = script.replace("$args[0]", "$env:STUDIO_VERIFY_FILE").replace("$args[1]", "$env:STUDIO_VERIFY_PIN")
+    import base64
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
     proc = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script,
-         str(file), expected.upper()],
-        capture_output=True, text=True, timeout=30, creationflags=NO_WINDOW,
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+        capture_output=True, text=True, timeout=30, creationflags=NO_WINDOW, env=env,
     )
     if proc.returncode:
         raise UpdateError("Authenticode validation failed (or signer is not trusted)")
