@@ -75,7 +75,7 @@ optuna==5.0.0
 packaging==26.3
 pandas==3.0.6
 pillow==12.3.0
-platformdirs==4.13.3
+platformdirs==4.13.4
 polars==2.0.0
 polars-runtime-32==2.0.0
 primePy==1.3
