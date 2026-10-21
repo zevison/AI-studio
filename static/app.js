@@ -252,6 +252,16 @@ function renderCostHud(data){
      if(fx.rate!=null)parts.push(`CNY→USD ${Number(fx.rate).toFixed(6)}${fx.stale?'（缓存）':''}`);
      if(est.cost_usd!=null)parts.push(`预计 $${money(est.cost_usd,2)} / ¥${money(est.cost_cny,2)}`);
    }
+   const budget=data?.budget;
+   if(budget){
+     if(budget.blocked){
+       parts.push(`⚠ 本地付费保护已触发：${(budget.reasons||[]).join('；')}`);
+     }else if(budget.enabled){
+       const cap=budget.limit_usd>0?`$${money(budget.spent_usd)}/$${money(budget.limit_usd)}`:`$${money(budget.spent_usd)}（未设金额上限）`;
+       const cnt=budget.max_tasks>0?` · ${budget.tasks}/${budget.max_tasks} 次`:` · ${budget.tasks} 次`;
+       parts.push(`本地付费窗口 ${budget.window_hours} 小时：${cap}${cnt}${budget.unresolved_tasks?`，${budget.unresolved_tasks} 笔费用待核实`:''}`);
+     }
+   }
    cs.textContent=parts.join('；')+'。最终扣费以任务实际 usage.completion_tokens / OpenLux 调用日志为准。';
  }
 
@@ -289,7 +299,7 @@ function applySettingsToUi(c){if(!c)return;const set=(id,v)=>{const e=$(id);if(e
 set('#setVideoRouteControl',c.video_route_control||'model_suffix');set('#setVideoRoutePreference',c.video_route_preference||'success_rate');set('#setEndpointStrategy',c.video_endpoint_strategy||'recommended');set('#setVideoCreatePath',c.custom_video_create_path||'');set('#setVideoQueryPath',c.custom_video_query_path||'');
  updateResolutionControls({silent:true});
  set('#setVideoMode',c.default_video_mode);set('#setVideoRatio',c.default_video_ratio);set('#setResolution',c.default_video_resolution);set('#setDuration',c.default_video_duration);set('#setImageRatio',c.default_image_ratio);set('#setImageQuality',c.image_quality);set('#setDedupeSeconds',c.dedupe_seconds);set('#setMaxConcurrent',c.max_concurrent_video_tasks);set('#setHttpTimeout',c.http_timeout);set('#setQueryRetries',c.query_retries);
- set('#setCostManualBalance',c.cost_manual_balance);set('#setCostQuotaPerUsd',c.cost_quota_per_usd);set('#setCostFallbackCnyPerSecond',c.cost_fallback_cny_per_second||1);set('#setCostFxRefreshMinutes',c.cost_fx_refresh_minutes||30);set('#setCost720Low',c.cost_video_720_low_per_second);set('#setCost720High',c.cost_video_720_high_per_second);set('#setCost480Multiplier',c.cost_video_480_multiplier);set('#setCost1080Multiplier',c.cost_video_1080_multiplier);const cab=$('#setCostAutoBalance');if(cab)cab.checked=true;
+ set('#setCostManualBalance',c.cost_manual_balance);set('#setCostQuotaPerUsd',c.cost_quota_per_usd);set('#setCostFallbackCnyPerSecond',c.cost_fallback_cny_per_second||1);set('#setCostFxRefreshMinutes',c.cost_fx_refresh_minutes||30);set('#setPaidBudgetUsd',c.paid_budget_usd);set('#setPaidBudgetWindowHours',c.paid_budget_window_hours||24);set('#setPaidBudgetMaxTasks',c.paid_budget_max_tasks);set('#setCost720Low',c.cost_video_720_low_per_second);set('#setCost720High',c.cost_video_720_high_per_second);set('#setCost480Multiplier',c.cost_video_480_multiplier);set('#setCost1080Multiplier',c.cost_video_1080_multiplier);const cab=$('#setCostAutoBalance');if(cab)cab.checked=true;
  set('#setSceneThreshold',c.replica_scene_threshold);set('#setMaxScenes',c.replica_max_scenes);set('#setTranscript',c.replica_transcript_mode);set('#setOcr',c.replica_ocr_mode);set('#setPublicStrategy',c.public_asset_strategy||'oss_auto');set('#setFixedPublicUrl',c.fixed_public_asset_base_url);set('#setAssetTtl',c.asset_link_ttl_minutes);set('#setOSSEndpoint',c.oss_endpoint||'');set('#setOSSBucket',c.oss_bucket||'');set('#setOSSPrefix',c.oss_object_prefix||'seedance-studio');set('#setOSSDeleteHours',c.oss_delete_after_hours||24);
  [['#setInheritDuration','replica_inherit_duration'],['#setInheritRatio','replica_inherit_ratio'],['#setAnalysisGate','replica_require_analysis_gate'],['#setWordAnchorGate','replica_require_word_anchor_for_paid'],['#setSpatialAnalysis','replica_spatial_analysis'],['#setAutoQualityCheck','auto_quality_check'],['#setTunnelSelftest','tunnel_selftest_before_paid'],['#setOSSAutoCleanup','oss_auto_cleanup']].forEach(([id,k])=>{const e=$(id);if(e)e.checked=!!c[k]});
  syncRouteUi();
@@ -798,7 +808,7 @@ $('#saveSettings').onclick=async()=>{try{const v={
  video_base_model:$('#setVideoModelChoice').value==='custom'?$('#setVideoBaseModel').value.trim():$('#setVideoModelChoice').value,video_route_control:$('#setVideoRouteControl').value,video_route_preference:$('#setVideoRoutePreference').value,video_endpoint_strategy:$('#setEndpointStrategy').value,custom_video_create_path:$('#setVideoCreatePath').value.trim(),custom_video_query_path:$('#setVideoQueryPath').value.trim(),
  default_video_mode:$('#setVideoMode').value,default_video_ratio:$('#setVideoRatio').value,default_video_resolution:$('#setResolution').value,default_video_duration:+$('#setDuration').value,default_image_ratio:$('#setImageRatio').value,image_quality:$('#setImageQuality').value,
  dedupe_seconds:+$('#setDedupeSeconds').value,max_concurrent_video_tasks:+$('#setMaxConcurrent').value,http_timeout:+$('#setHttpTimeout').value,query_retries:+$('#setQueryRetries').value,
- cost_auto_balance:true,cost_manual_balance:0,cost_quota_per_usd:+$('#setCostQuotaPerUsd').value,cost_fallback_cny_per_second:+$('#setCostFallbackCnyPerSecond').value,cost_fx_refresh_minutes:+$('#setCostFxRefreshMinutes').value,cost_video_720_low_per_second:0,cost_video_720_high_per_second:0,cost_video_480_multiplier:1,cost_video_1080_multiplier:1,
+ cost_auto_balance:true,cost_manual_balance:0,cost_quota_per_usd:+$('#setCostQuotaPerUsd').value,cost_fallback_cny_per_second:+$('#setCostFallbackCnyPerSecond').value,cost_fx_refresh_minutes:+$('#setCostFxRefreshMinutes').value,paid_budget_usd:+$('#setPaidBudgetUsd').value,paid_budget_window_hours:+$('#setPaidBudgetWindowHours').value,paid_budget_max_tasks:+$('#setPaidBudgetMaxTasks').value,cost_video_720_low_per_second:0,cost_video_720_high_per_second:0,cost_video_480_multiplier:1,cost_video_1080_multiplier:1,
  replica_scene_threshold:+$('#setSceneThreshold').value,replica_max_scenes:+$('#setMaxScenes').value,replica_transcript_mode:$('#setTranscript').value,replica_ocr_mode:$('#setOcr').value,replica_inherit_duration:$('#setInheritDuration').checked,replica_inherit_ratio:$('#setInheritRatio').checked,replica_require_analysis_gate:$('#setAnalysisGate').checked,replica_require_word_anchor_for_paid:$('#setWordAnchorGate').checked,replica_spatial_analysis:$('#setSpatialAnalysis').checked,auto_quality_check:$('#setAutoQualityCheck').checked,
  public_asset_strategy:$('#setPublicStrategy').value,tunnel_auto_start:false,tunnel_selftest_before_paid:$('#setTunnelSelftest').checked,fixed_public_asset_base_url:$('#setFixedPublicUrl').value.trim(),asset_link_ttl_minutes:+$('#setAssetTtl').value,
  oss_endpoint:$('#setOSSEndpoint').value.trim(),oss_bucket:$('#setOSSBucket').value.trim(),oss_object_prefix:$('#setOSSPrefix').value.trim(),oss_auto_cleanup:$('#setOSSAutoCleanup').checked,oss_delete_after_hours:+$('#setOSSDeleteHours').value};

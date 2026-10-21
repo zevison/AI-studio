@@ -74,7 +74,7 @@ if not _external_openlux_key and _vault.get('openlux_api_key'):
     os.environ['OPENLUX_API_KEY'] = _vault['openlux_api_key']
 
 APP_VERSION = '5.2.0'
-APP_BUILD = 'R3.19'
+APP_BUILD = 'R3.20'
 APP_EDITION = '人工爆款复查与真实视觉脚本版'
 HOST = os.getenv('HOST', '127.0.0.1')
 PORT = int(os.getenv('PORT', '8765'))

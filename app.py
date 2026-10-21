@@ -904,7 +904,11 @@ class Handler(BaseHTTPRequestHandler):
             ratio=(qs.get('ratio') or ['9:16'])[0]
             input_video_seconds=(qs.get('input_video_seconds') or ['0'])[0]
             force=(qs.get('force') or ['0'])[0] in ('1','true','yes')
-            return self.ok(cost_system.live(dur,res,ratio,input_video_seconds,force,force))
+            out=cost_system.live(dur,res,ratio,input_video_seconds,force,force)
+            out['budget']=cost_system.paid_budget_status()
+            return self.ok(out)
+        if path=='/api/cost/budget':
+            return self.ok(cost_system.paid_budget_status())
         if path=='/api/openlux/balance':
             # Read-only wallet lookup; no model pricing or generation requests.
             balance=cost_system.fetch_balance(force=(qs.get('refresh') or ['0'])[0]=='1')
@@ -1676,6 +1680,11 @@ class Handler(BaseHTTPRequestHandler):
         dedupe=settings.effective_limits().get('dedupe_seconds',config.DEDUPE_SECONDS)
         recent=db.task_recent_by_fp(fp,dedupe)
         if recent:return self.ok({'task':task_to_public(recent),'reused':True,'reason':f'{dedupe} 秒内相同提交已拦截。'})
+        new_est=(config.VIDEO_ESTIMATED_COST_PER_SECOND_USD*max(0.0,float(payload.get('billing_duration') or 0))) if config.VIDEO_ESTIMATED_COST_PER_SECOND_USD>0 else None
+        budget=cost_system.paid_budget_status(new_est)
+        if budget['blocked']:
+            # 本地预算/熔断保护：在消费确认令牌之前拦截，不产生任何付费调用。
+            return self.err('已触发本地付费保护：'+'；'.join(budget['reasons'])+'。本次未调用付费接口；可在「状态与设置」调整预算上限或等待统计窗口结束。',409,budget=budget)
         slot,n=self._ensure_video_slot()
         if not slot:
             limit=settings.effective_limits().get('max_concurrent_video_tasks',config.MAX_CONCURRENT_VIDEO_TASKS)

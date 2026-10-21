@@ -103,6 +103,12 @@ DEFAULTS = {
     # 输出视频秒数 × 人民币/秒 × CNY→USD 最新可用汇率。
     'cost_fallback_cny_per_second': 1.0,
     'cost_fx_refresh_minutes': 30,
+
+    # 本地付费保护：预算上限与异常消费熔断（0 表示不启用该项）。
+    # 只统计本地 usage_events 中已记录的费用，不等于 OpenLux 最终账单。
+    'paid_budget_usd': 5.0,
+    'paid_budget_window_hours': 24,
+    'paid_budget_max_tasks': 20,
 }
 
 ALLOWED = {
@@ -138,6 +144,8 @@ INT_RANGES = {
     'query_retries': (0, 5),
     'poll_interval': (2, 120),
     'cost_fx_refresh_minutes': (5, 1440),
+    'paid_budget_window_hours': (1, 720),
+    'paid_budget_max_tasks': (0, 200),
 }
 
 FLOAT_RANGES = {
@@ -149,6 +157,7 @@ FLOAT_RANGES = {
     'cost_video_480_multiplier': (0.01, 10.0),
     'cost_video_1080_multiplier': (0.01, 10.0),
     'cost_fallback_cny_per_second': (0.01, 100.0),
+    'paid_budget_usd': (0.0, 100000.0),
 }
 
 

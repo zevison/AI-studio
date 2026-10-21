@@ -1339,6 +1339,12 @@
 
             <label>汇率刷新间隔（分钟）<input id="setCostFxRefreshMinutes" type="number" min="5" max="1440" step="5" value="30"></label>
 
+            <label>本地付费预算上限（美元 / 统计窗口，0=不启用）<input id="setPaidBudgetUsd" type="number" min="0" max="100000" step="0.5" value="5"></label>
+
+            <label>预算统计窗口（小时）<input id="setPaidBudgetWindowHours" type="number" min="1" max="720" step="1" value="24"></label>
+
+            <label>窗口内付费提交熔断次数（0=不启用）<input id="setPaidBudgetMaxTasks" type="number" min="0" max="200" step="1" value="20"></label>
+
             <label class="hidden">兼容余额<input id="setCostManualBalance" type="number" value="0"></label>
 
             <label class="hidden">旧每秒下限<input id="setCost720Low" type="number" value="0"></label>
@@ -1537,7 +1543,7 @@
 <div id="toast"></div>
 
 <script src="/static/product_flow.js?v=1"></script>
-<script src="/static/app.js?v=R3.19"></script>
+<script src="/static/app.js?v=R3.20"></script>
 <script src="/static/image_recovery.js?v=R3.7"></script>
 
 <script src="/static/hypit_studio.js?v=R3.14"></script>

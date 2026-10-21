@@ -1,7 +1,7 @@
 from __future__ import annotations
 import time, threading, json, urllib.request, urllib.error
 from pathlib import Path
-from . import config, openlux, settings, secrets_store
+from . import config, db, openlux, settings, secrets_store
 
 _LOCK=threading.Lock()
 _BALANCE_CACHE={'ts':0.0,'value':None}
@@ -628,6 +628,58 @@ def live(duration=None,resolution=None,ratio='9:16',input_video_seconds=0.0,forc
             'description':'仅当 OpenLux /api/pricing 无法读取时启用：输出视频秒数 × 人民币/秒 × CNY→USD 最新可用汇率',
         },
     }
+
+# ---------------- Local paid budget ceiling / abnormal-spend breaker ----------------
+
+def paid_budget_status(estimated_new_usd=None):
+    """本地付费保护。只统计本机已记录的 usage_events，不是 OpenLux 账单。
+
+    spend_usd 由 actual_cost_usd 优先、缺失时用 estimated_cost_usd 补齐；
+    unresolved_tasks 表示「可能已扣费但没有任何金额记录」的付费任务数量。
+    """
+    cfg=settings.get_all()
+    limit_usd=max(0.0,_num(cfg.get('paid_budget_usd')) or 0.0)
+    window_h=max(1,int(cfg.get('paid_budget_window_hours') or 24))
+    max_tasks=max(0,int(cfg.get('paid_budget_max_tasks') or 0))
+    since=time.time()-window_h*3600
+    row=db.one(
+        '''SELECT COUNT(*) n,
+                  COALESCE(SUM(actual_cost_usd),0) actual,
+                  COALESCE(SUM(CASE WHEN actual_cost_usd IS NULL THEN estimated_cost_usd END),0) estimated,
+                  COUNT(actual_cost_usd) actual_known,
+                  COALESCE(SUM(CASE WHEN actual_cost_usd IS NULL AND estimated_cost_usd IS NULL THEN 1 ELSE 0 END),0) unresolved
+           FROM usage_events WHERE kind='video' AND created_at>=?''',
+        (since,)
+    ) or {}
+    spend=round(float(row.get('actual') or 0)+float(row.get('estimated') or 0),6)
+    tasks=int(row.get('n') or 0)
+    new_usd=max(0.0,float(estimated_new_usd or 0))
+    projected=round(spend+new_usd,6)
+    reasons=[]
+    if limit_usd>0 and projected>limit_usd:
+        reasons.append(
+            f'预算上限 ${limit_usd:g}/{window_h} 小时：本机已记录 ${spend:.2f}（实际+估算），本次预计 ${new_usd:.2f}'
+        )
+    if max_tasks>0 and tasks>=max_tasks:
+        reasons.append(f'付费提交熔断：{window_h} 小时内已有 {tasks} 次付费提交，达到上限 {max_tasks} 次')
+    return {
+        'blocked':bool(reasons),
+        'reasons':reasons,
+        'enabled':limit_usd>0 or max_tasks>0,
+        'limit_usd':limit_usd,
+        'max_tasks':max_tasks,
+        'window_hours':window_h,
+        'spent_usd':spend,
+        'actual_usd':round(float(row.get('actual') or 0),6),
+        'estimated_usd':round(float(row.get('estimated') or 0),6),
+        'tasks':tasks,
+        'actual_known_tasks':int(row.get('actual_known') or 0),
+        'unresolved_tasks':int(row.get('unresolved') or 0),
+        'estimated_new_usd':new_usd,
+        'projected_usd':projected,
+        'basis':'本机 usage_events 记录（实际扣费优先，缺失时用估算；不代表 OpenLux 最终账单）',
+    }
+
 
 def clear_balance_cache():
     with _LOCK:
