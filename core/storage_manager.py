@@ -21,14 +21,23 @@ def database():
     finally:c.close()
 
 def no_links(path):
-    base=config.DATA_DIR.resolve()
-    # Inspect the lexical path before resolve; resolve alone would hide junctions.
+    # Windows CI and certain user profiles use 8.3 aliases (RUNNER~1).
+    # Compare canonical identities, but inspect EACH lexical component first:
+    # resolving just the final path would conceal malicious junction traversal.
+    base=Path(config.DATA_DIR).absolute()
     path=Path(path).absolute()
-    if not path.is_relative_to(base):raise PermissionError('文件不在当前用户空间内')
-    for p in (path,*path.parents):
-        if p==base.parent:break
-        if p.is_symlink() or (hasattr(p,'is_junction') and p.is_junction()):raise PermissionError('不处理链接或目录联接')
-    if not path.resolve().is_relative_to(base):raise PermissionError('文件路径越界')
+    canonical_base=base.resolve()
+    if not path.resolve().is_relative_to(canonical_base):
+        raise PermissionError('文件不在当前用户空间内')
+    found_base=False
+    for part in (path,*path.parents):
+        if part.is_symlink() or (hasattr(part,'is_junction') and part.is_junction()):
+            raise PermissionError('不处理链接或目录联接')
+        if part.resolve()==canonical_base:
+            found_base=True
+            break
+    if not found_base:
+        raise PermissionError('文件路径越界')
     return path
 
 def media_path(relative,exists=True):
