@@ -278,12 +278,25 @@ def _finish_audio_for_result(result, reqmeta):
     raw=result.get('generated_raw_path') or result.get('local_path')
     if not raw:raise ValueError('原始视频尚未下载')
     result['generated_raw_path']=raw
+    target=reqmeta.get('local_export_resolution')
+    # A paid generation whose clip is smaller than the requested export tier must
+    # still be delivered at native resolution; silently upscaling would be a lie.
+    if target:
+        need={'480p':480,'720p':720,'1080p':1080}.get(str(target).lower())
+        try:info=media.probe(Path(raw))
+        except Exception:info={}
+        short=int(min(int(info.get('width') or 0),int(info.get('height') or 0)))
+        if need and 0<short<need:
+            result['export_resolution_note']=(f'模型实际返回 {info.get("width")}x{info.get("height")}，'
+                f'低于目标 {target}；已按模型原始清晰度保存，未做放大。原任务与费用记录保留。')
+            result['export_resolution_fallback']=True
+            target=None
     final=audio_output.apply(raw,mode,reqmeta.get('audio_source_asset_id'),asset_row,
-                             source_ids=reqmeta.get('audio_source_asset_ids'),target_resolution=reqmeta.get('local_export_resolution'))
+                             source_ids=reqmeta.get('audio_source_asset_ids'),target_resolution=target)
     if reqmeta.get('output_resolution'):
         result['requested_output_resolution']=reqmeta['output_resolution']
         result['provider_resolution']=reqmeta.get('resolution')
-        result['local_downscale_applied']=bool(reqmeta.get('local_export_resolution'))
+        result['local_downscale_applied']=bool(target)
     result['local_path']=str(final)
     result['local_url']='/outputs/'+urllib.parse.quote(final.name)
     result['audio_status']='ready'
@@ -423,6 +436,52 @@ def _retry_task_download_locked(task_id:str):
     except Exception as qe: result['quality_check']={'ok':False,'issues':[{'level':'info','message':'自动质检未完成：'+str(qe)[:180]}]}
     db.task_update(task_id,status='completed',result_json=result,last_query_error=None)
     return db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
+
+def recover_interrupted_video_tasks():
+    """Clear slots that a restart left without any provider task id.
+
+    A freshly started process cannot have an in-flight paid POST, and a task
+    without a provider id can never be polled. Leaving such rows in
+    pending/running consumes the concurrency limit forever, so they become
+    "result unknown" with an explicit no-resubmit note.
+    """
+    rows=db.all_("SELECT id FROM tasks WHERE kind='video' "
+                 "AND status IN ('pending','running') "
+                 "AND (provider_task_id IS NULL OR trim(provider_task_id)='') "
+                 "AND COALESCE(CASE WHEN json_valid(request_json) THEN "
+                 "json_extract(request_json,'$.mode') END,'')<>'hypit'")
+    for row in rows:
+        db.task_update(row['id'],status='submission_unknown',
+            error='服务重启时该任务尚未记录平台任务号；无法确认是否已扣费，禁止自动重提。'
+                  '请先核对 OpenLux 后台：若已生成，请绑定平台任务号继续查询；若未生成，可手动重新生成。')
+        try:task_observability.record('video',row['id'],'重启后清理未记录任务号的占位','submission_unknown','未重新提交付费生成')
+        except Exception:log.warning('startup observation deferred for %s',row['id'])
+    if rows:log.warning('Recovered %s interrupted video task slot(s) without provider id',len(rows))
+    return len(rows)
+
+
+def attach_provider_task(task_id,provider_task_id):
+    """Bind a provider task id found in the OpenLux dashboard to a local task.
+
+    Only enables free status polling; it never submits a new paid generation.
+    This is the recovery path for a paid POST whose response was lost.
+    """
+    pid=str(provider_task_id or '').strip()
+    allowed=set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-')
+    if not 4<=len(pid)<=120 or any(c not in allowed for c in pid):
+        raise ValueError('平台任务号格式不正确；请粘贴 OpenLux 后台显示的视频任务号')
+    row=db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
+    if not row or row.get('kind')!='video':raise ValueError('视频任务不存在')
+    if row.get('status')=='completed':raise ValueError('任务已经完成，无需绑定平台任务号')
+    if row.get('provider_task_id') and str(row['provider_task_id'])!=pid:
+        raise ValueError('该任务已绑定另一个平台任务号；请先在历史记录中核对')
+    dup=db.one('SELECT id FROM tasks WHERE provider_task_id=? AND id<>?',(pid,task_id))
+    if dup:raise ValueError('该平台任务号已绑定到另一个本地任务')
+    db.task_update(task_id,provider_task_id=pid,status='running',error=None,last_query_error=None,last_polled_at=0)
+    try:task_observability.record('video',task_id,'人工绑定平台任务号，等待只读查询','running','未重新提交付费生成')
+    except Exception:log.warning('attach observation deferred for %s',task_id)
+    return db.one('SELECT * FROM tasks WHERE id=?',(task_id,))
+
 
 def retry_audio_output(task_id):
     with _task_lock(task_id):return _retry_audio_output_locked(task_id)
@@ -1200,6 +1259,10 @@ class Handler(BaseHTTPRequestHandler):
             if not row:return self.err('任务不存在',404)
             return self.ok(task_to_public(refresh_video_task(row,True)))
         if path=='/api/tasks/retry-audio':return self.ok(task_to_public(retry_audio_output(self.json_in().get('task_id'))))
+        if path=='/api/tasks/attach-provider':
+            req=self.json_in()
+            if req.get('confirmed') is not True:return self.err('需要人工确认绑定平台任务号',409)
+            return self.ok(task_to_public(attach_provider_task(req.get('task_id'),req.get('provider_task_id'))))
         if path=='/api/tasks/retry-download':
             req=self.json_in(); tid=req.get('task_id')
             return self.ok(task_to_public(retry_task_download(tid)))
@@ -1957,6 +2020,7 @@ def run(open_browser=False, *, stop_event=None, ready_callback=None):
         config.PORT=server.server_address[1]
         config.PID_PATH.write_text(str(os.getpid()),encoding='utf-8')
         team_safety.recover()
+        recover_interrupted_video_tasks()
         storage_manager.reconcile_moves()
         _boot_phase("端口已绑定，正在初始化热点及商品数据表")
         url=f'http://{config.HOST}:{config.PORT}'

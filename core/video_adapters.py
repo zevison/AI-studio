@@ -56,7 +56,7 @@ def validate(model,mode,ratio,resolution,duration,media):
         if mode not in ('text','first_frame','first_last','reference','image_reference'):
             raise RouteError('MiniMax H3 目前只开放文本、首尾帧、参考生成适配；视频编辑/续写不能冒充参考生成。')
         if not 4<=int(duration)<=15:raise RouteError('MiniMax H3 生成时长为 4–15 秒；请选择符合范围的秒数。')
-        if resolution not in ('2K','2k','768P','768p'):
+        if str(resolution).lower() not in ('2k','768p'):
             raise RouteError('MiniMax H3 原生请求参数仅支持768P和2K，1080P成片需通过2K生成后本地缩小。')
         if mode=='text' and media:raise RouteError('H3 文生视频不能携带参考素材；请切换为全能参考。')
         if mode=='first_frame' and len(media)!=1:raise RouteError('H3 首帧模式需要恰好1张图片。')
@@ -70,7 +70,9 @@ _H3_EXPORT_TO_NATIVE={'480p':'768P','720p':'768P','768P':'768P','768p':'768P',
                       '1080p':'2K','2K':'2K','2k':'2K'}
 def h3_resolution_plan(export_resolution):
     output=str(export_resolution or '2K')
-    native=_H3_EXPORT_TO_NATIVE.get(output)
+    # Menu values and API callers differ in casing (1080P / 1080p). Normalize
+    # before lookup so a legitimate export tier is never rejected as unsupported.
+    native=_H3_EXPORT_TO_NATIVE.get(output) or _H3_EXPORT_TO_NATIVE.get(output.lower())
     if native is None:
         raise RouteError('MiniMax H3 原生只提供768P和2K；请选480P、720P、768P、1080P或2K导出，系统会显示实际模型档位。')
     resize=output.lower() in ('480p','720p','1080p')

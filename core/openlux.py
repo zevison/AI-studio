@@ -270,11 +270,21 @@ def extract_task_id(resp):
 
 
 def extract_status(resp):
+    def values(node):
+        out=[]
+        if isinstance(node,dict):
+            out += [node.get('status'),node.get('task_status'),node.get('state')]
+        return out
     vals=[]
     if isinstance(resp,dict):
-        vals += [resp.get('status'),resp.get('task_status'),resp.get('state')]
-        d=resp.get('data')
-        if isinstance(d,dict): vals += [d.get('status'),d.get('task_status'),d.get('state')]
+        # Some OpenLux relays nest the task object ({"task":{...}}); reading only
+        # the top level leaves those tasks reported as "running" forever.
+        # An explicit task status wins over a successful wrapper response.
+        data=resp.get('data')
+        for node in (resp.get('task'),data.get('task') if isinstance(data,dict) else None):
+            vals += values(node)
+        for node in (resp,data,resp.get('result')):
+            vals += values(node)
     s=next((str(x).lower() for x in vals if x is not None),'')
     if s in {'succeeded','success','completed','complete','done'}: return 'completed'
     if s in {'failed','error','expired','cancelled','canceled'}: return 'failed'
