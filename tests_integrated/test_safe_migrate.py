@@ -10,7 +10,7 @@ def installation(root,version='5.0.0'):
     (root/'data/assets').mkdir(parents=True)
     return root
 
-@pytest.mark.parametrize('version',['5.0.0','5.1.1'])
+@pytest.mark.parametrize('version',['5.0.0','5.0.2','5.1.1'])
 def test_real_wal_history_and_materials_preserved(tmp_path,version):
     old=installation(tmp_path/'old',version);new=installation(tmp_path/'new')
     (old/'data/assets/a.mp4').write_bytes(b'user material')
@@ -50,3 +50,8 @@ def test_corrupt_database_is_not_copied(tmp_path):
     (old/'data/studio.db').write_bytes(b'corrupt')
     with pytest.raises(sqlite3.DatabaseError):migration.migrate(old,new)
     assert not list(new.glob('.migration-*'))
+
+
+def test_migration_downgrade_is_refused(tmp_path):
+    old=installation(tmp_path/'old','5.3.0');new=installation(tmp_path/'new','5.2.0')
+    with pytest.raises(PermissionError):migration.migrate(old,new)

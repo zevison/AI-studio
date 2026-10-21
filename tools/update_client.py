@@ -166,7 +166,7 @@ def atomic_json(path: Path, doc: dict) -> None:
 
 
 def download(meta: dict, dest: Path) -> None:
-    partial = dest.with_suffix(".part")
+    partial = dest.with_name(dest.stem + ".partial.exe")
     dest.parent.mkdir(parents=True, exist_ok=True)
     for attempt in range(3):
         try:
