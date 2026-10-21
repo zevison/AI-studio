@@ -1,12 +1,12 @@
 {
   "product": "SeedanceStudio",
   "version": "5.2.0",
-  "build": "R3.19",
+  "build": "R3.20",
   "release_date": "2026-10-21",
   "channel": "stable",
-  "installer_url": "https://github.com/zevison/AI-studio/releases/download/v5.2.0-R3.19/SeedanceStudio_Setup_5.2.0_R3.19.exe",
-  "installer_sha256": "6a4c4c5702f13bcc004c1a8cda9e96fc5ddf3d14c5e180a965b776e170968e46",
+  "installer_url": "https://github.com/zevison/AI-studio/releases/download/v5.2.0-R3.20/SeedanceStudio_Setup_5.2.0_R3.20.exe",
+  "installer_sha256": "7f4d5f3a11124de9b52d8ac3d456f4c081e2e16c74d835f2b1c69dd47cd5a706",
   "installer_size_mb": 1234,
-  "release_notes": "R3.19：修复自动更新链路（版本检查接口、更新弹窗、版本比较、清单容错），刷新 app.js 缓存键。",
+  "release_notes": "R3.20：新增本地付费预算上限与异常消费熔断（付费调用前拦截、估算与实际扣费分离）；修复H3 1080P导出、嵌套任务状态读取与付费任务重启恢复；修复恢复中心括号错位导致的前端脚本整体失效。",
   "min_upgrade_version": "5.0.0"
 }
