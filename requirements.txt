@@ -1,7 +1,7 @@
 # Seedance Studio V4.2.8.12 核心 Python 依赖（01 同时安装完整分析/下载组件）。
 # 目标：无论增强视觉/语音组件是否兼容当前 Python，工作台都必须先能启动。
 imageio-ffmpeg>=0.5.1
-Pillow>=10.0.0
+Pillow>=13.0.0
 alibabacloud-oss-v2>=1.3.2
 
 # OpenCV / PySceneDetect / Faster-Whisper / WhisperX / Tesseract / MediaPipe /
