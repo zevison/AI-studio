@@ -118,7 +118,7 @@ torch_pitch_shift==1.2.5
 torchaudio==2.8.0
 torchcodec==0.7.0
 torchmetrics==1.9.0
-torchvision==0.23.0
+torchvision==0.29.1
 tqdm==4.70.1
 transformers==4.57.6
 typing_extensions==4.16.0
