@@ -1,13 +1,13 @@
-"""Lightweight remote version check for Seedance Studio.
+r"""Lightweight remote version check for Seedance Studio.
 
 Fetches latest-release.json from VERSION_CHECK_URL (env) and compares
 against the local APP_VERSION + APP_BUILD. No TUF trust root, no Authenticode,
 no auto-install — just a comparison + reminder for the user.
 
-To enable:
-  1. Set VERSION_CHECK_URL in your .env, e.g.:
-     VERSION_CHECK_URL=https://raw.githubusercontent.com/YOUR/REPO/main/docs/latest-release.json
-  2. Push docs/latest-release.json to GitHub with every release.
+Defaults to the official public release feed (see DEFAULT_URL). Override with
+VERSION_CHECK_URL, or set VERSION_CHECK_URL=off to disable outbound requests.
+Note: a packaged EXE reads .env from %LOCALAPPDATA%\SeedanceStudio, not the
+install folder.
 """
 from __future__ import annotations
 import json
@@ -18,9 +18,13 @@ import urllib.request
 import urllib.error
 from . import config
 
+# Public endpoint of the official release feed. VERSION_CHECK_URL overrides it;
+# VERSION_CHECK_URL=off disables the outbound request entirely.
+DEFAULT_URL = 'https://raw.githubusercontent.com/zevison/AI-studio/master/docs/latest-release.json'
+
 
 def _version_tuple(v: str):
-    """Parse '5.2.0' → (5,2,2). Returns None if malformed."""
+    """Parse '5.2.0' → (5,2,0). Returns None if malformed."""
     if not isinstance(v, str):
         return None
     m = re.fullmatch(r'(\d{1,5})\.(\d{1,5})\.(\d{1,5})', v.strip())
@@ -28,11 +32,11 @@ def _version_tuple(v: str):
 
 
 def _build_key(build: str):
-    """Normalize build like 'R3.18-plugins-candidate' → 'R3.18'."""
+    """Parse build like 'R3.18-plugins-candidate' → (3,18). None if not a R<major>.<minor> tag."""
     if not isinstance(build, str):
-        return ''
-    m = re.match(r'(R\d+\.\d+)', build)
-    return m.group(1) if m else build.strip()
+        return None
+    m = re.match(r'\s*R(\d{1,5})\.(\d{1,5})', build)
+    return (int(m.group(1)), int(m.group(2))) if m else None
 
 
 def check_remote(timeout: int = 8) -> dict:
@@ -55,9 +59,9 @@ def check_remote(timeout: int = 8) -> dict:
         'error': None,
         'configured': False,
     }
-    url = os.getenv('VERSION_CHECK_URL', '').strip()
-    if not url:
-        result['error'] = 'VERSION_CHECK_URL not configured'
+    url = os.getenv('VERSION_CHECK_URL', '').strip() or DEFAULT_URL
+    if url.lower() in ('0', 'off', 'false', 'none'):
+        result['error'] = 'VERSION_CHECK_URL disabled'
         return result
     result['configured'] = True
 
@@ -74,7 +78,8 @@ def check_remote(timeout: int = 8) -> dict:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read(65536).decode('utf-8', errors='replace')
         doc = json.loads(body)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        # Covers URLError/HTTPError/TimeoutError/ConnectionResetError and bad JSON.
         result['error'] = f'{type(exc).__name__}: {exc}'
         return result
 
@@ -95,7 +100,8 @@ def check_remote(timeout: int = 8) -> dict:
     if remote_ver and local_ver:
         if remote_ver > local_ver:
             result['update_available'] = True
-        elif remote_ver == local_ver and remote_build and local_build and remote_build != local_build:
-            # Same numeric version but newer build (e.g. 5.2.0 R3.18 vs R3.17)
-            result['update_available'] = remote_build != local_build
+        elif remote_ver == local_ver and remote_build and local_build:
+            # Same numeric version: only a strictly newer build is an update.
+            # Older remote builds must never be offered (that would be a downgrade).
+            result['update_available'] = remote_build > local_build
     return result

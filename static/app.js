@@ -888,10 +888,9 @@ bootstrapStudio();
 
 async function checkForUpdate(){
  try{
-  const r=await api('/api/version/check');
-  if(!r.ok)return;
-  const d=r.data||r;
-  if(!d.update_available)return;
+  // api() already unwraps the {ok,data} envelope and throws on failure.
+  const d=await api('/api/version/check');
+  if(!d||!d.update_available)return;
   // Skip if user already dismissed this specific release in this session.
   const dismissedKey='seedance_update_dismissed_'+d.remote_version+'_'+d.remote_build;
   if(sessionStorage.getItem(dismissedKey))return;
