@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "manifest_url": "https://szdapi.com/updates/seedance-studio/stable.json",
+  "signer_sha256": "",
+  "notes": "Production updater MUST remain disabled until a real publisher Authenticode signing certificate and production HTTPS manifest are verified. Do not embed tokens."
+}
