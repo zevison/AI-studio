@@ -2,7 +2,7 @@
 pyinstaller==6.22.3
 pywebview==6.1
 pythonnet==3.2.1
-opencv-python-headless==4.13.0.92
+opencv-python-headless==5.0.0.93
 scenedetect==0.6.7.1
 yt-dlp==2026.8.19
 curl-cffi==0.15.0
