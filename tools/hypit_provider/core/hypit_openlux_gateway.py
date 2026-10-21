@@ -147,8 +147,8 @@ def build_video_request(*, prompt: str, references: list[dict], task_type: str,
             raise ContractError(f'{task_type} requires a source reference video')
         if roles.count('reference_video') != 1:
             raise ContractError(f'{task_type} currently supports one source video; refuse ambiguous role')
-        if ratio != 'adaptive' or duration != -1:
-            raise ContractError(f'{task_type} must use adaptive ratio and -1 duration')
+        if ratio != 'adaptive' or (task_type=='edit' and duration!=-1) or (task_type=='extend' and duration!=-1 and not 4<=duration<=30):
+            raise ContractError(f'{task_type} duration/ratio does not match the official 2.5 contract')
         if 'first_frame' in roles or 'last_frame' in roles:
             raise ContractError('Edit/extend frame+video combination has not been verified')
     payload = {
@@ -266,8 +266,9 @@ class DurableVideoGateway:
     def info(self, payload: dict) -> dict | None:
         fp = request_sha256(payload)
         with self._connect() as db:
-            row = db.execute('SELECT phase,task_id,updated FROM submissions WHERE fingerprint=?', (fp,)).fetchone()
-        return dict(zip(('phase', 'task_id', 'updated'), row)) if row else None
+            row = db.execute('SELECT account,phase,task_id,updated FROM submissions WHERE fingerprint=?', (fp,)).fetchone()
+        if row and row[0]!=self.account:raise PermissionError('Stored task belongs to another account')
+        return dict(zip(('phase', 'task_id', 'updated'), row[1:])) if row else None
 
     def submit(self, payload: dict, approval: ExplicitApproval) -> str:
         # Checks before *any* ledger write or network event.
@@ -335,6 +336,7 @@ class DurableVideoGateway:
         task_id = record['task_id']
         response = self.transport.get(task_id, timeout=self.timeout_seconds)
         report = _object(response, 'query response')
+        if task_id_from(report)!=task_id:raise ContractError('Task response does not prove the acknowledged identity')
         for part in (report, report.get('data')):
             if isinstance(part, dict):
                 identifiers = [str(part[key]) for key in ('id', 'task_id') if part.get(key) is not None]
