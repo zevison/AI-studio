@@ -1,10 +1,12 @@
-{
+@{
   "product": "SeedanceStudio",
   "version": "5.2.0",
   "build": "R3.18",
   "release_date": "2026-10-21",
   "channel": "stable",
-  "installer_url": "",
+  "installer_url": "https://github.com/zevison/AI-studio/releases/download/v5.2.0-R3.18/SeedanceStudio-Setup-5.2.0-R3.18.exe",
+  "installer_sha256": "c28a85862b13c06996c8699d87c5d86c63b684394f0b97299efe1b747ff6ebd7",
+  "installer_size_mb": 695,
   "release_notes": "R3.18：使用指南完整化、插件手动导入、SHA-256 校验、红队测试通过。",
   "min_upgrade_version": "5.0.0"
 }
