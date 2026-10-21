@@ -1,0 +1,54 @@
+name: Windows prerelease candidate
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_tag:
+        description: 'Existing matching candidate tag (for example v5.2.0-rc.1)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Validate tag and source version before expensive work
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+        run: |
+          python -c "import os; from tools.release_preflight import declared_version, validate_tag; from pathlib import Path; validate_tag(os.environ['CANDIDATE_TAG'],declared_version(Path('core/config.py')))"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: npm ci --ignore-scripts --prefix tools/hypit_provider --no-audit --no-fund
+      - run: npm run build:offline --prefix tools/hypit_provider
+      - run: python tools/repository_safety.py
+      - run: python tools/dev_check.py
+      - run: python -m unittest discover -s tests_integrated -p test_release_preflight.py
+      - run: python tools/build_windows_release.py --output build/SeedanceStudio_Candidate
+      - name: Check candidate receipt and packaged files
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+        run: |
+          python tools/release_preflight.py --tag "$env:CANDIDATE_TAG" --archive build/SeedanceStudio_Candidate.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SeedanceStudio-Candidate-Verified
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            build/SeedanceStudio_Candidate.zip
+            build/SeedanceStudio_Candidate.zip.sha256
+            build/SeedanceStudio_Candidate.receipt.json
