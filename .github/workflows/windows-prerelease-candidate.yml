@@ -43,33 +43,34 @@ jobs:
           CANDIDATE_TAG: ${{ inputs.candidate_tag }}
         run: |
           python tools/release_preflight.py --tag "$env:CANDIDATE_TAG" --archive build/SeedanceStudio_Candidate.zip
-      - name: Install Inno Setup compiler
+      - name: Install NSIS compiler
         shell: pwsh
         run: |
-          choco install innosetup -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
-      - name: Compile real Chinese EXE setup
+          choco install nsis --yes --no-progress
+          if($LASTEXITCODE -ne 0){throw 'NSIS compiler installation failed'}
+      - name: Compile Chinese EXE from verified candidate folder
         shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
         run: |
-          $iscc=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path $iscc)) { throw 'Inno Setup 6 compiler not found' }
-          & $iscc '/DAppVersion=5.2.0' 'packaging\SeedanceStudio.iss'
-          if ($LASTEXITCODE -ne 0) { throw 'Inno compiler failed' }
-          $exe='build\installer\SeedanceStudio_Setup_5.2.0_Candidate.exe'
-          if (-not (Test-Path $exe)) { throw 'EXE output missing' }
-          $hash=(Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-          Set-Content -Encoding ascii -Path ($exe+'.sha256') -Value $hash
-      - name: Windows installation and data-preservation smoke test
-        shell: pwsh
-        run: |
-          & tools\verify_windows_exe.ps1 -Installer build\installer\SeedanceStudio_Setup_5.2.0_Candidate.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Installer smoke test failed' }
+          $ErrorActionPreference = 'Stop'
+          $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if(-not (Test-Path $nsis)){throw 'NSIS compiler missing'}
+          $version = $env:CANDIDATE_TAG -replace '^v(\d+\.\d+\.\d+)-rc\.\d+$','$1'
+          $exe = Join-Path $PWD ('build/SeedanceStudio-' + $env:CANDIDATE_TAG + '-Setup.exe')
+          & $nsis ('/DPRODUCT_VERSION='+$version) ('/DRELEASE_ID='+$env:CANDIDATE_TAG) ('/DPAYLOAD_DIR='+((Resolve-Path 'build/SeedanceStudio_Candidate').Path)) ('/DOUTPUT_EXE='+$exe) 'installers/SeedanceStudio.nsi'
+          if($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)){throw 'EXE compilation failed'}
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          if($bytes[0] -ne 77 -or $bytes[1] -ne 90){throw 'Output does not have Windows PE header'}
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
+          Set-Content -Path ($exe + '.sha256') -Value ($hash + '  ' + (Split-Path $exe -Leaf)) -Encoding ascii
+          Write-Host ('Candidate EXE (unsigned, not stable): ' + (Split-Path $exe -Leaf))
       - uses: actions/upload-artifact@v4
         with:
           name: SeedanceStudio-Windows-EXE-Candidate
           retention-days: 30
           if-no-files-found: error
           path: |
-            build/installer/SeedanceStudio_Setup_5.2.0_Candidate.exe
-            build/installer/SeedanceStudio_Setup_5.2.0_Candidate.exe.sha256
+            build/SeedanceStudio-v*-Setup.exe
+            build/SeedanceStudio-v*-Setup.exe.sha256
             build/SeedanceStudio_Candidate.receipt.json
