@@ -1,0 +1,2 @@
+下载 Python 3.12.10 官方安装程序（64位 AMD64/ARM64）后可放在此目录，安装器自动校验数字签名再运行。
+官网：https://www.python.org/downloads/release/python-31210/

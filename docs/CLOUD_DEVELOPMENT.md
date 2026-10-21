@@ -12,7 +12,7 @@ repository is created by the migration. Do not publish user backup ZIPs as sourc
 
 ## Prepare Codex Cloud
 
-Use a development-only environment, Python 3.12 and Node 22.16.0. Select only the
+Use a development-only environment, Python 3.14.8 and Node 22.23.3. Select only the
 new private repository. Ask setup to run `bash .codex/setup.sh`, then validate with
 `.venv/bin/python tools/dev_check.py`. The script's exported variables are not
 needed after setup; always invoke the repository virtualenv explicitly.
@@ -40,7 +40,14 @@ Official documentation checked 2026-10-20:
 - [Cloud environments](https://learn.chatgpt.com/docs/environments/cloud-environments)
 - [Repository instructions](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
 
-## Rebuild a complete Windows candidate
+## Rebuild the complete Windows desktop EXE candidate
+
+Use [DESKTOP_BUILD.md](DESKTOP_BUILD.md) and its complete artifact hash lock.
+The runtime downloads are public, pinned and verified. No sibling workspaces,
+old virtualenvs, developer credentials or prior package ZIPs are build inputs.
+The following source-ZIP procedure is retained only for legacy reproduction.
+
+## Legacy R3.8 source ZIP build
 
 On Windows x64 with Git, Python 3.12, Node 22.16.0/npm installed:
 

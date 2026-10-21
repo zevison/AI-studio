@@ -4,7 +4,7 @@
 - This repository root is the authoritative application source; `app.py` starts
   the Python/SQLite/local-web workbench. `core/`, `static/`, `assets/` and `tools/`
   are application inputs, not expendable build debris.
-- Current application: 5.2.0 / R3.8 release candidate, status B. A passing Linux
+- Current application: 5.2.0 / R3.18 plugins candidate; final EXE gates are pending. A passing Linux
   test, Windows developer checkout or local Film export is not fresh-Windows or
   real-provider acceptance. Preserve the release gates in `docs/RELEASE_R3_8.txt`.
 - Distinguish observed results, estimates and unknown state. UNKNOWN must not
@@ -23,7 +23,12 @@
   task-specific authorization. GitHub visibility must remain private.
 
 ## Development
-- Python 3.12; Node 22.16.0 (provider requires >=22.15).
+- Reviewed desktop candidate: Python 3.14.8, Node 22.23.3; exact transitive
+  artifacts are in requirements/python-win-x64-py314-r39-candidate.* and
+  tools/windows-runtime.lock.json. These are candidate pins, not permanent
+  version policy. Keep dependency upgrades isolated until affected gates pass.
+- requirements-dev.txt is a lightweight source-test environment. Desktop builds
+  must match the full hash lock, including PyAV 18.1.0 (19 breaks the selected ASR).
 - Install dev tools: `python -m pip install -r requirements-dev.txt`, then
   `npm ci --ignore-scripts --prefix tools/hypit_provider` and
   `npm run build:offline --prefix tools/hypit_provider`.
@@ -39,6 +44,23 @@
   It must never depend on a parent workspace or previous release ZIP.
 - Cloud tests can run on Linux; Windows install, DPAPI, OS reboot and upgrade/
   rollback still require real Windows evidence. Do not lower gates to pass CI.
+- Complete EXE builds use tools/build_desktop_exe.py and reconstruct npm
+  dependencies in isolated staging. Legacy source ZIP scripts remain for
+  compatibility; do not present them as the new desktop EXE installer.
+- Online client updates remain BLOCKED until a real TUF trust root, endpoint
+  and Authenticode certificate are provisioned. Never embed test private keys,
+  accept arbitrary installer URLs, or automatically retry uncertain paid calls.
+- `--download-components` makes only ASR weights and the render browser deferred.
+  The embedded component catalog pins every installed file; domestic mirrors
+  transport the same bytes and cannot select newer versions. Keep WebView2,
+  Node, FFmpeg, Python/native inference libraries, OCR and Hypit SDK bundled.
+  Component downloads must remain bounded, cancellable and isolated from user
+  data. Do not confuse component provisioning with trusted application updates.
+- Independent plugin releases use a separate TUF root/policy and exact host ABI.
+  The bundled plugin policy is disabled until an authorized production public
+  root and owned repository exist. New admissions require fresh signed metadata;
+  previously approved installed bytes remain usable offline. Never embed the
+  ephemeral test signers or enable an unsigned inventory as an update feed.
 
 ## Business boundaries
 - Keep GPT chats separate from product memory and production tasks.

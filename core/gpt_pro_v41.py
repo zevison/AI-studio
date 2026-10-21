@@ -8,7 +8,7 @@ from contextlib import closing
 from . import history_center_v423  # Seedance V4.2.3 Unified History
 import base64, io, json, mimetypes, re, time, uuid, urllib.request, urllib.error, socket, hashlib, zipfile
 from xml.etree import ElementTree
-from . import ai_assistant, config, db, gpt_memory_v4, openlux, secrets_store
+from . import ai_assistant, config, db, gpt_memory_v4, openlux, secrets_store, configuration_service, provider_transport
 from .network_trust import tls_context,network_error_message
 
 PRESETS = [
@@ -21,18 +21,18 @@ _CACHE={'at':0.,'items':[],'error':None}
 
 
 def _key():
-    return (secrets_store.get('openlux_api_key') or config.OPENLUX_API_KEY or '').strip()
+    return configuration_service.resolve_provider('chat').api_key.strip()
 
 
 def models(force=False):
     now=time.monotonic()
-    identity=hashlib.sha256((_key()+'\n'+openlux._url('/v1/models')).encode()).hexdigest()
+    identity=hashlib.sha256((_key()+'\n'+openlux._url(configuration_service.resolve_provider('chat').paths['models'],kind='chat')).encode()).hexdigest()
     if not force and _CACHE.get('identity')==identity and _CACHE['items'] and now-_CACHE['at']<300:
         return {'models':_CACHE['items'],'presets':PRESETS,'verified':True,'error':None}
     if not _key():return {'models':[],'presets':PRESETS,'verified':False,'error':'尚未配置 OpenLux 密钥'}
     try:
-        req=urllib.request.Request(openlux._url('/v1/models'),headers={'Authorization':'Bearer '+_key(),'Accept':'application/json'},method='GET')
-        with urllib.request.urlopen(req,timeout=12,context=tls_context()) as r: data=json.loads(r.read(750000))
+        req=urllib.request.Request(openlux._url(configuration_service.resolve_provider('chat').paths['models'],kind='chat'),headers={'Authorization':'Bearer '+_key(),'Accept':'application/json'},method='GET')
+        with provider_transport.urlopen(req,timeout=12,context=tls_context()) as r: data=json.loads(r.read(750000))
         items=data.get('data',[]) if isinstance(data,dict) else []
         ids=sorted({str(x.get('id')) for x in items if isinstance(x,dict) and x.get('id')})
         # Chat model names only; models endpoint can also return image/video/embedding models.
@@ -134,7 +134,7 @@ def _start(payload):
     ai_assistant.schema()
     cid=str(payload.get('conversation_id') or '')
     msg=str(payload.get('message') or '').strip()
-    model=str(payload.get('model') or 'gpt-6-astra').strip()
+    model=str(payload.get('model') or configuration_service.resolve_provider('chat').model).strip()
     if not msg or len(msg)>12000:raise ValueError('消息必须为1—12000字符')
     if not model or len(model)>130 or not re.fullmatch(r'[A-Za-z0-9._:+@/-]+',model):raise ValueError('模型编号不正确')
     if payload.get('approve_model_cost') is not True:raise ValueError('请明确确认本次模型调用费用')
@@ -225,11 +225,13 @@ def chat_events(payload,emit):
         call=db.one('SELECT created_at FROM ai_calls WHERE id=?',(call_id,))
         emit('begin',{'call_id':call_id,'model':model,'mode':mode,
                       'sent_at':float(call['created_at']) if call else time.time()})
+        selected=configuration_service.resolve_provider('chat')
         if mode=='web':
+            if selected.adapter!='openlux':raise ValueError('自定义聊天适配器尚未验证联网搜索，未发送请求')
             request_body={'model':model,'input':msgs,'tools':[{'type':'web_search'}]}
             if effort!='default':request_body['reasoning']={'effort':effort}
             emit('status',{'text':'正在请求供应商联网工具（由当前通道权限决定）…'})
-            resp=openlux.request_json('POST','/v1/responses',request_body,timeout=180,retries=0)
+            resp=openlux.request_json('POST',selected.paths['responses'],request_body,timeout=selected.timeout,retries=0,provider_config=selected)
             answer=resp.get('output_text')
             if not answer:
                 chunks=[]
@@ -241,13 +243,13 @@ def chat_events(payload,emit):
             if not answer:raise ValueError('联网响应缺少可显示文本；此通道可能不支持 web_search，请查看供应商权限')
             emit('delta',{'text':answer}); info=_finish(call_id,cid,resp.get('model',model),answer,resp.get('usage'))
             emit('done',info);return
-        body={'model':model,'messages':msgs,'stream':True}
+        body={'model':model,'messages':msgs,'stream':True,**dict(selected.parameters)}
         if effort!='default':body['reasoning_effort']=effort
-        req=urllib.request.Request(openlux._url('/v1/chat/completions'),data=json.dumps(body,ensure_ascii=False).encode('utf-8'),headers={
+        req=urllib.request.Request(openlux._url(selected.paths['chat'],kind='chat',provider=selected),data=json.dumps(body,ensure_ascii=False).encode('utf-8'),headers={
             'Content-Type':'application/json','Accept':'text/event-stream', 'Authorization':'Bearer '+_key(),
             'User-Agent':'SeedanceStudio/GPTV41'},method='POST')
         answer=[];usage={};is_done=False;truncated=False;actual_model=None
-        with urllib.request.urlopen(req,timeout=180,context=tls_context()) as resp:
+        with provider_transport.urlopen(req,timeout=selected.timeout,context=tls_context()) as resp:
             # Some OpenAI-compatible gateways ignore streaming and return one JSON result.
             ctype=str(resp.headers.get('Content-Type','')).lower()
             if 'text/event-stream' not in ctype:

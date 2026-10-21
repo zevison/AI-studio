@@ -9,7 +9,7 @@ def run():
     parser.add_argument('--node',default=shutil.which('node'))
     parser.add_argument('--evidence',type=Path,default=ROOT/'build/checks')
     args=parser.parse_args()
-    if not args.node:raise SystemExit('Install Node 22.16.0 or pass --node; no model key needed.')
+    if not args.node:raise SystemExit('Select the reviewed Node in tools/windows-runtime.lock.json or pass --node; no model key needed.')
     proof=args.evidence.resolve();proof.mkdir(parents=True,exist_ok=True)
     # Logs can live in a deep evidence directory; Windows fixtures must not
     # inherit that arbitrary depth and exceed SQLite/ZIP path limits.
@@ -17,6 +17,7 @@ def run():
     test_temp=Path(tempfile.mkdtemp(prefix='tests-',dir=scratch))
     profile=Path(tempfile.mkdtemp(prefix='profile-',dir=proof))
     env=os.environ.copy();env.update(LOCALAPPDATA=str(profile),XDG_CONFIG_HOME=str(profile),
+        STUDIO_PROFILE_HOME=str(profile/'SeedanceStudio'),STUDIO_DATA_HOME=str(profile/'application'),
         OPENLUX_API_KEY='',OPENLUX_ACCOUNT_ACCESS_TOKEN='',PYTHONUTF8='1',PYTHONIOENCODING='utf-8',
         PYTHONPATH=str(ROOT)+os.pathsep+env.get('PYTHONPATH',''))
     sdk=ROOT/'tools/hypit_provider';node=str(Path(args.node).resolve())

@@ -5,8 +5,11 @@ from . import config, profile_store
 PATH = profile_store.SECRETS_PATH
 
 def _read() -> dict:
-    profile_store.ensure_bootstrap(config.ROOT)
-    return profile_store.read_secrets()
+    try:
+        profile_store.ensure_bootstrap(config.ROOT)
+        return profile_store.read_secrets()
+    except (OSError, ValueError, UnicodeError):
+        raise ValueError("本机凭据无法读取，原文件已保留；请检查 Windows 用户或恢复凭据备份") from None
 
 def _write(data: dict) -> None:
     profile_store.update_secrets(data)
@@ -31,6 +34,13 @@ def get(key: str, default: str = '') -> str:
     return str(val)
 
 def update(values: dict) -> dict:
+    from . import db, configuration_service
+    with db.tx() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        configuration_service.assert_no_active_requests(connection)
+        return _update_unlocked(values)
+
+def _update_unlocked(values: dict) -> dict:
     data = _read()
     for k in profile_store.SECRET_FIELDS:
         if k not in values:
@@ -44,13 +54,19 @@ def update(values: dict) -> dict:
     profile_store.update_secrets(data)
     return status()
 
-def clear_oss() -> dict:
-    profile_store.clear_oss_secrets()
+def _guarded_remove(*keys):
+    from . import db, configuration_service
+    with db.tx() as connection:
+        connection.execute('BEGIN IMMEDIATE')
+        configuration_service.assert_no_active_requests(connection)
+        profile_store.remove_secrets(*keys)
     return status()
 
+def clear_oss() -> dict:
+    return _guarded_remove('oss_access_key_id','oss_access_key_secret')
+
 def clear_openlux_account() -> dict:
-    profile_store.remove_secrets('openlux_account_access_token','openlux_account_user_id')
-    return status()
+    return _guarded_remove('openlux_account_access_token','openlux_account_user_id')
 
 def _mask(v: str) -> str:
     if not v:
@@ -60,6 +76,9 @@ def _mask(v: str) -> str:
     return v[:4] + '*' * (len(v)-8) + v[-4:]
 
 def status() -> dict:
+    try: _read()
+    except ValueError as exc:
+        return {'credential_error':str(exc),'openlux_api_key_configured':False, 'oss_access_key_configured':False,'oss_access_key_secret_configured':False, 'openlux_account_token_configured':False,'openlux_account_user_id_configured':False}
     api_key = get('openlux_api_key','')
     ak = get('oss_access_key_id','')
     sk = get('oss_access_key_secret','')

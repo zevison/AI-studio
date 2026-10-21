@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from . import config
 
@@ -16,9 +17,12 @@ def candidate_paths(*, root=None, env=None, which=None, registry_paths=()):
     env = os.environ if env is None else env
     root = Path(config.ROOT if root is None else root)
     which = shutil.which('tesseract') if which is None else which
-    paths = [which, root / 'tools' / 'tesseract' / 'tesseract.exe',
+    paths = [root / 'tools' / 'tesseract' / 'tesseract.exe',
              root / 'tools' / 'runtime' / 'bin' / 'tesseract.exe',
              root / 'tools' / 'runtime' / 'Tesseract-OCR' / 'tesseract.exe']
+    if getattr(sys, 'frozen', False):
+        return paths
+    paths.append(which)
     for key in ('ProgramFiles', 'ProgramW6432', 'ProgramFiles(x86)'):
         value = env.get(key)
         if value:
@@ -77,6 +81,18 @@ def find_tesseract(*, root=None, env=None, which=None, registry_paths=None):
         except OSError:
             continue
     return None
+
+
+def ocr_command(binary, image):
+    """Use packaged language data explicitly; never inherit another install's data."""
+    command = [str(binary), str(image), 'stdout', '--psm', '6']
+    data = Path(binary).parent/'tessdata'
+    if (data/'eng.traineddata').is_file():
+        languages = 'eng+chi_sim' if (data/'chi_sim.traineddata').is_file() else 'eng'
+        command += ['--tessdata-dir', str(data), '-l', languages]
+    elif getattr(sys, 'frozen', False):
+        raise FileNotFoundError('安装包缺少 OCR 语言数据，请修复安装')
+    return command
 
 
 def check_tesseract(*, root=None, env=None, which=None, registry_paths=None):

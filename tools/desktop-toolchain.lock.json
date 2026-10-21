@@ -1,0 +1,50 @@
+{
+    "format":  "seedance.desktop-toolchain-lock@1",
+    "python":  {
+                   "publisher":  "Python Software Foundation",
+                   "url":  "https://www.python.org/ftp/python/3.14.8/python-3.14.8-amd64.exe",
+                   "version":  "3.14.8",
+                   "sha256":  "759be887b96e736a3ca886daf8d575f18fcae1a09efab6902f42d59e8999f8ef"
+               },
+    "inno":  {
+                 "files":  {
+                               "Compil32.exe":  "9e2adad1fe1cd6855aad9b22c511ac8bd8fc913963ab3b3c416c01e27edf2f0b",
+                               "Default.isl":  "7ee2c288450b40821d84ebd75deebe755a976cc99ddc6979b9369cdb4872d46e",
+                               "isbunzip.dll":  "31d04c1e4bfdfa34704c142fa98f80c0a3076e4b312d6ada57c4be9d9c7dcf26",
+                               "isbzip.dll":  "8072e83385afc4a84006271a87a11fc0a22b149cbd77322669ca56c470d28ced",
+                               "isbzip.dll.issig":  "7ad1d42e8f8742d848715558a69772ee06574da6cd494e80531c04236316bc0f",
+                               "ISCC.exe":  "8a430b74fd1ecef5651f514a62b5341b0c65e1a53ffe5ba33cc26cf57e67029f",
+                               "ISCmplr.dll":  "2c230c3e99bc42215221b2c847356fbbe9eae33a15a842be429e94fd26e7c436",
+                               "ISCmplr.dll.issig":  "4612115124e4f0b638f5728dc4e6248224ddf8d0d495b15553467e5c160495d6",
+                               "ISetup.chm":  "779839d11fcdc670ec24746caa212e3a910d1cc27eaebbd3461c65d920744cee",
+                               "ISetup-dark.chm":  "ab11b8802a647a4f103e084fa80eae5946569369b46c7924d43f978d938cfefc",
+                               "isfaq.url":  "f699ce64c194310524ca1dca5bfc996151619cc5c6731fbc5fa150b59c9d3c72",
+                               "islzma.dll":  "b252471e95f0853902b15ae71a90574f9b168f8d4a0c474b20537511f90220a5",
+                               "islzma.dll.issig":  "edaedb92eda41e8222c5a2fd261b5d1b9fefa3d978fb2bb8a1390610cba40d74",
+                               "islzma32.exe":  "5665e03297af04d4f90423b56e8b016b2924d91ba781573036b710044e843f0a",
+                               "islzma64.exe":  "b0ad1857da7fb94b54988c7633578dc057b51cf921b94f6f2f7b57a113310712",
+                               "ISPP.dll":  "df4a8792bc1994d67b5ca9366d8e4e531d11511bf1013fe18fd0236b1caa6edf",
+                               "ISPP.dll.issig":  "4a69f3d76af0d046a202759550601bbcf96c7246523d6502e5f8586917c1fc58",
+                               "ISPPBuiltins.iss":  "e281b50b8c9152802dbb6ecbd29198641e71a1fd842f873b0a6274208eb6c91f",
+                               "isscint.dll":  "5ae5dcd47ae9cd0929e0d6b2591e2ecc14cb8dfe4e04fb37a6cef5f1896edd11",
+                               "isscint.dll.issig":  "a3a86ebd559f6e81bb7a4281a8e30c6f39bbf93b8487c3de323b4b5fee840ab8",
+                               "ISSigTool.exe":  "13cc3371c7db2b52634611d4ccce81511d722da0e8c0b208444d5745c5b18d60",
+                               "isunzlib.dll":  "8287d0e287a66ee78537c8d1d98e426562b95c50f569b92cea9ce36a9fa57e64",
+                               "iszlib.dll":  "14c0d4a2a41572384f8309cdf03de5c6e7ed46bef64cce70d989b2665eff1a47",
+                               "iszlib.dll.issig":  "6a3030a1791b139fa41152e347ce25a2ab2eb0344c29e09ec928ba0dd9e4766f",
+                               "license.txt":  "a7f97b166be34fc8bf04e79617b9f56b2aa7903a2808f94155e449c80bdfdcc2",
+                               "Setup.e32":  "7c6bd0199a25b57eb60ea00f220fc80375eec545be0eb953f9e69b7be8639191",
+                               "SetupClassicIcon.ico":  "fa07ed17dff186a5b46c16861158bf3a36b67d84ff7a7bf9a58eaad28143d827",
+                               "SetupLdr.e32":  "ad013b1b595be65cfb92b122b3aa81c13eb6cb0d978ef25b6455f96eae07baeb",
+                               "whatsnew.htm":  "ca9149c82e74b3c9223804f14d74c8b6a825ffd4aa9a202e901839920df6aa61",
+                               "WizClassicImage.bmp":  "d148dc2569e9abc4b4da650b1920ef1ffdc10bbd6bc2e20a97ce44b1f9f78aea",
+                               "WizClassicImage-IS.bmp":  "1b73df0b89a2943f34582cf81c2d8ed7b1ce4cfb54d86ce58ebd6dd0e1e05f5d",
+                               "WizClassicSmallImage.bmp":  "a7e560d419e85daf80cce980baa124ef7c73197d0f51a59a19f1866ee8edfe8c",
+                               "WizClassicSmallImage-IS.bmp":  "ae94cd61179bc1869d0082b1fa8c189f8487d106712b48a2a6c6a035d370bfb4"
+                           },
+                 "source":  "https://github.com/jrsoftware/issrc/releases/tag/is-6_4_3",
+                 "compiler_authenticode":  "Valid",
+                 "version":  "6.4.3",
+                 "purpose":  "Pinned compatible internal candidate toolchain; later releases and commercial redistribution require separate review"
+             }
+}

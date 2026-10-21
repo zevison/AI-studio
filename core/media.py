@@ -1,8 +1,11 @@
 from __future__ import annotations
-import json, os, re, shutil, subprocess
+import json, os, re, shutil, subprocess, sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from .runtime_layout import resource_root
+from .configuration_service import startup_options
+ROOT = resource_root()
+_LOCAL_PATHS = startup_options()
 BUNDLED_BIN = ROOT / 'tools' / 'ffmpeg' / 'bin'
 SHARED_BIN = Path(os.environ.get('LOCALAPPDATA') or str(Path.home()/'.cache')) / 'SeedanceStudio' / 'assets' / 'tools' / 'ffmpeg' / 'bin'
 
@@ -17,10 +20,13 @@ def _bundled_ffmpeg():
 
 
 def ffmpeg_path():
+    if _LOCAL_PATHS.get('ffmpeg_path'):
+        return _LOCAL_PATHS['ffmpeg_path'] if Path(_LOCAL_PATHS['ffmpeg_path']).is_file() else None
     # V3.9.0: prefer the Studio-managed Windows bundle, then system PATH, then imageio fallback.
     bundled = BUNDLED_BIN / ('ffmpeg.exe' if os.name == 'nt' else 'ffmpeg')
     if bundled.exists():
         return str(bundled)
+    if getattr(sys,'frozen',False):return None
     shared = SHARED_BIN / bundled.name
     if shared.exists():
         return str(shared)
@@ -28,10 +34,13 @@ def ffmpeg_path():
 
 
 def ffprobe_path():
+    if _LOCAL_PATHS.get('ffprobe_path'):
+        return _LOCAL_PATHS['ffprobe_path'] if Path(_LOCAL_PATHS['ffprobe_path']).is_file() else None
     # V3.9.0: prefer the Studio-managed FFprobe so metadata parsing does not depend on the PC PATH.
     bundled = BUNDLED_BIN / ('ffprobe.exe' if os.name == 'nt' else 'ffprobe')
     if bundled.exists():
         return str(bundled)
+    if getattr(sys,'frozen',False):return None
     shared = SHARED_BIN / bundled.name
     if shared.exists():
         return str(shared)

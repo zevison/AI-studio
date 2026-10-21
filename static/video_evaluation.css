@@ -10,3 +10,7 @@
 .video-evaluation [hidden]{display:none!important}
 #page-ads .radar-actions>#adsNewJob{align-self:end;min-height:40px}
 @media(max-width:700px){.workflow-nav-group{display:contents}.workflow-nav-label{display:none}.evaluation-toolbar>*{max-width:100%}}
+#page-ads .video-evaluation>label.evaluation-check{display:flex;flex-direction:row;align-items:flex-start;gap:10px;padding:12px 14px;margin:8px 0;min-height:44px;box-sizing:border-box;border:1px solid var(--line,#334155);border-radius:10px;background:rgba(148,163,184,.04);cursor:pointer}
+#page-ads .evaluation-check input[type=checkbox]{width:18px;height:18px;min-height:18px;flex:0 0 18px;padding:0;margin:2px 0 0;accent-color:#9867ee}
+#page-ads .evaluation-check>span{flex:1;min-width:0;line-height:1.6}
+#page-ads .evaluation-check:has(input:disabled){opacity:.65;cursor:default}

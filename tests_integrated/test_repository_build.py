@@ -20,14 +20,22 @@ def test_archive_validation_precedes_writes(tmp_path,name):
     assert not target.exists()
 
 def test_pinned_cache_rejects_corruption_without_replacing_file(tmp_path):
-    cached=tmp_path/'runtime.zip';cached.write_bytes(b'original')
-    item={'url':'https://example.invalid/runtime.zip','sha256':'0'*64}
+    cached=tmp_path/'node-v22.16.0-win-x64.zip';cached.write_bytes(b'original')
+    item={'url':'https://nodejs.org/dist/v22.16.0/node-v22.16.0-win-x64.zip','sha256':'0'*64}
     with pytest.raises(ValueError,match='preserved'):release.fetch(item,tmp_path)
     assert cached.read_bytes()==b'original'
 
 def test_valid_pinned_cache_needs_no_network(tmp_path):
-    cached=tmp_path/'runtime.zip';cached.write_bytes(b'fixture')
-    assert release.fetch({'url':'https://example.invalid/runtime.zip','sha256':hashlib.sha256(b'fixture').hexdigest()},tmp_path)==cached
+    cached=tmp_path/'node-v22.16.0-win-x64.zip';cached.write_bytes(b'fixture')
+    assert release.fetch({'url':'https://nodejs.org/dist/v22.16.0/node-v22.16.0-win-x64.zip','sha256':hashlib.sha256(b'fixture').hexdigest()},tmp_path)==cached
+
+
+@pytest.mark.parametrize('url',['http://nodejs.org/dist/v22.16.0/node-v22.16.0-win-x64.zip',
+    'https://nodejs.org.attacker.invalid/dist/v22.16.0/node-v22.16.0-win-x64.zip',
+    'https://127.0.0.1/runtime.zip','https://user:password@nodejs.org/runtime.zip'])
+def test_untrusted_source_is_refused_before_cache_or_network(tmp_path,url):
+    with pytest.raises(ValueError,match='Untrusted'):
+        release.fetch({'url':url,'sha256':'0'*64},tmp_path)
 
 
 @pytest.mark.skipif(sys.platform!='win32',reason='Windows extended-path behavior')

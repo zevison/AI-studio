@@ -1,6 +1,11 @@
 /* Seedance Studio V4.2: cross-workspace visual design system.
    All IDs / business interactions retained. No change to APIs or workflow rules. */
 :root{--v42-bg:#0b1018;--v42-surface:#121924;--v42-raised:#182131;--v42-outline:#2c374a;--v42-text:#f2f5fb;--v42-muted:#a5b1c3;--v42-soft:#899bb2;--v42-accent:#9867ee;--v42-radius:14px;}
+#page-settings .settings-columns{columns:2;column-gap:16px;column-fill:balance}
+#page-settings .settings-columns>.card{display:flow-root;break-inside:avoid;page-break-inside:avoid;margin:0 0 16px;min-width:0;box-sizing:border-box}
+#page-settings label:has(>input[type=checkbox]){display:flex;flex-direction:row;align-items:flex-start;gap:9px;padding-top:0}
+#page-settings input[type=checkbox]{width:18px;height:18px;min-height:18px;padding:0;margin:2px 0 0;flex:0 0 18px;accent-color:#9867ee}
+@media(max-width:1050px){#page-settings .settings-columns{columns:1}}
 html{scroll-behavior:smooth}body{background:var(--v42-bg);font-family:"DengXian","Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif;color:var(--v42-text);font-size:14px;line-height:1.58}
 .sidebar{width:208px!important;padding:15px 10px!important;background:#0b1019!important;border-right:1px solid #202939!important}
 .sidebar nav{gap:4px!important}.brand{padding:7px 7px 17px!important}.brand b{font-size:13px}.brand span{font-size:11px}

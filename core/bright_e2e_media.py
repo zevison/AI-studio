@@ -12,6 +12,7 @@ import socket
 import subprocess
 import sys
 import urllib.parse
+from .runtime_layout import module_command
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 VENDOR=ROOT/'vendor'
@@ -79,7 +80,7 @@ def impersonation_status():
   result['reason']='curl_cffi is not importable by the active Python: '+str(exc)[:200]
   return result
  try:
-  r=_execute([sys.executable,'-m','yt_dlp','--ignore-config','--list-impersonate-targets'],15)
+  r=_execute(module_command('yt_dlp','--ignore-config','--list-impersonate-targets'),15)
  except (OSError, subprocess.TimeoutExpired) as exc:
   result['reason']='Unable to verify yt-dlp impersonation targets: '+str(exc)[:180]
   return result
@@ -113,12 +114,12 @@ def download_post(post_url,expected_id,working_dir,mode='public',ffmpeg=None,run
  work=pathlib.Path(working_dir).resolve();work.mkdir(parents=True,exist_ok=True)
  # Filename is constant under an internally created directory; never use external titles as paths.
  target=str(work/'original.%(ext)s')
- cmd=[sys.executable,'-m','yt_dlp','--ignore-config','--no-playlist','--no-progress',
+ cmd=module_command('yt_dlp','--ignore-config','--no-playlist','--no-progress',
       '--no-cache-dir','--no-write-info-json','--no-write-thumbnail','--no-write-subs',
       '--no-write-auto-subs','--no-write-comments',
       '--socket-timeout','20','--retries','1','--fragment-retries','1',
       '--max-filesize','120M','--format','best[ext=mp4]/best',
-      '--print','after_move:%(id)s|||%(filepath)s','--output',target]
+      '--print','after_move:%(id)s|||%(filepath)s','--output',target)
  if ffmpeg and pathlib.Path(ffmpeg).exists():cmd.extend(['--ffmpeg-location',str(pathlib.Path(ffmpeg).parent)])
  if mode!='public':cmd+=['--cookies-from-browser',mode]
  cmd+=['--',url]

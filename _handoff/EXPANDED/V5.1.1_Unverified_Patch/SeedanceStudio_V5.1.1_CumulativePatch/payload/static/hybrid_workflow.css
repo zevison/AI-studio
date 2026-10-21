@@ -1,0 +1,62 @@
+/* V5.0.3 — simple user-first replica workspace */
+#page-hybrid{max-width:1400px;margin:0 auto}
+#page-hybrid .hc-page{display:grid;gap:18px}
+#page-hybrid .hc-title h2{font-size:23px;font-weight:750;letter-spacing:0;margin:0 0 7px}
+#page-hybrid .hc-title p{font-size:13px;color:#95a8be;margin:0 0 7px;line-height:1.6}
+#page-hybrid .hc-layout{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr);align-items:start;gap:16px}
+#page-hybrid .hc-inputs,#page-hybrid .hc-output,#page-hybrid .hc-recent{border:1px solid #293a4e;background:#111a26;border-radius:15px;padding:22px}
+#page-hybrid .hc-inputs{display:grid;gap:20px}
+#page-hybrid .hc-field{display:grid;gap:10px}
+#page-hybrid .hc-label{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#page-hybrid .hc-label b{font-size:14px;color:#ebf1fa}
+#page-hybrid .hc-label span{font-size:11px;color:#899bb0}
+#page-hybrid .hc-drop{min-height:144px;background:#0c1521;border:1.5px dashed #3b4c63;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:7px;flex-direction:column;cursor:pointer;padding:20px;text-align:center;transition:background .2s,border .2s;color:#e3e9f6}
+#page-hybrid .hc-drop:hover,#page-hybrid .hc-drop.dragover{border-color:#957aee;background:#181d33}
+#page-hybrid .hc-drop.has-file{border-style:solid;border-color:#528d84;background:#102521}
+#page-hybrid .hc-drop-icon{font-size:25px;line-height:1.5}
+#page-hybrid .hc-drop strong{font-size:13px;max-width:100%;overflow-wrap:anywhere}
+#page-hybrid .hc-drop small{color:#8396ae;font-size:11px}
+#page-hybrid .hc-small-drop{min-height:106px}
+#page-hybrid .hc-product-list{display:flex;gap:8px;flex-wrap:wrap}
+#page-hybrid .hc-product-tag{max-width:100%;background:#24324a;border:1px solid #3c5070;border-radius:18px;padding:6px 9px 6px 12px;display:flex;align-items:center;gap:6px;overflow-wrap:anywhere;font-size:11px;color:#d8e3f1}
+#page-hybrid .hc-product-tag button{border:0!important;background:transparent!important;font-size:16px;padding:1px 4px!important;color:#bfcad9}
+#page-hybrid #hcPrompt{background:#0b1420;color:#e3e9f4;font-size:13px;border:1px solid #35465d;border-radius:10px;padding:13px;min-height:112px;line-height:1.75;resize:vertical;width:100%}
+#page-hybrid .hc-primary-row{display:grid;gap:10px}
+#page-hybrid .hc-generate{font-size:15px;font-weight:700;border-radius:10px;min-height:50px;width:100%;background:#8653dd;border:0}
+#page-hybrid .hc-generate:disabled{opacity:.55;cursor:not-allowed}
+#page-hybrid #hcHint{font-size:11px;color:#9bb0c8;line-height:1.6;text-align:center}
+#page-hybrid .hc-output{display:grid;gap:17px}
+#page-hybrid .hc-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+#page-hybrid .hc-section-head h3{font-size:15px;margin:0;color:#f0f4fa}
+#page-hybrid .hc-section-head span{font-size:11px;color:#8e9fb5}
+#page-hybrid .hc-refresh{font-size:11px!important;padding:8px 11px!important}
+#page-hybrid .hc-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#page-hybrid .hc-step{display:grid;justify-items:center;gap:7px;align-content:start;text-align:center;color:#8294aa;font-size:11px;position:relative}
+#page-hybrid .hc-step span{width:33px;height:33px;display:grid;place-items:center;border-radius:50%;background:#202d41;border:1px solid #3b4f6b;color:#a7b5cb;font-size:12px;font-weight:750}
+#page-hybrid .hc-step.passed span{background:#27695c;border-color:#318b79;color:white}
+#page-hybrid .hc-step.current span{background:#6e52ac;border-color:#9d7de7;color:white}
+#page-hybrid .hc-progress{padding:27px 20px;border:1px solid #2e3d50;border-radius:11px;background:#0c1521;min-height:117px;display:grid;align-content:center;gap:10px}
+#page-hybrid .hc-progress strong{font-size:15px;color:#e5edfb}
+#page-hybrid .hc-progress .hc-error{color:#ff9ba9}
+#page-hybrid .hc-progress p{font-size:12px;line-height:1.7;color:#a1b0c3;overflow-wrap:anywhere;white-space:pre-line;margin:0}
+#page-hybrid .hc-meter{height:7px;border-radius:99px;background:#243147;overflow:hidden}
+#page-hybrid .hc-meter i{height:100%;width:0;display:block;background:linear-gradient(90deg,#845add,#b694f4);transition:width .3s}
+#page-hybrid #hcVideo{display:block;width:100%;max-height:420px;object-fit:contain;background:#060a10;border-radius:9px}
+#page-hybrid #hcVideo[hidden],#page-hybrid #hcDownload[hidden],#page-hybrid #hcRetryLocal[hidden],#page-hybrid #hcRecoverDownload[hidden]{display:none}
+#page-hybrid .hc-download{display:block;padding:13px 16px;text-align:center;background:#6650b8;border-radius:10px;color:#fff;font-weight:700;text-decoration:none}
+#page-hybrid .hc-internal-note{font-size:11px;color:#778ba3;line-height:1.7;padding-top:14px;border-top:1px solid #293a4e}
+#page-hybrid .hc-history{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+#page-hybrid .hc-history-item{border:1px solid #38475f!important;background:#182638!important;border-radius:9px!important;padding:11px 13px!important;display:flex;flex-direction:column;gap:5px;min-width:195px;max-width:310px;text-align:left;overflow-wrap:anywhere}
+#page-hybrid .hc-history-item.selected{border-color:#a282e7!important;background:#222041!important}
+#page-hybrid .hc-history-item strong{color:#e4edf7;font-size:12px}
+#page-hybrid .hc-history-item small{color:#7d91aa;font-size:10px}
+#page-hybrid .hc-history-item span{font-size:10px;color:#b5a0ef}
+#page-hybrid .hc-empty{font-size:12px;color:#8c9bb0;padding:12px 0}
+@media(max-width:1050px){#page-hybrid .hc-layout{grid-template-columns:1fr}}
+@media(max-width:600px){#page-hybrid .hc-inputs,#page-hybrid .hc-output,#page-hybrid .hc-recent{padding:15px}#page-hybrid .hc-history-item{width:100%;max-width:none}}
+
+/* V5.1.0 official Hypit source/run/build status. Existing controls preserved. */
+#page-hybrid .hc-official-status {font-size:12px;line-height:1.7;background:#0d1725;border:1px solid #32465d;border-radius:10px;padding:11px 13px;color:#adbbce;white-space:pre-line;overflow-wrap:anywhere}
+#page-hybrid .hc-official-actions{display:flex;gap:8px;flex-wrap:wrap}
+#page-hybrid .hc-official-actions button{font-size:12px}
+#page-hybrid #hcSetupOfficial[hidden],#page-hybrid #hcStudio[hidden],#page-hybrid #hcOfficialUpdate[hidden]{display:none}

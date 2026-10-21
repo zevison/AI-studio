@@ -1,0 +1,16 @@
+-r requirements-dev.txt
+pyinstaller==6.22.3
+pywebview==6.1
+pythonnet==3.2.1
+opencv-python-headless==4.13.0.92
+scenedetect==0.6.7.1
+yt-dlp==2026.8.19
+curl-cffi==0.15.0
+faster-whisper==1.2.1
+# PyAV 19 removed metadata_errors; upstream faster-whisper 1.2.1 still uses it.
+av==18.1.0
+# This compatible hub release retains SceneDetect's click<8.3 contract.
+huggingface-hub==1.16.1
+tuf==7.0.1
+securesystemslib[crypto]==1.5.1
+cryptography==50.0.2

@@ -142,7 +142,7 @@ $('#checkReplicaModel')?.addEventListener('click',()=>checkNativeVideoModel('#re
 $('#setVideoModelChoice')?.addEventListener('change',()=>{const v=$('#setVideoModelChoice').value;$('#setVideoCustomModelWrap').hidden=v!=='custom';if(v!=='custom')$('#setVideoBaseModel').value=v;updateResolutionControls();});
 [['#videoModelChoice','video'],['#replicaModelChoice','replica']].forEach(([sel,kind])=>{$(sel)?.addEventListener('change',()=>{const selected=$(sel)?.value||'';if(kind==='video'){invalidatePreviews();}else invalidateReplicaPreparation('复刻模型已变化，需要重新预览');updateVideoRouteStatus();updateResolutionControls();scheduleDraftSave();toast('已保存本次模型选择；将进行账户与接口校验，不会静默切换其他模型')})});
 
-function activatePage(p,{save=true}={}){if(save)state.navigationTouched=true;if(p==='replica')p='hypit';const b=$(`.nav[data-page="${p}"]`);$$('.nav[data-page]').forEach(x=>x.classList.toggle('active',x===b));$$('.page').forEach(x=>x.classList.toggle('active',x.id===`page-${p}`));$('#pageTitle').textContent=({hypit:'AI 视频制作 · Hypit',video:'视频创作',replica:'爆款复刻',image:'图片生成',assets:'本地素材库',radar:'热点收集',ads:'智能视频制作',products:'商品知识中心',history:'历史记录',settings:'状态与设置',assistant:'GPT 对话'})[p]||'';if(p==='hypit'&&window.HypitStudio)window.HypitStudio.load();if(p==='radar'&&window.HotRadar)window.HotRadar.load();if(p==='ads'&&window.CreativeProduction)window.CreativeProduction.load();if(p==='products'&&window.ProductMemory)window.ProductMemory.load();if(p==='history')refreshHistory();if(p==='settings'){refreshActivity();refreshSystemHealth()}if(p==='assistant'&&window.GPTChat)window.GPTChat.load();if(p==='assets')refreshAssetLibrary();refreshCostHud(false);if(save)scheduleDraftSave()}
+function activatePage(p,{save=true}={}){if(save)state.navigationTouched=true;if(p==='replica')p='hypit';const b=$(`.nav[data-page="${p}"]`);$$('.nav[data-page]').forEach(x=>x.classList.toggle('active',x===b));$$('.page').forEach(x=>x.classList.toggle('active',x.id===`page-${p}`));$('#pageTitle').textContent=({hypit:'AI 视频制作 · Hypit',video:'视频创作',replica:'爆款复刻',image:'图片生成',assets:'本地素材库',radar:'热点收集',ads:'智能视频制作',products:'商品知识中心',history:'历史记录',settings:'状态与设置',guide:'使用指南',assistant:'GPT 对话'})[p]||'';if(p==='hypit'&&window.HypitStudio)window.HypitStudio.load();if(p==='radar'&&window.HotRadar)window.HotRadar.load();if(p==='ads'&&window.CreativeProduction)window.CreativeProduction.load();if(p==='products'&&window.ProductMemory)window.ProductMemory.load();if(p==='history')refreshHistory();if(p==='settings'){refreshActivity();refreshSystemHealth()}if(p==='assistant'&&window.GPTChat)window.GPTChat.load();if(p==='assets')refreshAssetLibrary();refreshCostHud(false);if(save)scheduleDraftSave()}
 $$('.nav[data-page]').forEach(b=>b.onclick=()=>activatePage(b.dataset.page));
 
 function setWorkspaceTab(group,tab){
@@ -881,8 +881,41 @@ async function bootstrapStudio(){
  refreshImageVersions();restorePersistedTasks();refreshTaskCenter(false);refreshCostHud(false);
  if(activePageName()==='assets')refreshAssetLibrary();if(activePageName()==='settings')refreshSystemHealth();
  state.taskCenterTimer=setInterval(()=>refreshTaskCenter(true),4000);state.costTimer=setInterval(()=>refreshCostHud(false),30000);
+ // Non-blocking version check — runs after UI is up, never delays startup.
+ setTimeout(checkForUpdate, 4000);
 }
 bootstrapStudio();
+
+async function checkForUpdate(){
+ try{
+  const r=await api('/api/version/check');
+  if(!r.ok)return;
+  const d=r.data||r;
+  if(!d.update_available)return;
+  // Skip if user already dismissed this specific release in this session.
+  const dismissedKey='seedance_update_dismissed_'+d.remote_version+'_'+d.remote_build;
+  if(sessionStorage.getItem(dismissedKey))return;
+  const note=(d.release_notes||'').substring(0,200);
+  const download=d.installer_url;
+  const body=document.createElement('div');
+  body.style.cssText='position:fixed;top:12px;right:12px;z-index:99999;max-width:360px;background:#fff4e5;border:1px solid #e6a23c;border-radius:8px;padding:12px 14px;box-shadow:0 4px 18px rgba(0,0,0,0.15);font:14px/1.5 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#333;';
+  body.innerHTML=
+   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'+
+    '<b style="color:#d46b08;">🆕 有新版本可用</b>'+
+    '<button id="seedUpdateDismiss" style="border:none;background:transparent;cursor:pointer;font-size:18px;color:#999;line-height:1;">×</button>'+
+   '</div>'+
+   '<div style="margin-bottom:8px;">当前：<b>'+esc(d.local_version)+' '+esc(d.local_build)+'</b> → <b>'+esc(d.remote_version)+' '+esc(d.remote_build)+'</b> ('+esc(d.release_date||'')+')</div>'+
+   (note?'<div style="margin-bottom:10px;color:#555;font-size:13px;">'+esc(note)+'</div>':'')+
+   '<div style="display:flex;gap:8px;">'+
+    (download?'<a href="'+esc(download)+'" target="_blank" rel="noopener" style="display:inline-block;padding:6px 14px;background:#ff7d00;color:#fff;border-radius:5px;text-decoration:none;font-size:13px;">下载更新</a>':'')+
+    '<button id="seedUpdateLater" style="padding:6px 12px;background:#f0f0f0;color:#666;border:1px solid #ddd;border-radius:5px;cursor:pointer;font-size:13px;">稍后提醒</button>'+
+   '</div>';
+  document.body.appendChild(body);
+  const close=()=>{sessionStorage.setItem(dismissedKey,'1');body.remove();};
+  body.querySelector('#seedUpdateDismiss').onclick=close;
+  body.querySelector('#seedUpdateLater').onclick=close;
+ }catch(e){/* network failure or backend not ready — silently skip */}
+}
 
 updateVideoRouteStatus();
 

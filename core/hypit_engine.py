@@ -1,11 +1,15 @@
 from __future__ import annotations
+from contextlib import ExitStack
 import json, math, os, re, shutil, subprocess, sys, time
+import threading
 from pathlib import Path
-from .tesseract_support import find_tesseract
+from .tesseract_support import find_tesseract, ocr_command
+from .local_component_paths import whisperx_path
 from . import config, media, hypit_policy, smart_analysis
 
 ENGINE_NAME='Hypit-inspired native workflow engine'
 ENGINE_VERSION='1.3'
+_asr_gate=threading.BoundedSemaphore(1)
 
 
 def _hidden_subprocess_kwargs():
@@ -129,18 +133,13 @@ def extract_frame(path:Path, out:Path, t:float):
 def ocr_frame(path:Path):
     exe=find_tesseract()
     if not exe:return {'available':False,'text':''}
-    code,out,err=_run([exe,str(path),'stdout','--psm','6'],timeout=25)
+    code,out,err=_run(ocr_command(exe,path),timeout=25)
     text=' '.join((out or '').split())[:600]
     return {'available':True,'text':text,'ok':code==0}
 
 
 def _whisperx_exe():
-    current=Path(sys.executable).parent/('whisperx.exe' if os.name=='nt' else 'whisperx')
-    if current.is_file():return str(current)
-    sidecar = config.ROOT / 'tools' / 'runtime' / 'whisperx_py313' / ('Scripts/whisperx.exe' if os.name == 'nt' else 'bin/whisperx')
-    if sidecar.exists():
-        return str(sidecar)
-    return shutil.which('whisperx')
+    return whisperx_path(config.ROOT)
 
 
 def whisperx_status():
@@ -148,12 +147,34 @@ def whisperx_status():
     return {'available':bool(exe),'binary':exe,'isolated_py313':bool(exe and 'whisperx_py313' in exe)}
 
 
+def _asr_cpu_supported():
+    from .asr_model import cpu_supported
+    return cpu_supported()
+
+
 def faster_whisper_status():
+    if not _asr_cpu_supported():
+        return {'available':False,'engine':'faster-whisper','reason':'本机未提供 AVX2，本地语音识别已跳过；其他功能仍可使用'}
     try:
         import faster_whisper  # noqa: F401
-        return {'available':True,'engine':'faster-whisper'}
+        model=_managed_asr_model()
+        ready=all((model/name).is_file() for name in ('model.bin','config.json','tokenizer.json'))
+        return {'available':ready if getattr(sys,'frozen',False) else True,
+                'engine':'faster-whisper','model_ready':ready,'runtime_installed':True}
+    except FileNotFoundError:
+        return {'available':False,'engine':'faster-whisper','runtime_installed':True,'model_ready':False,
+                'missing_components':['asr'],'reason':'首次使用语音识别，需要安装运行组件。请在“设置 → 插件与组件”安装本地语音识别；其他功能仍可使用'}
+    except ImportError:
+        return {'available':False,'engine':'faster-whisper','runtime_installed':False,
+                'reason':'内置语音引擎缺失，请使用完整安装包修复主程序'}
     except Exception:
-        return {'available':False,'engine':'faster-whisper'}
+        return {'available':False,'engine':'faster-whisper','missing_components':['asr'],
+                'reason':'语音组件校验未通过，请在“设置 → 插件与组件”校验并修复'}
+
+
+def _managed_asr_model():
+    from .component_manager import resolve
+    return resolve('asr',root=config.ROOT,home=config.USER_HOME) or config.ROOT/'tools/runtime/models/faster-whisper-small'
 
 
 def transcribe_if_available(path:Path, cache_dir:Path, mode='if_installed'):
@@ -163,7 +184,15 @@ def transcribe_if_available(path:Path, cache_dir:Path, mode='if_installed'):
     if info.get('ok') and info.get('has_audio') is False:
         return {'available':False,'used':False,'engine':None,'words':[],'segments':[],'reason':'视频没有音轨，已跳过语音模型加载'}
     wx=_whisperx_exe()
-    fw=faster_whisper_status().get('available')
+    fw_info=faster_whisper_status();fw=fw_info.get('available')
+    if not wx and not fw and 'asr' in fw_info.get('missing_components',[]):
+        # This is an actual audio-analysis request, not a startup capability poll.
+        # Only an exact prior approval plus the owner's opt-in can start a job.
+        try:
+            from .component_manager import catalog,service as components
+            if 'asr' in catalog(config.ROOT,home=config.USER_HOME):components().need('asr')
+        except (OSError,ValueError,RuntimeError):
+            fw_info['reason']='语音组件下载设置不可用，请在插件中心检查；其余分析仍可继续'
     if mode=='off':
         return {'available':bool(wx or fw),'used':False,'engine':None,'words':[],'segments':[],'reason':'关闭'}
     cache_dir.mkdir(parents=True,exist_ok=True)
@@ -193,10 +222,25 @@ def transcribe_if_available(path:Path, cache_dir:Path, mode='if_installed'):
 
     # 2) Lightweight local fallback. It still provides word timestamps, so the workflow can use word anchors.
     if fw:
+        if not _asr_gate.acquire(blocking=False):
+            return {'available':True,'used':False,'engine':'Faster-Whisper','words':[],'segments':[],
+                    'reason':'已有本地语音识别任务运行，已避免同时加载多份模型；请稍后重新分析'}
+        component_lease=ExitStack()
         try:
+            from .component_manager import using
+            component_lease.enter_context(using('asr',root=config.ROOT,home=config.USER_HOME))
             from faster_whisper import WhisperModel
-            model_name='small'
-            model=WhisperModel(model_name,device='cpu',compute_type='int8')
+            managed=_managed_asr_model()
+            # Packaged builds contain reviewed weights. Analysis never initiates
+            # an unbounded model download or substitutes another model.
+            model_name=str(managed) if managed.is_dir() else 'small'
+            if getattr(sys,'frozen',False) and not managed.is_dir():
+                raise FileNotFoundError('安装包缺少本地 small 语音模型，请修复安装')
+            if managed.is_dir():
+                from .asr_model import load_local_model
+                model=load_local_model(WhisperModel,managed)
+            else:
+                model=WhisperModel(model_name,device='cpu',compute_type='int8',local_files_only=True)
             seg_iter,info=model.transcribe(str(path),word_timestamps=True,vad_filter=True,beam_size=3)
             words=[]; segs=[]
             for si,seg in enumerate(seg_iter):
@@ -209,8 +253,13 @@ def transcribe_if_available(path:Path, cache_dir:Path, mode='if_installed'):
             return {'available':True,'used':False,'engine':'Faster-Whisper','words':[],'segments':[],'reason':'本地转写没有识别到有效语音'}
         except Exception as e:
             return {'available':True,'used':False,'engine':'Faster-Whisper','words':[],'segments':[],'reason':f'Faster-Whisper 本地执行失败：{e}'}
+        finally:
+            try:component_lease.close()
+            finally:_asr_gate.release()
 
-    return {'available':False,'used':False,'engine':None,'words':[],'segments':[],'reason':wx_error+'；未安装 Faster-Whisper'}
+    return {'available':False,'used':False,'engine':None,'words':[],'segments':[],
+            'missing_components':fw_info.get('missing_components',[]),
+            'reason':fw_info.get('reason') or wx_error+'；未安装 Faster-Whisper'}
 
 def _dedupe_boundaries(values, duration, min_gap=0.85, max_count=24):
     vals=[0.0]

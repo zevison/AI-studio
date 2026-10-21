@@ -8,7 +8,8 @@ from pathlib import Path
 # 04_DEBUG.cmd uses the same steps; no provider API is called here.
 def _boot_phase(stage):
     try:
-        bootdir = Path(__file__).resolve().parent / 'data'
+        from core.runtime_layout import user_home
+        bootdir = user_home() / 'data'
         workspace=os.getenv('STUDIO_WORKSPACE_ID','owner')
         if re.fullmatch('[a-f0-9]{24}',workspace):bootdir=bootdir/'workspaces'/workspace
         bootdir.mkdir(parents=True, exist_ok=True)
@@ -25,6 +26,7 @@ from core import history_center_v423
 from core import local_output, upload_lifecycle, team_safety, storage_manager
 from core import video_evaluation
 from core.hypit_studio import service as hypit_service
+from core.component_locks import ComponentBusy
 import secrets
 _hypit_session_token = secrets.token_urlsafe(32)
 from core.utils import fingerprint, guess_kind, json_bytes, parse_multipart, safe_name, sha256_bytes, find_url
@@ -337,7 +339,7 @@ def refresh_video_task(t, force=False):
         if latest.get('status') not in ('pending','running','result_pending','submission_unknown'): return latest
         if not latest.get('provider_task_id'): return latest
         last=float(latest.get('last_polled_at') or 0)
-        min_gap=max(2.0,float(config.POLL_INTERVAL or 6)*0.75)
+        min_gap=max(2.0,float(settings.get('poll_interval',config.POLL_INTERVAL) or 6)*0.75)
         if not force and last and (db.now()-last)<min_gap:
             return latest
         qcount=int(latest.get('query_count') or 0)+1; polled_at=db.now()
@@ -557,7 +559,7 @@ def _background_task_poller(stop_event):
                     refresh_video_task(row)
         except Exception as e:
             log.warning('background video task poller failed: %s',e)
-        stop_event.wait(max(2,int(config.POLL_INTERVAL or 6)))
+        stop_event.wait(max(2,int(settings.get('poll_interval',config.POLL_INTERVAL) or 6)))
 
 def specs_from_payload(payload):
     specs=[]
@@ -622,7 +624,7 @@ class Handler(BaseHTTPRequestHandler):
             upload_lifecycle.validate_request(value)
         return value
 
-    def _hypit_guard(self, write=False):
+    def _hypit_guard(self, write=False,content_types=None):
         # Protect spend authorization from cross-site forms and DNS rebinding.
         port = self.server.server_address[1]
         hosts = {f'127.0.0.1:{port}', f'localhost:{port}', f'[::1]:{port}'}
@@ -631,7 +633,7 @@ class Handler(BaseHTTPRequestHandler):
         origin = self.headers.get('Origin')
         if origin and origin not in {'http://' + host for host in hosts}:
             raise PermissionError('Cross-origin Hypit request refused')
-        if write and (self.headers.get('Content-Type','').split(';')[0] != 'application/json'
+        if write and (self.headers.get('Content-Type','').split(';')[0] not in (content_types or {'application/json'})
             or not secrets.compare_digest(self.headers.get('X-Hypit-Session',''), _hypit_session_token)):
             raise PermissionError('Hypit session authorization missing')
 
@@ -669,6 +671,10 @@ class Handler(BaseHTTPRequestHandler):
         # Fast and side-effect-free readiness probe: no DB, provider, network or background jobs.
         if path=='/api/bootstrap-health':
             return self.ok({'version':config.APP_VERSION,'build':config.APP_BUILD,'root_dir':str(config.ROOT),'port':config.PORT,'pid':os.getpid(),'workspace':config.WORKSPACE_ID,'data_dir':str(config.DATA_DIR)})
+        # Lightweight remote version check — fetches docs/latest-release.json from VERSION_CHECK_URL.
+        if path=='/api/version/check':
+            from core.version_check import check_remote
+            return self.ok(check_remote())
         if path=='/api/gpt-v41/models':return self.ok(gpt_pro_v41.models(force=(qs.get('force') or ['0'])[0]=='1'))
         if path=='/api/assistant/conversations':return self.ok(ai_assistant.conversations())
         if path=='/api/image/recovery':
@@ -724,8 +730,10 @@ class Handler(BaseHTTPRequestHandler):
             if config.ASSET_DIR.resolve() not in p.parents:return self.err('非法路径',403)
             return self._file(p)
         if path.startswith('/outputs/'):
-            name=urllib.parse.unquote(path[len('/outputs/'):]); p=(config.OUTPUT_DIR/name).resolve()
-            if config.OUTPUT_DIR.resolve() not in p.parents:return self.err('非法路径',403)
+            from core.output_registry import locate
+            name=urllib.parse.unquote(path[len('/outputs/'):])
+            p=locate(config.USER_HOME if config.WORKSPACE_ID=='owner' else config.DATA_DIR,config.OUTPUT_DIR,config.DATA_DIR/'outputs',name)
+            if p is None:return self.err('本地输出文件不存在',404)
             return self._stream_output(p)
         if path.startswith('/cache/'):
             rel=urllib.parse.unquote(path[len('/cache/'):]); p=(config.CACHE_DIR/rel).resolve()
@@ -736,16 +744,20 @@ class Handler(BaseHTTPRequestHandler):
             for table in ('assets','tasks','generation_versions','workflows','usage_events'):
                 r=db.one(f'SELECT COUNT(*) n FROM {table}');counts[table]=r['n'] if r else 0
             cfg=settings.get_all(); model=settings.effective_video_model(cfg); route=settings.route_info(cfg); create_path,query_path=settings.effective_video_paths(cfg); limits=settings.effective_limits(cfg)
-            return self.ok({'version':config.APP_VERSION,'build':config.APP_BUILD,'edition':config.APP_EDITION,'image_model':config.IMAGE_MODEL,'video_model':model,
+            from core import configuration_service
+            configuration=configuration_service.snapshot()
+            image_model=configuration_service.provider_preferences('image').get('model',config.IMAGE_MODEL)
+            api_configured=any(p.get('key_configured') and p['id']==configuration['defaults']['video'] for p in configuration['providers'])
+            return self.ok({'version':config.APP_VERSION,'build':config.APP_BUILD,'edition':config.APP_EDITION,'image_model':image_model,'video_model':model,
                             'video_base_model':route['base_model'],'video_route_control':route['control'],'video_route_control_label':route['control_label'],
                             'video_route_preference':route['preference'],'video_route_preference_label':route['preference_label'],
                             'video_route_provider_sort':route.get('provider_sort'),'video_endpoint_strategy':cfg.get('video_endpoint_strategy'),
                             'video_create_path':create_path,'video_query_path':query_path,
-                            'resolution':cfg.get('default_video_resolution',config.DEFAULT_RESOLUTION),'api_key_configured':bool(config.OPENLUX_API_KEY),'tunnel':tunnel.status(),'public_assets':public_assets.status(),'oss':oss.status(),
+                            'resolution':cfg.get('default_video_resolution',config.DEFAULT_RESOLUTION),'api_key_configured':api_configured,'tunnel':tunnel.status(),'public_assets':public_assets.status(),'oss':oss.status(),
                             'counts':counts,'dedupe_seconds':limits['dedupe_seconds'],'video_modes':modes.MODE_LABELS,
                             'max_concurrent_video_tasks':limits['max_concurrent_video_tasks'],'active_video_tasks':active_video_count(False),
                             'ffmpeg_available':bool(media.ffmpeg_path()),'media_shape':config.VIDEO_MEDIA_SHAPE,'settings':cfg,'hypit_engine':'native-v1',
-                            'root_dir':str(config.ROOT),'port':config.PORT})
+                            'root_dir':str(config.ROOT),'output_dir':str(config.OUTPUT_DIR),'runtime_path_error':getattr(config,'OUTPUT_DIRECTORY_ERROR',''),'port':config.PORT})
         if path=='/api/audio/subjects':return self.ok([{**x,'asset':asset_public(asset_row(x['asset_id']))} for x in audio_subjects.list_all() if not upload_lifecycle.removed('asset',x['asset_id'])])
         if path=='/api/assets':
             rows=db.all_('SELECT * FROM assets ORDER BY created_at DESC LIMIT 300'); return self.ok([asset_public(x) for x in upload_lifecycle.filter_rows(rows)])
@@ -793,6 +805,33 @@ class Handler(BaseHTTPRequestHandler):
             q=(qs.get('q') or [''])[0]; kind=(qs.get('kind') or [''])[0]
             return self.ok([asset_public(x) for x in upload_lifecycle.filter_rows(production_system.list_assets(q,kind))])
         if path=='/api/settings': return self.ok(settings.get_all())
+        if path=='/api/desktop/diagnostics':
+            self._hypit_guard()
+            from core.desktop_diagnostics import export_zip
+            return self._send(200,export_zip(),'application/zip',headers={
+                'Content-Disposition':'attachment; filename="SeedanceStudio_Diagnostics.zip"',
+                'Cache-Control':'no-store'})
+        if path=='/api/components/status':
+            self._hypit_guard()
+            from core.component_manager import service
+            result=service().status(verify=config.WORKSPACE_ID=='owner' and (qs.get('verify') or ['0'])[0]=='1')
+            result['can_manage']=config.WORKSPACE_ID=='owner'
+            if not result['can_manage']:
+                for row in result['components']:row.pop('install_path',None)
+            return self.ok(result)
+        if path=='/api/components/logs':
+            self._hypit_guard()
+            if config.WORKSPACE_ID!='owner':raise PermissionError('组件日志仅允许本机负责人查看')
+            from core.component_manager import service
+            return self.ok(service().logs())
+        if path in {'/api/updates/status','/api/updates/history'}:
+            self._hypit_guard()
+            from core.desktop_updates import service
+            return self.ok(service().status() if path.endswith('/status') else service().history())
+        if path in {'/api/configuration','/api/configuration/export'}:
+            self._hypit_guard()
+            from core import configuration_service
+            return self.ok(configuration_service.export_document() if path.endswith('/export') else configuration_service.snapshot())
         if path=='/api/models':
             route=settings.route_info()
             return self.ok({'base_model':route['base_model'],'effective':route['request_model'],
@@ -881,6 +920,12 @@ class Handler(BaseHTTPRequestHandler):
             self._workspace_guard()
             self._hypit_guard()
             route=urllib.parse.urlparse(self.path).path
+            if route.startswith(('/api/updates/','/api/components/')):
+                self._hypit_guard(write=True,content_types={'application/zip'} if route=='/api/components/import' else {'application/octet-stream'} if route=='/api/components/import-file' else None)
+            if route in {'/api/configuration','/api/configuration/import','/api/configuration/reauthorize','/api/settings','/api/settings/reset',
+                         '/api/openlux/account-credentials','/api/openlux/account-clear','/api/oss/config',
+                         '/api/oss/clear-credentials','/api/bright-tiktok/settings/save','/api/shutdown','/api/desktop/migrate'}:
+                self._hypit_guard(write=True)
             if route in team_safety.CHARGED:
                 self._hypit_guard()
                 self._cached_json=self.json_in()
@@ -893,16 +938,22 @@ class Handler(BaseHTTPRequestHandler):
                 upload_slot=storage_manager.upload_gate.acquire(False)
                 if not upload_slot:raise team_safety.Refused('当前空间正在上传或保存文件，请完成后再上传，避免内存和磁盘突增。')
                 storage_manager.require_capacity(int(self.headers.get('Content-Length','0') or 0))
-            self._post()
+            if route in team_safety.CHARGED or route.startswith('/api/updates/') or route=='/api/shutdown':
+                self._post()
+            else:
+                with team_safety.mutation_scope():self._post()
             if self._operation_id and not self._operation_finished:
                 # A streaming response has no reusable JSON body; preserve its receipt.
                 team_safety.finish(self._operation_id,200,None);self._operation_finished=True
         except (BrokenPipeError,ConnectionResetError):pass
-        except team_safety.Refused as e:self.err(e,409)
+        except (team_safety.Refused,ComponentBusy) as e:self.err(e,409)
         except PermissionError as e:self.err(e,403)
         except openlux.ApiError as e:
             log.exception('API error');self.err(str(e),502,provider_status=e.status,provider_body=(e.body or '')[:2000],retryable=False)
-        except ValueError as e:self.err(e,400)
+        except ValueError as e:
+            from core.configuration_service import ConfigurationConflict
+            from core.update_security import UpdateBlocked
+            self.err(e,409 if isinstance(e,(ConfigurationConflict,UpdateBlocked)) else 400)
         except Exception as e:log.exception('POST failed');self.err(e,500)
         finally:
             if self._operation_id and not self._operation_finished:team_safety.finish(self._operation_id,None,None)
@@ -910,6 +961,41 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post(self):
         path=urllib.parse.urlparse(self.path).path
+        if path.startswith('/api/components/'):
+            if config.WORKSPACE_ID!='owner':raise PermissionError('共享运行组件仅允许本机负责人管理，请联系工作台负责人')
+            from core.component_manager import service
+            if path in {'/api/components/import','/api/components/import-file'}:
+                if self.headers.get('Transfer-Encoding'):
+                    self.close_connection=True
+                    raise ValueError('离线组件上传必须提供明确的 Content-Length')
+                query=urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                previous=self.connection.gettimeout();self.connection.settimeout(20)
+                try:
+                    return self.ok(service().receive_import((query.get('id') or [''])[0],self.rfile,
+                        int(self.headers.get('Content-Length','0')),confirmed=self.headers.get('X-Component-Confirm')=='1',
+                        artifact=path=='/api/components/import-file'))
+                finally:self.connection.settimeout(previous)
+            request=self.json_in()
+            if not isinstance(request,dict):raise ValueError('JSON object required')
+            if path=='/api/components/download':return self.ok(service().begin(request.get('id'),confirmed=request.get('confirmed') is True))
+            if path=='/api/components/preferences':return self.ok(service().configure(request))
+            if path=='/api/components/need':return self.ok(service().need(request.get('id')))
+            if path=='/api/components/uninstall':return self.ok(service().uninstall(request.get('id'),confirmed=request.get('confirmed') is True))
+            if path=='/api/components/repair':return self.ok(service().repair(request.get('id'),confirmed=request.get('confirmed') is True))
+            if path=='/api/components/clear-cache':return self.ok(service().clear_cache(confirmed=request.get('confirmed') is True))
+            if path=='/api/components/check':return self.ok(service().check_updates(request.get('id')))
+            if path=='/api/components/update':return self.ok(service().install_update(request.get('id'),confirmed=request.get('confirmed') is True))
+            if path=='/api/components/rollback':return self.ok(service().rollback_update(request.get('id'),confirmed=request.get('confirmed') is True))
+            if path=='/api/components/cancel':return self.ok(service().cancel(request.get('id')))
+            return self.err('未知组件操作',404)
+        if path.startswith('/api/updates/'):
+            from core.desktop_updates import service,begin_install
+            request=self.json_in()
+            if path=='/api/updates/check':return self.ok(service().begin_check(request.get('channel','stable')))
+            if path=='/api/updates/download':return self.ok(service().begin_download(request.get('target_id')))
+            if path=='/api/updates/install':return self.ok(begin_install(request.get('target_id'),request.get('confirmed') is True))
+            if path=='/api/updates/cancel':return self.ok(service().cancel_prepared(request.get('transaction_id')))
+            return self.err('未知更新操作',404)
         if path.startswith('/api/video-evaluation/'):
             self._hypit_guard()
             if self.headers.get('Content-Type','').split(';')[0]!='application/json':raise PermissionError('JSON content type required')
@@ -1076,12 +1162,32 @@ class Handler(BaseHTTPRequestHandler):
             req=self.json_in(); aid=req.get('asset_id'); a=asset_row(aid)
             if not a or a.get('kind')!='video': return self.err('请选择一个视频素材',404)
             return self.ok(production_system.quality_check(Path(a['path'])))
+        if path=='/api/configuration/reauthorize':
+            from core import configuration_service
+            request=self.json_in()
+            if type(request.get('expected_revision')) is not int or not isinstance(request.get('new_values'),dict):
+                raise ValueError('请提供当前配置版本和重新授权内容')
+            restored=configuration_service.reauthorize_credentials(request.get('vault_kind'),request['new_values'],
+                confirmed=request.get('confirmed'),expected_revision=request['expected_revision'])
+            if request.get('vault_kind')=='legacy':
+                config.OPENLUX_API_KEY=secrets_store.get('openlux_api_key','')
+                config.CREDENTIAL_ERROR=''
+            cost_system.clear_cache()
+            return self.ok(restored)
+        if path in {'/api/configuration','/api/configuration/import'}:
+            from core import configuration_service
+            request=self.json_in()
+            if not isinstance(request.get('document'),dict) or type(request.get('expected_revision')) is not int:
+                raise ValueError('请提供配置文档及整数版本号，刷新设置后重试')
+            if path.endswith('/import'):
+                return self.ok(configuration_service.import_document(request['document'],expected_revision=request['expected_revision']))
+            return self.ok(configuration_service.update_document(request['document'],expected_revision=request['expected_revision'],secret_updates=request.get('secret_updates',{})))
         if path=='/api/settings':
             out=settings.update(self.json_in()); cost_system.clear_cache(); return self.ok(out)
         if path=='/api/settings/reset': return self.ok(settings.reset_defaults())
         if path=='/api/shutdown':
             if self.client_address[0] not in ('127.0.0.1','::1'):return self.err('只允许本机停止服务',403)
-            (config.ROOT/'.watchdog_stop').write_text('manual shutdown',encoding='ascii')
+            (config.USER_HOME/'.watchdog_stop').write_text('manual shutdown',encoding='ascii')
             self.ok(True); threading.Thread(target=self.server.shutdown,daemon=True).start(); return
         if path=='/api/open-output':
             # A tunnel-hosted page is not authorized to open local OS windows.
@@ -1176,6 +1282,8 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:pass
 
     def _image_generate(self):
+        from core.configuration_service import resolve_provider
+        selected_image=resolve_provider('image')
         req=self.json_in(); prompt=(req.get('prompt') or '').strip()
         if not prompt:return self.err('请输入图片提示词')
         cfg=settings.get_all(); parent=req.get('parent_version_id'); level=req.get('level') or 'normal'; ratio=req.get('ratio') or cfg.get('default_image_ratio','9:16'); quality=cfg.get('image_quality','auto')
@@ -1196,7 +1304,7 @@ class Handler(BaseHTTPRequestHandler):
             generate_mode='image2image'
         if ratio not in {'auto','1:1','4:5','3:4','9:16','16:9'}:return self.err('不支持的图片比例')
         size=openlux.resolve_image_size(ratio)
-        fp_obj={'kind':'image','prompt':prompt,'parent':parent,'source_asset_id':source_asset_id,'level':level,'ratio':ratio,'size':size,'quality':quality,'model':config.IMAGE_MODEL,'source_sha':source.get('sha256') if source else None,'mode':generate_mode}
+        fp_obj={'kind':'image','prompt':prompt,'parent':parent,'source_asset_id':source_asset_id,'level':level,'ratio':ratio,'size':size,'quality':quality,'model':selected_image.model,'provider_profile_id':selected_image.profile_id,'source_sha':source.get('sha256') if source else None,'mode':generate_mode}
         fp=fingerprint(fp_obj); running=db.task_recent_by_fp(fp,None)
         if running and running['status'] in ('pending','running','result_pending','submission_unknown'):
             return self.ok({'task':task_to_public(running),'reused':True,'reason':'同一图片任务仍在处理中，已复用原任务，未再次调用接口。'})
@@ -1216,7 +1324,7 @@ class Handler(BaseHTTPRequestHandler):
             resp=openlux.image_edit(actual_prompt,Path(source['path']),source['mime'],ratio,quality,idempotency_key=fp) if source else openlux.image_generate(actual_prompt,ratio,quality,idempotency_key=fp)
             db.task_update(tid,status='result_pending',response_json=resp)
             est=config.IMAGE_ESTIMATED_COST_USD or None
-            db.usage_add(tid,'image',config.IMAGE_MODEL,1,est,None,{'ratio':ratio,'size':size,'quality':quality,'deep':bool(parent),'image2image':bool(source_asset_id and not parent),'source_asset_id':source.get('id') if source else None})
+            db.usage_add(tid,'image',selected_image.model,1,est,None,{'provider_profile_id':selected_image.profile_id,'ratio':ratio,'size':size,'quality':quality,'deep':bool(parent),'image2image':bool(source_asset_id and not parent),'source_asset_id':source.get('id') if source else None})
             cost_system.clear_balance_cache()
             try:
                 saved=finalize_image_task(tid)
@@ -1841,39 +1949,60 @@ class Handler(BaseHTTPRequestHandler):
             raise
 
 
-def run(open_browser=False):
+def run(open_browser=False, *, stop_event=None, ready_callback=None):
     _boot_phase("准备绑定本地服务端口")
     server=ThreadingHTTPServer((config.HOST,config.PORT),Handler)
-    config.PID_PATH.write_text(str(os.getpid()),encoding='utf-8')
-    team_safety.recover()
-    storage_manager.reconcile_moves()
-    _boot_phase("端口已绑定，正在初始化热点及商品数据表")
-    url=f'http://{config.HOST}:{config.PORT}'
-    log.info('Seedance Studio %s started at %s model=%s',config.APP_VERSION,url,settings.effective_video_model())
-    hot_radar.ensure_schema()
-    hot_radar.record_startup()
-    product_memory.ensure_schema()
-    ai_assistant.schema()
-    bright_tiktok.schema()
-    viral_review.schema()
-    creative_production.ensure_schema()
-    _boot_phase("数据库初始化完成，正在恢复历史任务状态")
-    task_observability.recover_interrupted_on_start()
-    hypit_service.recover()
-    # Hotspot collection is manually triggered only; there is no radar scheduler thread.
-    _task_poller_stop.clear()
-    poller=threading.Thread(target=_background_task_poller,args=(_task_poller_stop,),name='video-task-poller',daemon=True)
-    poller.start()
-    threading.Thread(target=storage_manager.worker,args=(_task_poller_stop,),name="storage-maintenance",daemon=True).start()
-    if open_browser: threading.Timer(0.8,lambda:webbrowser.open(url)).start()
-    _boot_phase("服务已就绪，等待浏览器连接")
-    try:server.serve_forever()
+    poller=None
+    try:
+        config.PORT=server.server_address[1]
+        config.PID_PATH.write_text(str(os.getpid()),encoding='utf-8')
+        team_safety.recover()
+        storage_manager.reconcile_moves()
+        _boot_phase("端口已绑定，正在初始化热点及商品数据表")
+        url=f'http://{config.HOST}:{config.PORT}'
+        log.info('Seedance Studio %s started at %s model=%s',config.APP_VERSION,url,settings.effective_video_model())
+        hot_radar.ensure_schema()
+        hot_radar.record_startup()
+        product_memory.ensure_schema()
+        ai_assistant.schema()
+        bright_tiktok.schema()
+        viral_review.schema()
+        creative_production.ensure_schema()
+        _boot_phase("数据库初始化完成，正在恢复历史任务状态")
+        task_observability.recover_interrupted_on_start()
+        hypit_service.recover()
+        # Hotspot collection remains manually triggered.
+        _task_poller_stop.clear()
+        poller=threading.Thread(target=_background_task_poller,args=(_task_poller_stop,),name='video-task-poller',daemon=True)
+        poller.start()
+        threading.Thread(target=storage_manager.worker,args=(_task_poller_stop,),name="storage-maintenance",daemon=True).start()
+        if open_browser: threading.Timer(0.8,lambda:webbrowser.open(url)).start()
+        _boot_phase("服务已就绪，等待浏览器连接")
+        if ready_callback:ready_callback(url)
+        if os.environ.get('STUDIO_DESKTOP')=='1':
+            from core.desktop_updates import service as update_service
+            update_service().start_checks(_task_poller_stop)
+            try:
+                from core.component_manager import service as component_service
+                component_service().start_initial(_task_poller_stop)
+            except Exception:log.exception('Background component manager unavailable; core service remains ready')
+        if stop_event is not None:
+            def watch_stop():
+                stop_event.wait()
+                server.shutdown()
+            threading.Thread(target=watch_stop,name='desktop-stop',daemon=True).start()
+        server.serve_forever()
     finally:
+        server.server_close()
         _task_poller_stop.set()
-        hypit_service.close_studio()
-        try:poller.join(timeout=2)
+        try:hypit_service.close_studio()
+        except Exception:log.exception('Hypit cleanup failed')
+        try:
+            if poller:poller.join(timeout=2)
         except Exception:pass
-        try:config.PID_PATH.unlink(missing_ok=True)
+        try:
+            if config.PID_PATH.read_text(encoding='utf8').strip()==str(os.getpid()):
+                config.PID_PATH.unlink(missing_ok=True)
         except Exception:pass
         try:tunnel.stop()
         except Exception:pass

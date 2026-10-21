@@ -40,6 +40,10 @@ ROUTE_PREFERENCES = {
 }
 
 DEFAULTS = {
+    'output_directory': '',
+    'ffmpeg_path': '',
+    'ffprobe_path': '',
+    'chromium_path': '',
     'video_base_model': config.VIDEO_MODEL,
     # Default uses OpenLux's recommended highest-priority mechanism and prioritizes success rate.
     'video_route_control': 'model_suffix',
@@ -61,6 +65,7 @@ DEFAULTS = {
     'max_concurrent_video_tasks': config.MAX_CONCURRENT_VIDEO_TASKS,
     'http_timeout': config.HTTP_TIMEOUT,
     'query_retries': config.QUERY_RETRIES,
+    'poll_interval': config.POLL_INTERVAL,
 
     'replica_inherit_duration': True,
     'replica_inherit_ratio': True,
@@ -131,6 +136,7 @@ INT_RANGES = {
     'max_concurrent_video_tasks': (1, 10),
     'http_timeout': (30, 300),
     'query_retries': (0, 5),
+    'poll_interval': (2, 120),
     'cost_fx_refresh_minutes': (5, 1440),
 }
 
@@ -168,7 +174,8 @@ def _legacy_route_migration(out: dict, rows: list[dict]) -> dict:
 
 
 def get_all() -> dict:
-    profile_store.ensure_bootstrap(config.ROOT)
+    try: profile_store.ensure_bootstrap(config.ROOT)
+    except (OSError, ValueError, UnicodeError): pass
     out = dict(DEFAULTS)
     rows = db.all_('SELECT key,value_json FROM user_settings')
     raw_keys={r['key'] for r in rows}
@@ -180,6 +187,12 @@ def get_all() -> dict:
         if r['key'] in out:
             out[r['key']] = db.loads(r['value_json'], out[r['key']])
     out = _legacy_route_migration(out, rows)
+    from . import configuration_service
+    out.update(configuration_service.runtime_overrides())
+    try:
+        selected=configuration_service.provider_preferences('video')
+        if selected: out['video_base_model']=selected['model']
+    except ValueError: pass
     if int(out.get('dedupe_seconds') or 0)<30: out['dedupe_seconds']=30  # V4.2.8 minimum retry guard
     legacy_public = str(out.get('public_asset_strategy') or '')
     if legacy_public in ('auto','r2_auto','r2_only'):
@@ -197,6 +210,16 @@ def get(key, default=None):
 def _validate(key, value):
     if key not in DEFAULTS:
         raise ValueError(f'不支持的设置项：{key}')
+    if key in {'output_directory', 'ffmpeg_path', 'ffprobe_path', 'chromium_path'}:
+        from pathlib import Path, PureWindowsPath
+        value = str(value or '').strip()
+        if not value: return ''
+        if (not (Path(value).is_absolute() or PureWindowsPath(value).is_absolute())
+            or value.startswith(('\\\\', '//')) or '\x00' in value):
+            raise ValueError('运行组件和输出目录必须使用绝对本地路径，不允许网络共享或相对路径')
+        if key != 'output_directory' and PureWindowsPath(value).suffix.lower() != '.exe':
+            raise ValueError('Windows 本地组件路径必须指向 .exe 文件')
+        return value
     if key in BOOL_KEYS:
         if isinstance(value, str):
             value = value.lower() in ('1', 'true', 'yes', 'on')
@@ -229,9 +252,8 @@ def _validate(key, value):
         value = str(value or '').strip()
         if not value:
             raise ValueError(f'{key} 不能为空')
-        if not (value.startswith('/') or value.startswith('http://') or value.startswith('https://')):
-            raise ValueError('接口路径必须以 /、http:// 或 https:// 开头')
-        return value
+        from .configuration_service import validate_path
+        return validate_path(value)
     if key in {'oss_endpoint','oss_bucket','oss_object_prefix'}:
         value = str(value or '').strip()
         if key == 'oss_object_prefix':
@@ -252,12 +274,12 @@ def _validate(key, value):
 
 
 def update(values: dict) -> dict:
+    from . import configuration_service
+    validated={k:_validate(k,v) for k,v in (values or {}).items() if k in DEFAULTS}
+    configuration_service.merge_legacy_settings(validated)
     now = db.now()
     shared_updates={}
-    for k, v in (values or {}).items():
-        if k not in DEFAULTS:
-            continue
-        val = _validate(k, v)
+    for k, val in validated.items():
         db.execute(
             '''INSERT INTO user_settings(key,value_json,updated_at) VALUES(?,?,?)
                ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json,updated_at=excluded.updated_at''',
@@ -271,6 +293,8 @@ def update(values: dict) -> dict:
 
 
 def reset_defaults() -> dict:
+    from . import configuration_service
+    configuration_service.merge_legacy_settings({k:v for k,v in DEFAULTS.items() if k not in profile_store.OSS_PROFILE_KEYS})
     # Restore model/UI defaults without deleting the user's persistent OSS profile.
     # OSS is infrastructure, not a disposable UI preference.
     for k in DEFAULTS:
@@ -333,6 +357,10 @@ def effective_video_provider(cfg: dict | None = None) -> dict | None:
 
 def effective_video_paths(cfg: dict | None = None) -> tuple[str, str]:
     cfg = cfg or get_all()
+    from . import configuration_service
+    selected=configuration_service.provider_preferences('video')
+    if selected:
+        return selected['paths']['video'],selected['paths']['video_query']
     if cfg.get('video_endpoint_strategy') == 'custom':
         return (
             str(cfg.get('custom_video_create_path') or config.VIDEO_CREATE_PATH),

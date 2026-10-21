@@ -1,0 +1,80 @@
+SEEDANCE STUDIO / HYPIT × OPENLUX ENGINEERING VERIFICATION
+Date: 2026-10-16
+Nature: offline baseline characterization and official-document protocol review; NOT a release.
+
+BASELINES
+* V5.0.0 Full(3): baseline archive present; core/openlux.py inspected.
+* V5.1.1 CumulativePatch: code reference only; Hypit Agent/Provider integration NOT qualified.
+* Hypit official source: v0.3.1, version-pinned raw documentation and provider-videos example.
+
+VALIDATED PUBLIC CONTRACTS
+1. Hypit @hypit/hypit/endpoint supports Provider lifecycle start/poll/collect,
+   capability-specific supports checks and task checkpoint/receipts; see official v0.3.1 example.
+2. Hypit @hypit/seedance has Seedance 2.5 model definition; not necessary to reinvent
+   a basic Seedance 2.5 model. Official ReferenceVideo supports source video editing
+   with duration=-1 and aspect-ratio=adaptive. The OpenLux Provider still has to
+   implement this exact contract and refuse unsupported combinations.
+3. OpenLux docs list GET /v1/models and POST /v1/chat/completions including tools/tool_choice;
+   model catalogue lists gemini-3.8-flash and claude-sonnet-4-6 with tool/vision tags.
+   Account access, actual model behavior and spending have NOT been tested.
+4. OpenLux Omni-Flash docs show /v1/video/create and GET /v1/video/query; these
+   endpoints MUST NOT be substituted for Seedance 2.5 without explicit service evidence.
+5. Current V5.0.0 video client targets POST /api/v3/contents/generations/tasks;
+   the exact Seedance 2.5 create/poll contract remains unverified from OpenLux primary docs.
+
+OFFLINE TESTS (NO NETWORK, NO BILLABLE CALLS)
+File: hypit_integration_audit/test_openlux_contract.py
+Command: PYTHONWARNINGS=ignore::ResourceWarning python test_openlux_contract.py
+Result: 7 tests executed successfully (offline characterization only).
+IMPORTANT: Some tests deliberately assert known unsafe behavior so that it remains
+reproducible. '7 passed' is NOT a statement that production behavior passed.
+
+REPRODUCED UNSAFE CURRENT BEHAVIORS IN V5.0.0
+GAP-01  Client video_create(edit) can construct/submit a POST even without a
+        reference video. Caller validation alone is not a Provider safety boundary.
+GAP-02  Unrecognized media kind with a remote URL is silently dropped from the
+        request while the POST still proceeds; must fail closed BEFORE paid submission.
+GAP-03  extract_status maps unknown status/error-only bodies to 'running', risking
+        indefinite incorrect task state. Must use UNKNOWN/ERROR with receipt and
+        reconciliation, not silently mark running.
+
+CONFIRMED POSITIVE OBSERVATIONS
+* Without an API key request_json refuses the call before networking (mock verified).
+* Paid create retries configured to 0 in the V5.0.0 client.
+* Edit payload can serialize reference video role, adaptive ratio, duration=-1 and
+  omni_reference_task_type=edit. This is only local serialization, NOT upstream acceptance.
+* Unknown task response does not fabricate a provider task ID.
+
+BLOCKERS BEFORE SHIPPING DEEP INTEGRATION
+A. Validate chosen OpenLux models in actual user's account (GET /v1/models), then
+   function calling in a bounded low-spend explicitly approved test (not yet done).
+B. Pin exact OpenLux Seedance 2.5 reference/edit/extend request schemas, poll states,
+   result shape, uploads, idempotency behavior, error codes and billing limits.
+C. Implement real Hypit Provider (capability supports/start/poll/collect/receipts),
+   running inside Runtime. Provide Agent with actual official Skill and restricted
+   project tool execution. Do NOT claim 'Hypit integrated' just because CLI runs.
+D. Ensure mode mismatches, unsupported inputs, unknown cost/status and uncertain
+   submissions STOP paid requests or halt with manual reconciliation.
+E. Compile Provider against installed v0.3.1 SDK and test with official fixture,
+   then Windows end-to-end Hypit build with existing local MP4 at $0 video cost.
+F. Require full integration regression, backup, version migration and rollback before
+   publishing any cumulative patch.
+
+RED-TEAM FINDINGS (NOT YET FIXED IN PRODUCTION)
+1. Edited video missing: no low-level media requirement -> possible paid failure.
+2. Unrecognized kind: silent omission -> possible irrelevant paid output.
+3. Unexpected provider status: normalized as running -> false liveness.
+4. Network interruption after submit: do not assume Idempotency-Key support by gateway
+   without official OpenLux contract; do not re-submit ambiguously accepted requests.
+
+OFFICIAL REFERENCES
+https://raw.githubusercontent.com/hypit-ai/hypit/v0.3.1/docs/guide/providers.md
+https://raw.githubusercontent.com/hypit-ai/hypit/v0.3.1/packages/endpoint/README.md
+https://raw.githubusercontent.com/hypit-ai/hypit/v0.3.1/examples/provider-package/packages/provider-videos/src/provider.ts
+https://raw.githubusercontent.com/hypit-ai/hypit/v0.3.1/packages/provider-hypihub/README.md
+https://raw.githubusercontent.com/hypit-ai/hypit/v0.3.1/packages/seedance/README.md
+https://doc.openlux.ai/
+https://www.openlux.ai/pricing?tab=text
+
+NEXT STEP
+Do NOT release V5.1.2 or run paid video generation until A-E have concrete passing evidence.

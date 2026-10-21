@@ -30,7 +30,8 @@ def test_main_runs_every_phase_and_partial_is_explicit():
     def record(k, v=None):
         calls.append(k)
         return v
-    with patch.object(install, 'prepare_venv', side_effect=lambda:record('venv','ok')), \
+    with patch.object(install, 'host_supported', return_value=True), \
+         patch.object(install, 'prepare_venv', side_effect=lambda:record('venv','ok')), \
          patch.object(install, 'ensure_requirements', side_effect=lambda:record('core')), \
          patch.object(install, 'run', side_effect=lambda cmd:record('timezone',0)), \
          patch.object(install_analysis_stack, 'studio_is_running', return_value=False), \
@@ -49,7 +50,8 @@ def test_main_runs_every_phase_and_partial_is_explicit():
 
 
 def test_missing_required_is_failure():
-    with patch.object(install, 'prepare_venv', return_value='ok'), \
+    with patch.object(install, 'host_supported', return_value=True), \
+         patch.object(install, 'prepare_venv', return_value='ok'), \
          patch.object(install, 'ensure_requirements'), \
          patch.object(install, 'run', return_value=0), \
          patch.object(install_analysis_stack, 'studio_is_running', return_value=False), \
@@ -64,7 +66,8 @@ def test_missing_required_is_failure():
 
 
 def test_running_studio_blocks_install():
-    with patch.object(install, 'prepare_venv', return_value='ok'), \
+    with patch.object(install, 'host_supported', return_value=True), \
+         patch.object(install, 'prepare_venv', return_value='ok'), \
          patch.object(install, 'ensure_requirements'), \
          patch.object(install, 'run', return_value=0), \
          patch.object(install_analysis_stack, 'studio_is_running', return_value=True), \

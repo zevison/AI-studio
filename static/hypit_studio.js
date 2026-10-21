@@ -133,8 +133,13 @@
     // Hide it on this page; the project cards show their own token/build costs.
     document.getElementById('costHud').classList.toggle('hidden', el('page-hypit').classList.contains('active'));
     const health = await api('/api/hypit/health');
-    el('hypitHealth').textContent = health.local_build && health.skill_installed ?
-      '✓ 制作环境已就绪' : '制作环境不完整，请重新运行 01_INSTALL.cmd 安装程序';
+    if(health.missing_components?.includes('browser')) {
+      await api('/api/components/need',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'browser'})});
+      const install=document.createElement('button');install.type='button';install.textContent='安装运行组件';
+      install.onclick=()=>window.SeedanceComponents?.open();
+      el('hypitHealth').replaceChildren(document.createTextNode('首次使用此功能，需要安装视频合成浏览器。'),install);
+    } else el('hypitHealth').textContent = health.local_build && health.skill_installed ?
+      '✓ 制作环境已就绪' : '制作环境尚未就绪，请在设置中查看插件状态及诊断信息。';
     const rows = await api('/api/assets');
     const chosen=new Set([...el('hypitAssets').querySelectorAll('input:checked')].map(x=>x.value));
     el('hypitAssets').replaceChildren();

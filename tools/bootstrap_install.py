@@ -363,11 +363,16 @@ def prepare_cloudflared():
         print('[WARN] cloudflared 下载未完成，OSS 主通道不受影响：',exc)
 
 
+def host_supported():
+    """Compatibility lane for the legacy script installer, not the EXE host."""
+    return sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8
+
+
 def main() -> int:
     print('='*70)
     print(f'Seedance Studio V{APP_VERSION} | 时区自检 + 跨版本复用')
     print('='*70)
-    if sys.version_info[:2] != (3,12) or struct.calcsize('P') != 8:
+    if not host_supported():
         print('[ERROR] 完整安装包需要 Python 3.12 x64。请使用 01_INSTALL.cmd 自动选择或安装匹配版本。')
         return 2
     if os.name != 'nt':

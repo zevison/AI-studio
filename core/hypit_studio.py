@@ -31,6 +31,12 @@ from .hypit_video_quote import quote_video
 from .hypit_runtime_backend import RuntimeBackend, SubmissionBudget
 from .hypit_output_policy import enforce_audio
 from .hypit_reference_quote import prepare_reference_quote
+
+
+def _backend_vault():
+    """Official workflows share the configured official account, never a custom host key."""
+    from .configuration_service import resolve_official_credentials
+    return resolve_official_credentials()
 from .hypit_reference_upload import upload_reference
 
 ACTIVE = {'authoring', 'validating', 'building', 'exporting'}
@@ -52,6 +58,7 @@ class HypitStudio:
         self.root = Path(root or config.DATA_DIR / 'hypit_projects')
         self.node = Path(node or config.ROOT / 'tools/node/node.exe')
         self.sdk = Path(sdk or sdk_path)
+        self.managed_sdk=sdk is None
         self.browser_cache = browser_path
         self.cli = self.sdk / 'node_modules/@hypit/hypit/bin/hypit.mjs'
         self.quote_reader = quote_reader or token_quote
@@ -114,9 +121,19 @@ class HypitStudio:
         return self.get(pid)
 
     def health(self):
+        sdk_error=None
+        try:self._prepare_sdk()
+        except (OSError,ValueError,RuntimeError) as exc:sdk_error=str(exc)
         available = self.node.is_file() and self.cli.is_file() and (self.sdk / 'dist/src/activation.js').is_file()
+        if sdk_error:available=False
+        from .component_manager import resolve
+        missing=[]
+        try:resolve('browser',root=config.ROOT,home=config.USER_HOME)
+        except (OSError,ValueError,PermissionError):available=False;missing.append('browser')
         return {'available': available, 'sdk_version': '0.3.1', 'skill_installed':
                 (self.sdk / 'vendor/hypit-skill-v0.3.1/SKILL.md').is_file(),
+                'missing_components':missing,
+                'sdk_error':sdk_error,
                 'local_build': available and bool(media.ffmpeg_path()) and bool(media.ffprobe_path()),
                 'chat_model': 'gpt-6-luna', 'video_protocol_verified': True,
                 'video_generation_enabled': available,
@@ -207,8 +224,9 @@ class HypitStudio:
                            'config': {'ffmpegPath': media.ffmpeg_path(), 'ffprobePath': media.ffprobe_path()}}}}
             runtime['endpoints']['html.local'] = {'use':'@hypit/provider-html-local', 'pool':'LOCAL-HTML',
                 'config': {'workers':1,'maxWorkers':1,'browserCapacity':1,'defaultConcurrency':1,
-                    'browserVersion':'152.0.7928.2','browserCacheDirectory':str(self.browser_cache),
                     'ffmpegPath':media.ffmpeg_path(),'ffprobePath':media.ffprobe_path()}}
+            from .hypit_installation import browser_configuration
+            runtime['endpoints']['html.local']['config'].update(browser_configuration(self.browser_cache))
             if not runtime['endpoints']['media.local']['config']['ffmpegPath'] or not media.ffprobe_path():
                 raise ValueError('请先运行安装程序，补齐 FFmpeg/FFprobe')
             (folder / 'package.json').write_text(db.dumps({'name': pid.replace('_', '-'), 'private': True,
@@ -231,7 +249,59 @@ class HypitStudio:
             shutil.rmtree(folder)
             raise
 
+    def _runtime_busy(self, row):
+        """An interrupted UI state never clears a durable paid reservation."""
+        metadata = row['metadata']
+        if (row['status'] in ACTIVE | {'submission_unknown', 'paid_result_unknown', 'unknown'}
+                or (metadata.get('remote_video_task') or {}).get('phase') in
+                {'pending', 'submitted', 'submission_unknown'}):
+            return True
+        operation = metadata.get('video_operation') or {}
+        task_id = operation.get('task_id') or row.get('task_id')
+        if task_id:
+            task = db.one('SELECT status FROM tasks WHERE id=?', (task_id,))
+            if task and task['status'] in {'pending', 'running', 'result_pending', 'submission_unknown'}:
+                return True
+        checks = []
+        if operation:
+            quote = operation.get('quote') or {}
+            checks.append((config.DATA_DIR/'hypit_video_operations'/row['id']/'video-gateway.db',
+                'SELECT phase FROM submissions WHERE fingerprint=? AND account=?',
+                (quote.get('request_hash'), quote.get('account')),
+                {'pending', 'submitted', 'submission_unknown'}, True))
+        if metadata.get('token_ledger'):
+            ledger = Path(metadata['token_ledger'])
+            if not ledger.resolve().is_relative_to(config.DATA_DIR.resolve()):
+                return True
+            checks.append((ledger, 'SELECT state FROM token_calls', (),
+                {'calling', 'submission_unknown', 'usage_unverified', 'over_budget'}, False))
+        for path, query, arguments, uncertain, required in checks:
+            try:
+                if (not path.resolve().is_relative_to(config.DATA_DIR.resolve()) or any(
+                    item.is_symlink() or getattr(item,'is_junction',lambda:False)() for item in (path,*path.parents))):
+                    return True
+                with sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True, timeout=3) as connection:
+                    states = connection.execute(query, arguments).fetchall()
+                if (required and not states) or any(state[0] in uncertain for state in states):
+                    return True
+            except (OSError, sqlite3.Error, ValueError):
+                return True
+        return False
+
+    def ensure_runtime(self, pid):
+        from .hypit_installation import browser_configuration
+        from .hypit_runtime_relocation import relocate_runtime
+        with self.lock:
+            row = self.get(pid)
+            browser = browser_configuration(self.browser_cache)
+            return relocate_runtime(self.path(pid), ffmpeg=media.ffmpeg_path(),
+                ffprobe=media.ffprobe_path(), browser_version=browser.get('browserVersion'),
+                browser_cache=browser.get('browserCacheDirectory'), chrome_path=browser.get('chromePath'),
+                busy=self._runtime_busy(row))
+
     def tools(self, pid):
+        self._prepare_sdk()
+        self.ensure_runtime(pid)
         folder = self.path(pid)
         profile = json.loads((folder / 'hypit.runtime.json').read_text(encoding='utf8'))
         endpoints = profile.get('endpoints')
@@ -244,6 +314,12 @@ class HypitStudio:
         return ProjectTools(folder, self.sdk / 'vendor/hypit-skill-v0.3.1', self.cli,
                             node_executable=self.node, runtime_profile=folder / 'hypit.runtime.json', package_root=self.sdk,
                             validate_writes=True, source_preflight=lambda:self.generation_source_preflight(pid))
+
+    def _prepare_sdk(self):
+        if getattr(self,'managed_sdk',False):
+            from .hypit_installation import ensure_sdk,runtime_paths
+            ensure_sdk()
+            self.browser_cache=runtime_paths()[1]
 
     def generation_source_preflight(self,pid):
         row=self.get(pid);folder=self.path(pid)
@@ -260,9 +336,10 @@ class HypitStudio:
         return {'ok':True,'generation':True,'paid_calls':0}
 
     def quote(self):
-        return self.quote_reader(profile_store.read_secrets())
+        return self.quote_reader(_backend_vault())
 
     def provider_digest(self):
+        self._prepare_sdk()
         files=[self.node,self.cli,self.sdk/'package-lock.json',self.sdk/'package.json']
         files+=sorted((self.sdk/'dist/src').glob('*.js'))
         files+=sorted((self.sdk/'node_modules/@seedance-studio/openlux-provider/dist/src').glob('*.js'))
@@ -282,6 +359,7 @@ class HypitStudio:
     def video_quote(self, pid, request=None):
         row=self.get(pid)
         if row['status'] in ACTIVE:raise PermissionError('Project is busy')
+        self.ensure_runtime(pid)
         folder=self.path(pid)
         before=source_digest(folder)
         checked=self.tools(pid).call('validate',{'command':'check','source':'main.svml'})
@@ -323,10 +401,10 @@ class HypitStudio:
                 and request.get('confirm_no_real_person_faces') is not True):
                 raise PermissionError('Confirm selected reference images/videos contain no real-person faces; direct portrait upload is not supported by this model route')
             from . import media_preflight
-            payload,quote,reference_manifest=prepare_reference_quote(folder,row['metadata']['inventory'],profile_store.read_secrets(),
+            payload,quote,reference_manifest=prepare_reference_quote(folder,row['metadata']['inventory'],_backend_vault(),
                 task_type=task_type,limit_usd='3.00',
                 upload=upload_reference,normalize=media_preflight.prepare_specs,probe=media.probe)
-        else:quote=quote_video(profile_store.read_secrets(),payload,width=dimensions[0],height=dimensions[1])
+        else:quote=quote_video(_backend_vault(),payload,width=dimensions[0],height=dimensions[1])
         if source_digest(folder)!=before:raise PermissionError('Project changed while quoting')
         quote.update({'quote_id':uuid.uuid4().hex,'source_hash':before,'project_id':pid,
                       'provider_hash':self.provider_digest(),'generation_identity':intent})
@@ -351,6 +429,9 @@ class HypitStudio:
 
     def build_paid(self,pid,request):
         recovering=request.get('recover') is True
+        if not recovering:
+            from .component_manager import resolve
+            resolve('browser',root=config.ROOT,home=config.USER_HOME)
         if not recovering:self._creative_guard(pid)
         if request.get('approve_video_charges') is not True:
             raise PermissionError('Explicit video spending consent required')
@@ -381,7 +462,7 @@ class HypitStudio:
             inputs=json.loads(private.read_text(encoding='utf8'))
             payload,reference_manifest=inputs['payload'],inputs['references']
         else:payload,_=exact_text_request(folder)
-        vault=profile_store.read_secrets()
+        vault=_backend_vault()
         def playable(path):
             result=media.probe(Path(path))
             duration=float(result.get('duration') or 0)
@@ -458,7 +539,7 @@ class HypitStudio:
                     finally:
                         local['endpoints']['openlux.local']['config']={'account':quote['account']}
                         runtime.write_text(json.dumps(local),encoding='utf8')
-        return self._spawn(pid,tid,perform)
+        return self._spawn(pid,tid,perform,needs_browser=not recovering)
 
     def _acknowledge_generation(self,tid,remote,payload,quote):
         # Fee exposure exists as soon as the supplier acknowledges, even if a
@@ -525,10 +606,16 @@ class HypitStudio:
             c.execute("UPDATE tasks SET status='running',provider_task_id=?,error=NULL,updated_at=? WHERE id=?",(remote,time.time(),task['id']))
             return task['id']
 
-    def _spawn(self, pid, tid, function):
+    def _spawn(self, pid, tid, function,*,needs_browser=True):
         def worker():
             try:
-                function()
+                from .component_manager import using
+                from contextlib import nullcontext
+                with using('browser',root=config.ROOT,home=config.USER_HOME) if needs_browser else nullcontext():
+                    if needs_browser and getattr(self,'managed_sdk',False):
+                        from .hypit_installation import runtime_paths
+                        self.browser_cache=runtime_paths()[1]
+                    function()
             except Exception as exc:
                 # Do not serialize provider bodies, signed links or keys.
                 problem = type(exc).__name__ + ': ' + str(exc)[:800]
@@ -588,7 +675,7 @@ class HypitStudio:
             if uncertain:
                 raise PermissionError('Prior token submission is uncertain; cannot replace its grant')
         quote = self.quote() if grant_override is None else None
-        vault = profile_store.read_secrets()
+        vault = _backend_vault()
         grant = grant_override or TokenGrant(quote['account'], quote['model'], quote['input_usd_per_million'],
             quote['output_usd_per_million'], str(budget), calls, 2048, time.time() + 1800, True, True)
         ledger = config.DATA_DIR / 'hypit_token_grants' / (uuid.uuid4().hex + '.sqlite')
@@ -730,7 +817,9 @@ class HypitStudio:
             exported_ok=False
             if result['ok'] and row['status']=='completed' and previous.get('source_hash')==before and exported:
                 try:
-                    exported_ok=(exported.resolve().is_relative_to(config.OUTPUT_DIR.resolve())
+                    from .output_registry import roots
+                    output_roots=roots(config.USER_HOME if config.WORKSPACE_ID=='owner' else config.DATA_DIR,config.OUTPUT_DIR,config.DATA_DIR/'outputs')
+                    exported_ok=(any(exported.resolve().is_relative_to(root) for root in output_roots)
                         and exported.is_file() and _digest(exported)==artifact.get('sha256'))
                 except OSError:pass
             if exported_ok:
@@ -739,6 +828,7 @@ class HypitStudio:
         return result
 
     def _cli(self, pid, *arguments, timeout=240):
+        self._prepare_sdk()
         host = ['--package-root',str(self.sdk)] if arguments and arguments[0] in {'check','plan','build','pricing'} else []
         environment={k:v for k,v in os.environ.items()
             if not any(word in k.upper() for word in ('KEY','TOKEN','PASSWORD','SECRET'))}

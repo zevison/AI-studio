@@ -21,10 +21,12 @@ def database():
     finally:c.close()
 
 def no_links(path):
-    base=config.DATA_DIR.resolve()
+    roots=[config.DATA_DIR.resolve(),getattr(config,'OUTPUT_DIR',config.DATA_DIR/'outputs').resolve()]
     # Inspect the lexical path before resolve; resolve alone would hide junctions.
     path=Path(path).absolute()
-    if not path.is_relative_to(base):raise PermissionError('文件不在当前用户空间内')
+    candidates=[base for base in roots if path.is_relative_to(base)]
+    if not candidates:raise PermissionError('文件不在当前用户空间内')
+    base=max(candidates,key=lambda p:len(p.parts))
     for p in (path,*path.parents):
         if p==base.parent:break
         if p.is_symlink() or (hasattr(p,'is_junction') and p.is_junction()):raise PermissionError('不处理链接或目录联接')
@@ -35,7 +37,8 @@ def media_path(relative,exists=True):
     if not isinstance(relative,str) or len(relative)>800 or '\\' in relative:raise ValueError('无效文件路径')
     rel=Path(relative)
     if rel.is_absolute() or not rel.parts or rel.parts[0] not in MEDIA or any(p in ('.','..') or ':' in p for p in rel.parts):raise PermissionError('只能管理当前空间的素材和成片')
-    p=no_links(config.DATA_DIR/rel)
+    base=getattr(config,'OUTPUT_DIR',config.DATA_DIR/'outputs') if rel.parts[0]=='outputs' else config.DATA_DIR/rel.parts[0]
+    p=no_links(base.joinpath(*rel.parts[1:]))
     if exists and (not p.is_file() or p.stat().st_nlink>1):raise ValueError('文件不存在或有多个硬链接')
     return p
 
@@ -64,7 +67,11 @@ def usage(force=False):
             rel=p.relative_to(config.DATA_DIR);cat=rel.parts[0]
             # The administrator's old data directory contains separate user spaces.
             if cat=='workspaces':continue
+            if p.is_relative_to(getattr(config,'OUTPUT_DIR',config.DATA_DIR/'outputs')):cat='outputs'
             totals[cat if cat in totals else 'other']+=s.st_size
+        output=getattr(config,'OUTPUT_DIR',config.DATA_DIR/'outputs')
+        if not output.is_relative_to(config.DATA_DIR):
+            totals['outputs']+=sum(s.st_size for _,s in walk_files(output))
         _usage_cache=(time.monotonic(),totals);return dict(totals)
 
 def invalidate():
@@ -72,7 +79,7 @@ def invalidate():
     _usage_cache=(0,None)
 
 def require_capacity(incoming=0):
-    incoming=max(0,int(incoming));u=usage();free=shutil.disk_usage(config.DATA_DIR).free
+    incoming=max(0,int(incoming));u=usage();free=min(shutil.disk_usage(config.DATA_DIR).free,shutil.disk_usage(getattr(config,'OUTPUT_DIR',config.DATA_DIR/'outputs')).free)
     reserve=int(os.getenv('STUDIO_DISK_RESERVE_GB','5'))*GIB
     quota=int(os.getenv('STUDIO_WORKSPACE_QUOTA_GB','20'))*GIB
     if free-incoming<reserve:raise ValueError('主机剩余空间不足：已暂停新增上传和生成，请先清理文件。')
@@ -92,9 +99,10 @@ def status():
 def files(category='outputs',page=0):
     if category not in MEDIA:raise ValueError('无效目录')
     page=max(0,min(int(page),10000));rows=[]
-    for p,s in walk_files(config.DATA_DIR/category):
-        rows.append({'path':p.relative_to(config.DATA_DIR).as_posix(),'name':p.name,'bytes':s.st_size,'modified':s.st_mtime,
-            'url':('/outputs/' if category=='outputs' else '/public/assets/')+__import__('urllib.parse',fromlist=['quote']).quote(p.name) if category!='product_knowledge' and p.parent==config.DATA_DIR/category else None})
+    base=getattr(config,'OUTPUT_DIR',config.DATA_DIR/'outputs') if category=='outputs' else config.DATA_DIR/category
+    for p,s in walk_files(base):
+        rows.append({'path':category+'/'+p.relative_to(base).as_posix(),'name':p.name,'bytes':s.st_size,'modified':s.st_mtime,
+            'url':('/outputs/' if category=='outputs' else '/public/assets/')+__import__('urllib.parse',fromlist=['quote']).quote(p.name) if category!='product_knowledge' and p.parent==base else None})
     rows.sort(key=lambda r:r['modified'],reverse=True)
     return {'rows':rows[page*100:(page+1)*100],'total':len(rows),'page':page}
 

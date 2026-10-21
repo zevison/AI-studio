@@ -1,0 +1,90 @@
+SEEDANCE STUDIO - SOURCE VERSION REGISTER
+Date: 2026-10-16
+Purpose: track source provenance and upgrade reference; not a production certification.
+Library folder: /视频制作本地部署/SeedanceStudio
+
+ACTIVE DEVELOPMENT BASELINE: V5.0.0 (complete package received from user)
+Latest patch available for analysis: V5.1.1 (NOT VERIFIED / NOT RELEASE-APPROVED).
+Next release version: UNASSIGNED pending implementation and end-to-end acceptance.
+
+ARCHIVES AND HASHES (sha256 of the original ZIP files)
+V5.0.0: SeedanceStudio_V5.0.0_Full(3).zip
+  status: full-source-baseline
+  bytes: 627270
+  files: 183
+  sha256: 646a561fe9168679079dc5b685d0b248c1db0f275c878eedeee8f825e6133c6f
+  ZIP CRC check: passed
+V5.1.0: SeedanceStudio_V5.1.0_CumulativePatch(1).zip
+  status: historical-intermediate-not-archived
+  bytes: 213081
+  files: 20
+  sha256: 5b744443251a5b51b8f846b38e6e76c461c65708050d80e43eddf208fb29dda0
+  ZIP CRC check: passed
+V5.1.1: SeedanceStudio_V5.1.1_CumulativePatch.zip
+  status: unverified-reference-patch
+  bytes: 199273
+  files: 19
+  sha256: 6e0318af8266696ad6f4f91b941971207ee310d920de6f7e97e654aad6b92452
+  ZIP CRC check: passed
+
+VERSION POLICY:
+- Prefer an immutable, traceable full-source baseline plus a small number of meaningful cumulative patches.
+- Future accepted patches must support direct upgrade from V5.0.0 or any later supported installed version; upgrade script needs verification on actual old installations.
+- Keep credentials and mutable user data outside files that a patch overwrites, and back up before upgrades.
+- Do not call a patch stable based on CRC or syntax checks. Windows tests, official Hypit Runtime/Agent, OpenLux contracts, rollback, and paid-request safeguards must be validated.
+- V5.1.1 is not considered a full Hypit Agent integration. It is retained for code diff and audit only.
+- V5.1.0 superseded by later cumulative candidate; not uploaded to Library by default.
+
+SECURITY/INTEGRITY REVIEW OF V5.0.0:
+- The .env file bytes equal .env.example and only contain runtime defaults (no API key fields assigned).
+- No apparent API secret fingerprint matched basic scanned patterns in the archive. This does not replace exhaustive security auditing.
+- Full ZIP CRC checked. Project content and actual Windows deployment NOT tested.
+
+NEXT WORK:
+- Audit complete V5.0.0 OpenLux client contract and credentials persistence without revealing keys.
+- Compare exact official Hypit SDK v0.3.1 source/API to Agent and Provider layers.
+- Validate OpenLux model access/function-calling and video requests separately in the actual account before labeling integration complete.
+- Implement and test a safe cumulative patch only after interface and architectural verification.
+
+2026-10-16 FOLLOW-UP CONTRACT AUDIT (NOT A RELEASE)
+- Hypit v0.3.1 includes official Seedance 2.5 Model, but OpenLux still requires its own actual Provider mapping.
+- OpenLux model directory and tool calling interface documented; user-account responses unverified.
+- Offline V5.0.0 client tests: 7 executed; 3 reproducible unsafe behaviors (missing edit video,
+  unsupported media silently dropped, unknown provider status treated as running).
+- These tests characterize CURRENT behavior; their passing is NOT feature acceptance.
+- See Seedance_Hypit_Integration_Audit_20261016.txt for supporting details and references.
+- New version not assigned; V5.1.1 is still NOT VERIFIED and cannot be called full Hypit Agent integration.
+- Hypit v0.3.1 Seedance ReferenceVideo source-edit contract confirmed: duration=-1, aspect-ratio=adaptive; OpenLux upstream acceptance remains unverified.
+
+
+2026-10-16 AGENT ENGINEERING SNAPSHOT (NOT AN INSTALLER/PATCH)
+- Filename: Seedance_Hypit_Agent_Dev_20261016.zip
+- Status: development-source-only / NOT INSTALLED / NO VERSION BUMP.
+- SHA256: 590b16b195fd3edf618d960474d59c2f9e74e2a350974030b526f3777d39670a
+- Contents: guarded OpenLux tool-calling Agent runtime module + offline unit tests + README.
+- Offline: 22 unit tests pass, Python compilation and existing app.js syntax check pass.
+- No live OpenLux account, Hypit SDK compile, Windows Runtime Build, or paid video test.
+- No production changes to V5.1.1. Existing task and credential stores remain untouched.
+- Do not mark Hypit official Agent/Provider complete before full integration tests.
+
+2026-10-16 OPENLUX VIDEO-GATEWAY DEVELOPMENT SNAPSHOT (NOT A PATCH)
+- File: Seedance_Hypit_OpenLuxGateway_Dev_20261016.zip
+- SHA256: 4d1893a2d576b7c0edb6e9658198b295e62f9768b587dea91d69e90c5bb25415
+- Status: development-only; a Python contract/ledger component, NOT official Hypit SDK Provider or working UI.
+- Tests: 36 offline gateway cases PASS, 22 prior Agent cases PASS; no API charge.
+- Fail-closed design: explicit model/reference mapping, source-video edit guard, no duplicate paid submission after unknown receipt,
+  approval expiry and fingerprint binding, cross-task poll identity and result URL checks.
+- Unverified: real OpenLux account/task response, Hypit v0.3.1 SDK binding, TypeScript compilation, Windows, production budget quotes.
+- This snapshot must NOT be installed over V5.1.1. Stable release/version remains unchanged.
+
+2026-10-16 | Provider 合同第三阶段研发快照 | Seedance_Hypit_ProviderContract_Dev_20261016.zip | 未经官方 SDK 编译、无实时 OpenLux 证据、非安装包 | TypeScript 28 项离线测试；Python 网关36项/Agent22项复测通过，合计86项 | 禁止付费
+
+2026-10-16 HY PIT AGENT/OPENLUX INTEGRATION STAGE4 DEVELOPMENT SNAPSHOT (NOT A PATCH)
+- File: Seedance_Hypit_Stage4_Dev_20261016.zip
+- SHA256: 3d432ae4adf12a396f249043ceec21ef39b018178818204c3fc9956f7e99fea2
+- ZIP/manifest integrity: passed; file count: 20; compressed bytes: 45427.
+- Includes prior Agent, Python OpenLux gateway, new HTTP bridge/start-poll-collect, bounded MP4 collector+ffprobe, new official check/plan preflight proof and TS contract.
+- Python offline tests: 93 PASS with -W error; TypeScript offline tests: 28 PASS; FFmpeg MP4 collection validated with actual ffprobe.
+- Red-team: changed Source/Profile/Provider after preflight denied; ambiguous submit denied retry; corrupted media denied; oversized/unauthorized cost denied.
+- Not a real SDK Provider: pinned Hypit v0.3.1 SDK install/compile missing due isolated npm DNS failure; Windows/actual OpenLux account still unverified. Paid tasks disabled by default.
+- Stable release V5.1.1 remains UNVERIFIED; no new installable patch issued.

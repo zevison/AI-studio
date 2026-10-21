@@ -85,12 +85,14 @@ def acknowledge_unknown(payload):
 
 def diagnostics(model):
     from urllib import request,error
-    key=secrets_store.get('openlux_api_key') or config.OPENLUX_API_KEY
+    from . import configuration_service, provider_transport
+    selected=configuration_service.resolve_provider('chat')
+    key=selected.api_key
     if not key:return {'status':'no_key','message':'未配置 OpenLux 密钥','model_listed':None,'paid_calls':0}
     t=time.monotonic()
     try:
-        req=request.Request(openlux._url('/v1/models'),headers={'Authorization':'Bearer '+key,'Accept':'application/json'},method='GET')
-        with request.urlopen(req,timeout=12,context=tls_context()) as r: raw=r.read(300000)
+        req=request.Request(openlux._url(selected.paths['models'],kind='chat',provider=selected),headers={'Authorization':'Bearer '+key,'Accept':'application/json'},method='GET')
+        with provider_transport.urlopen(req,timeout=12,context=tls_context()) as r: raw=r.read(300000)
         obj=json.loads(raw);data=obj.get('data',[]) if isinstance(obj,dict) else []
         names=[str(x.get('id')) for x in data if isinstance(x,dict) and x.get('id')]
         return {'status':'reachable','model_listed':model in names if names else None,'count':len(names),'seconds':round(time.monotonic()-t,2),'paid_calls':0}
@@ -103,7 +105,9 @@ def send(payload):
     schema()
     cid=str(payload.get('conversation_id') or '')
     text=str(payload.get('message') or '').strip()
-    model=str(payload.get('model') or 'gpt-6.1-sol').strip()
+    from . import configuration_service
+    selected=configuration_service.resolve_provider('chat')
+    model=str(payload.get('model') or selected.model).strip()
     if not text or len(text)>12000:raise ValueError('消息长度必须在1—12000字符')
     if not model or len(model)>120 or not all(x.isalnum() or x in '-._:/@+' for x in model):raise ValueError('模型编号格式无效')
     conv=db.one('SELECT * FROM ai_conversations WHERE id=?',(cid,))
@@ -124,7 +128,7 @@ def send(payload):
     chain=[{'role':'system','content':system}]+[{'role':x['role'],'content':x['content']} for x in history[-14:]]
     chain.append({'role':'user','content':text})
     try:
-        response=openlux.request_json('POST','/v1/chat/completions',{'model':model,'messages':chain},timeout=65,retries=0)
+        response=openlux.request_json('POST',selected.paths['chat'],{'model':model,'messages':chain,**dict(selected.parameters)},timeout=selected.timeout,retries=0,provider_config=selected)
         first=(response.get('choices') or [{}])[0].get('message') or {}
         answer=first.get('content')
         if isinstance(answer,list):answer='\n'.join(str(x.get('text','')) for x in answer if isinstance(x,dict))

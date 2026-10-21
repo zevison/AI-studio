@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from . import config, media
-from .tesseract_support import find_tesseract
+from .tesseract_support import find_tesseract, ocr_command
+from .local_component_paths import whisperx_path, local_asr_status
 from . import pose_runtime
 
 
@@ -45,20 +46,18 @@ def _hidden_kwargs() -> dict:
 
 
 def _find_exe(name: str) -> str | None:
+    if name.lower()=='tesseract':return find_tesseract()
+    if name.lower()=='ffmpeg':return media.ffmpeg_path()
+    if name.lower()=='ffprobe':return media.ffprobe_path()
     if name.lower() == 'whisperx':
-        current=Path(sys.executable).parent/('whisperx.exe' if os.name=='nt' else 'whisperx')
-        if current.is_file():return str(current)
-        sidecar = config.ROOT / 'tools' / 'runtime' / 'whisperx_py313' / ('Scripts/whisperx.exe' if os.name == 'nt' else 'bin/whisperx')
-        if sidecar.exists():
-            return str(sidecar)
+        return whisperx_path(config.ROOT)
     bundled = config.ROOT / 'tools' / 'runtime' / 'bin' / (name + '.exe' if os.name == 'nt' else name)
     if bundled.exists():
         return str(bundled)
+    if getattr(sys,'frozen',False):return None
     p = shutil.which(name)
     if p:
         return p
-    if name.lower() == 'tesseract':
-        return find_tesseract()
     return None
 
 
@@ -69,7 +68,7 @@ def capabilities() -> dict:
         'ffprobe': bool(media.ffprobe_path()),
         'opencv': _module('cv2'),
         'scenedetect': _module('scenedetect'),
-        'faster_whisper': _module('faster_whisper'),
+        'faster_whisper': bool(local_asr_status().get('available')),
         'whisperx': bool(_find_exe('whisperx')) or _module('whisperx'),
         'tesseract': bool(_find_exe('tesseract')),
         'mediapipe': pose_runtime.available() or _module('mediapipe'),
@@ -153,7 +152,7 @@ def _ocr(path: Path) -> str:
     if not exe:
         return ''
     try:
-        p = subprocess.run([exe, str(path), 'stdout', '--psm', '6'], capture_output=True, timeout=25, **_hidden_kwargs())
+        p = subprocess.run(ocr_command(exe, path), capture_output=True, timeout=25, **_hidden_kwargs())
         raw = p.stdout.decode('utf-8', errors='replace') if isinstance(p.stdout, (bytes, bytearray)) else str(p.stdout or '')
         return ' '.join(raw.split())[:500]
     except Exception:

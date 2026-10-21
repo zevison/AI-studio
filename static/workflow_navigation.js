@@ -1,7 +1,7 @@
 /* Organize existing entry points without changing routes, drafts or permissions. */
 (()=>{'use strict';
 const groups=[['商品工作流',['products','radar','ads']],['创作工具',['video','hypit','image','assistant']],
-              ['资料与设置',['assets','team-storage','history','settings']]];
+              ['资料与设置',['assets','team-storage','history','settings','guide']]];
 const nav=document.querySelector('.sidebar nav');if(!nav)return;
 const anchor=nav.querySelector('.nav-divider');
 for(const [title,pages] of groups){

@@ -46,10 +46,9 @@ def create_backup(include_outputs=False, *, destination_dir=None, filename_prefi
             _snapshot_database(config.DB_PATH,snapshot)
         include=[]
         if (config.DATA_DIR/'audio_subjects.db').is_file():include.append(config.DATA_DIR/'audio_subjects.db')
-        configuration=[config.DATA_DIR/'secrets.json']
-        if getattr(config,'WORKSPACE_ID','owner')=='owner':configuration.append(config.ROOT/'.env')
-        for p in configuration:
-            if p.is_file():include.append(p)
+        # Ordinary backups are portable user data, not plaintext credential
+        # exports. Credentials stay in the same-user DPAPI vault. A different
+        # Windows account must authorize them again.
         for base in (config.ASSET_DIR,*(config.DATA_DIR/name for name in ('product_knowledge','hypit_projects','hypit_agent_sessions','hypit_token_grants','hypit_video_operations'))):
             if base.is_dir():include.extend(_files(base))
         if include_outputs and config.OUTPUT_DIR.is_dir():
@@ -66,8 +65,8 @@ def create_backup(include_outputs=False, *, destination_dir=None, filename_prefi
                     if p.is_symlink() or (hasattr(p,'is_junction') and p.is_junction()):raise PermissionError('备份文件链接已拒绝')
                     # A workspace backup must restore into its own data root,
                     # never under the exporting host's workspace identifier.
-                    rel=('data/'+p.relative_to(config.DATA_DIR).as_posix()
-                         if p.is_relative_to(config.DATA_DIR) else p.relative_to(config.ROOT).as_posix())
+                    rel=('data/outputs/'+p.relative_to(config.OUTPUT_DIR).as_posix() if p.is_relative_to(config.OUTPUT_DIR) else 'data/'+p.relative_to(config.DATA_DIR).as_posix()
+                         if p.is_relative_to(config.DATA_DIR) else p.relative_to(config.USER_HOME).as_posix())
                     if p.suffix.lower() in {'.db','.sqlite','.sqlite3'}:
                         auxiliary=tempdir/'auxiliary'/Path(rel)
                         _snapshot_database(p,auxiliary);z.write(auxiliary,rel)

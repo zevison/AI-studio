@@ -10,3 +10,17 @@
 .vp-shell{margin:4px 0 14px;scroll-margin-top:110px;border-color:rgba(149,92,249,.36);background:#111722}
 .vp-toolbar{background:linear-gradient(105deg,rgba(133,68,245,.18),rgba(126,87,213,.06))}
 .vp-star{background:rgba(139,87,237,.22);color:#cbb7ff}
+/* A scrollable flex list must not shrink every template to fit its viewport. */
+.vp-shell{container-type:inline-size}
+.vp-list{overscroll-behavior:contain;scrollbar-gutter:stable}
+.vp-list>.vp-item{flex:0 0 auto;height:auto;min-height:88px;box-sizing:border-box;overflow:hidden}
+.vp-item-title,.vp-item-code{overflow-wrap:anywhere;line-height:1.5}
+.vp-item-sub{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.vp-inline-check input[type=checkbox]{width:17px;height:17px;padding:0;margin:0;flex:none;accent-color:#9867ee}
+@container(max-width:560px){
+  .vp-body{grid-template-columns:minmax(0,1fr);min-height:0}
+  .vp-list-side{border-right:0;border-bottom:1px solid var(--line,#334155)}
+  .vp-list{max-height:280px}
+  .vp-detail-side{padding:12px}
+  .vp-filter-row>input,.vp-filter-row select{flex:1 1 160px;max-width:none}
+}

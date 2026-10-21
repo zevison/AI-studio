@@ -1,0 +1,464 @@
+{
+  "compiler_version": "6.4.3",
+  "default_isl_sha256": "7ee2c288450b40821d84ebd75deebe755a976cc99ddc6979b9369cdb4872d46e",
+  "sections": {
+    "Messages": {
+      "SetupAppTitle": [],
+      "SetupWindowTitle": [
+        "%1"
+      ],
+      "UninstallAppTitle": [],
+      "UninstallAppFullTitle": [
+        "%1"
+      ],
+      "InformationTitle": [],
+      "ConfirmTitle": [],
+      "ErrorTitle": [],
+      "SetupLdrStartupMessage": [
+        "%1"
+      ],
+      "LdrCannotCreateTemp": [],
+      "LdrCannotExecTemp": [],
+      "HelpTextNote": [],
+      "LastErrorMessage": [
+        "%1",
+        "%2",
+        "%3"
+      ],
+      "SetupFileMissing": [
+        "%1"
+      ],
+      "SetupFileCorrupt": [],
+      "SetupFileCorruptOrWrongVer": [],
+      "InvalidParameter": [
+        "%1"
+      ],
+      "SetupAlreadyRunning": [],
+      "WindowsVersionNotSupported": [],
+      "WindowsServicePackRequired": [
+        "%1",
+        "%2"
+      ],
+      "NotOnThisPlatform": [
+        "%1"
+      ],
+      "OnlyOnThisPlatform": [
+        "%1"
+      ],
+      "OnlyOnTheseArchitectures": [
+        "%1"
+      ],
+      "WinVersionTooLowError": [
+        "%1",
+        "%2"
+      ],
+      "WinVersionTooHighError": [
+        "%1",
+        "%2"
+      ],
+      "AdminPrivilegesRequired": [],
+      "PowerUserPrivilegesRequired": [],
+      "SetupAppRunningError": [
+        "%1"
+      ],
+      "UninstallAppRunningError": [
+        "%1"
+      ],
+      "PrivilegesRequiredOverrideTitle": [],
+      "PrivilegesRequiredOverrideInstruction": [],
+      "PrivilegesRequiredOverrideText1": [
+        "%1"
+      ],
+      "PrivilegesRequiredOverrideText2": [
+        "%1"
+      ],
+      "PrivilegesRequiredOverrideAllUsers": [],
+      "PrivilegesRequiredOverrideAllUsersRecommended": [],
+      "PrivilegesRequiredOverrideCurrentUser": [],
+      "PrivilegesRequiredOverrideCurrentUserRecommended": [],
+      "ErrorCreatingDir": [
+        "%1"
+      ],
+      "ErrorTooManyFilesInDir": [
+        "%1"
+      ],
+      "ExitSetupTitle": [],
+      "ExitSetupMessage": [],
+      "AboutSetupMenuItem": [],
+      "AboutSetupTitle": [],
+      "AboutSetupMessage": [
+        "%1",
+        "%1",
+        "%2",
+        "%3",
+        "%4"
+      ],
+      "AboutSetupNote": [],
+      "TranslatorNote": [],
+      "ButtonBack": [],
+      "ButtonNext": [],
+      "ButtonInstall": [],
+      "ButtonOK": [],
+      "ButtonCancel": [],
+      "ButtonYes": [],
+      "ButtonYesToAll": [],
+      "ButtonNo": [],
+      "ButtonNoToAll": [],
+      "ButtonFinish": [],
+      "ButtonBrowse": [],
+      "ButtonWizardBrowse": [],
+      "ButtonNewFolder": [],
+      "SelectLanguageTitle": [],
+      "SelectLanguageLabel": [],
+      "ClickNext": [],
+      "BeveledLabel": [],
+      "BrowseDialogTitle": [],
+      "BrowseDialogLabel": [],
+      "NewFolderName": [],
+      "WelcomeLabel1": [],
+      "WelcomeLabel2": [],
+      "WizardPassword": [],
+      "PasswordLabel1": [],
+      "PasswordLabel3": [],
+      "PasswordEditLabel": [],
+      "IncorrectPassword": [],
+      "WizardLicense": [],
+      "LicenseLabel": [],
+      "LicenseLabel3": [],
+      "LicenseAccepted": [],
+      "LicenseNotAccepted": [],
+      "WizardInfoBefore": [],
+      "InfoBeforeLabel": [],
+      "InfoBeforeClickLabel": [],
+      "WizardInfoAfter": [],
+      "InfoAfterLabel": [],
+      "InfoAfterClickLabel": [],
+      "WizardUserInfo": [],
+      "UserInfoDesc": [],
+      "UserInfoName": [],
+      "UserInfoOrg": [],
+      "UserInfoSerial": [],
+      "UserInfoNameRequired": [],
+      "WizardSelectDir": [],
+      "SelectDirDesc": [],
+      "SelectDirLabel3": [],
+      "SelectDirBrowseLabel": [],
+      "DiskSpaceGBLabel": [],
+      "DiskSpaceMBLabel": [],
+      "CannotInstallToNetworkDrive": [],
+      "CannotInstallToUNCPath": [],
+      "InvalidPath": [],
+      "InvalidDrive": [],
+      "DiskSpaceWarningTitle": [],
+      "DiskSpaceWarning": [
+        "%1",
+        "%2"
+      ],
+      "DirNameTooLong": [],
+      "InvalidDirName": [],
+      "BadDirName32": [
+        "%1"
+      ],
+      "DirExistsTitle": [],
+      "DirExists": [
+        "%1"
+      ],
+      "DirDoesntExistTitle": [],
+      "DirDoesntExist": [
+        "%1"
+      ],
+      "WizardSelectComponents": [],
+      "SelectComponentsDesc": [],
+      "SelectComponentsLabel2": [],
+      "FullInstallation": [],
+      "CompactInstallation": [],
+      "CustomInstallation": [],
+      "NoUninstallWarningTitle": [],
+      "NoUninstallWarning": [
+        "%1"
+      ],
+      "ComponentSize1": [
+        "%1"
+      ],
+      "ComponentSize2": [
+        "%1"
+      ],
+      "ComponentsDiskSpaceGBLabel": [],
+      "ComponentsDiskSpaceMBLabel": [],
+      "WizardSelectTasks": [],
+      "SelectTasksDesc": [],
+      "SelectTasksLabel2": [],
+      "WizardSelectProgramGroup": [],
+      "SelectStartMenuFolderDesc": [],
+      "SelectStartMenuFolderLabel3": [],
+      "SelectStartMenuFolderBrowseLabel": [],
+      "MustEnterGroupName": [],
+      "GroupNameTooLong": [],
+      "InvalidGroupName": [],
+      "BadGroupName": [
+        "%1"
+      ],
+      "NoProgramGroupCheck2": [],
+      "WizardReady": [],
+      "ReadyLabel1": [],
+      "ReadyLabel2a": [],
+      "ReadyLabel2b": [],
+      "ReadyMemoUserInfo": [],
+      "ReadyMemoDir": [],
+      "ReadyMemoType": [],
+      "ReadyMemoComponents": [],
+      "ReadyMemoGroup": [],
+      "ReadyMemoTasks": [],
+      "DownloadingLabel": [],
+      "ButtonStopDownload": [],
+      "StopDownload": [],
+      "ErrorDownloadAborted": [],
+      "ErrorDownloadFailed": [
+        "%1",
+        "%2"
+      ],
+      "ErrorDownloadSizeFailed": [
+        "%1",
+        "%2"
+      ],
+      "ErrorFileHash1": [
+        "%1"
+      ],
+      "ErrorFileHash2": [
+        "%1",
+        "%2"
+      ],
+      "ErrorProgress": [
+        "%1",
+        "%2"
+      ],
+      "ErrorFileSize": [
+        "%1",
+        "%2"
+      ],
+      "ExtractionLabel": [],
+      "ButtonStopExtraction": [],
+      "StopExtraction": [],
+      "ErrorExtractionAborted": [],
+      "ErrorExtractionFailed": [
+        "%1"
+      ],
+      "WizardPreparing": [],
+      "PreparingDesc": [],
+      "PreviousInstallNotCompleted": [],
+      "CannotContinue": [],
+      "ApplicationsFound": [],
+      "ApplicationsFound2": [],
+      "CloseApplications": [],
+      "DontCloseApplications": [],
+      "ErrorCloseApplications": [],
+      "PrepareToInstallNeedsRestart": [],
+      "WizardInstalling": [],
+      "InstallingLabel": [],
+      "FinishedHeadingLabel": [],
+      "FinishedLabelNoIcons": [],
+      "FinishedLabel": [],
+      "ClickFinish": [],
+      "FinishedRestartLabel": [],
+      "FinishedRestartMessage": [],
+      "ShowReadmeCheck": [],
+      "YesRadio": [],
+      "NoRadio": [],
+      "RunEntryExec": [
+        "%1"
+      ],
+      "RunEntryShellExec": [
+        "%1"
+      ],
+      "ChangeDiskTitle": [],
+      "SelectDiskLabel2": [
+        "%1"
+      ],
+      "PathLabel": [],
+      "FileNotInDir2": [
+        "%1",
+        "%2"
+      ],
+      "SelectDirectoryLabel": [],
+      "SetupAborted": [],
+      "AbortRetryIgnoreSelectAction": [],
+      "AbortRetryIgnoreRetry": [],
+      "AbortRetryIgnoreIgnore": [],
+      "AbortRetryIgnoreCancel": [],
+      "StatusClosingApplications": [],
+      "StatusCreateDirs": [],
+      "StatusExtractFiles": [],
+      "StatusCreateIcons": [],
+      "StatusCreateIniEntries": [],
+      "StatusCreateRegistryEntries": [],
+      "StatusRegisterFiles": [],
+      "StatusSavingUninstall": [],
+      "StatusRunProgram": [],
+      "StatusRestartingApplications": [],
+      "StatusRollback": [],
+      "ErrorInternal2": [
+        "%1"
+      ],
+      "ErrorFunctionFailedNoCode": [
+        "%1"
+      ],
+      "ErrorFunctionFailed": [
+        "%1",
+        "%2"
+      ],
+      "ErrorFunctionFailedWithMessage": [
+        "%1",
+        "%2",
+        "%3"
+      ],
+      "ErrorExecutingProgram": [
+        "%1"
+      ],
+      "ErrorRegOpenKey": [
+        "%1",
+        "%2"
+      ],
+      "ErrorRegCreateKey": [
+        "%1",
+        "%2"
+      ],
+      "ErrorRegWriteKey": [
+        "%1",
+        "%2"
+      ],
+      "ErrorIniEntry": [
+        "%1"
+      ],
+      "FileAbortRetryIgnoreSkipNotRecommended": [],
+      "FileAbortRetryIgnoreIgnoreNotRecommended": [],
+      "SourceIsCorrupted": [],
+      "SourceDoesntExist": [
+        "%1"
+      ],
+      "ExistingFileReadOnly2": [],
+      "ExistingFileReadOnlyRetry": [],
+      "ExistingFileReadOnlyKeepExisting": [],
+      "ErrorReadingExistingDest": [],
+      "FileExistsSelectAction": [],
+      "FileExists2": [],
+      "FileExistsOverwriteExisting": [],
+      "FileExistsKeepExisting": [],
+      "FileExistsOverwriteOrKeepAll": [],
+      "ExistingFileNewerSelectAction": [],
+      "ExistingFileNewer2": [],
+      "ExistingFileNewerOverwriteExisting": [],
+      "ExistingFileNewerKeepExisting": [],
+      "ExistingFileNewerOverwriteOrKeepAll": [],
+      "ErrorChangingAttr": [],
+      "ErrorCreatingTemp": [],
+      "ErrorReadingSource": [],
+      "ErrorCopying": [],
+      "ErrorReplacingExistingFile": [],
+      "ErrorRestartReplace": [],
+      "ErrorRenamingTemp": [],
+      "ErrorRegisterServer": [
+        "%1"
+      ],
+      "ErrorRegSvr32Failed": [
+        "%1"
+      ],
+      "ErrorRegisterTypeLib": [
+        "%1"
+      ],
+      "UninstallDisplayNameMark": [
+        "%1",
+        "%2"
+      ],
+      "UninstallDisplayNameMarks": [
+        "%1",
+        "%2",
+        "%3"
+      ],
+      "UninstallDisplayNameMark32Bit": [],
+      "UninstallDisplayNameMark64Bit": [],
+      "UninstallDisplayNameMarkAllUsers": [],
+      "UninstallDisplayNameMarkCurrentUser": [],
+      "ErrorOpeningReadme": [],
+      "ErrorRestartingComputer": [],
+      "UninstallNotFound": [
+        "%1"
+      ],
+      "UninstallOpenError": [
+        "%1"
+      ],
+      "UninstallUnsupportedVer": [
+        "%1"
+      ],
+      "UninstallUnknownEntry": [
+        "%1"
+      ],
+      "ConfirmUninstall": [
+        "%1"
+      ],
+      "UninstallOnlyOnWin64": [],
+      "OnlyAdminCanUninstall": [],
+      "UninstallStatusLabel": [
+        "%1"
+      ],
+      "UninstalledAll": [
+        "%1"
+      ],
+      "UninstalledMost": [
+        "%1"
+      ],
+      "UninstalledAndNeedsRestart": [
+        "%1"
+      ],
+      "UninstallDataCorrupted": [
+        "%1"
+      ],
+      "ConfirmDeleteSharedFileTitle": [],
+      "ConfirmDeleteSharedFile2": [],
+      "SharedFileNameLabel": [],
+      "SharedFileLocationLabel": [],
+      "WizardUninstalling": [],
+      "StatusUninstalling": [
+        "%1"
+      ],
+      "ShutdownBlockReasonInstallingApp": [
+        "%1"
+      ],
+      "ShutdownBlockReasonUninstallingApp": [
+        "%1"
+      ]
+    },
+    "CustomMessages": {
+      "NameAndVersion": [
+        "%1",
+        "%2"
+      ],
+      "AdditionalIcons": [],
+      "CreateDesktopIcon": [],
+      "CreateQuickLaunchIcon": [],
+      "ProgramOnTheWeb": [
+        "%1"
+      ],
+      "UninstallProgram": [
+        "%1"
+      ],
+      "LaunchProgram": [
+        "%1"
+      ],
+      "AssocFileExtension": [
+        "%1",
+        "%2"
+      ],
+      "AssocingFileExtension": [
+        "%1",
+        "%2"
+      ],
+      "AutoStartProgramGroupDescription": [],
+      "AutoStartProgram": [
+        "%1"
+      ],
+      "AddonHostProgramNotFound": [
+        "%1"
+      ]
+    }
+  }
+}

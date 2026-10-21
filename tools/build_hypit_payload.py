@@ -5,25 +5,43 @@ import os
 from pathlib import Path
 import tempfile
 import zipfile
+import shutil
 
 EXCLUDED={'.git','.cache','.vite','__pycache__','.hypit','.hypit-html-browser-program','.env'}
+
+
+def _comparison_path(path):
+    value=str(path)
+    if os.name=='nt' and value.startswith('\\\\?\\UNC\\'):value='\\\\'+value[8:]
+    elif os.name=='nt' and value.startswith('\\\\?\\'):value=value[4:]
+    return Path(value)
 
 
 def build_payload(sdk_root,output):
     root=Path(sdk_root).resolve();output=Path(output)
     if not root.is_dir():raise ValueError('SDK source directory not found')
+    if _comparison_path(output.resolve()).is_relative_to(_comparison_path(root)):
+        raise ValueError('SDK archive output must be outside its input tree')
     output.parent.mkdir(parents=True,exist_ok=True)
     handle,path=tempfile.mkstemp(prefix='.sdk-payload-',suffix='.tmp',dir=output.parent)
     os.close(handle);temporary=Path(path)
     try:
         with zipfile.ZipFile(temporary,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6) as archive:
-            for file in sorted(root.rglob('*')):
+            for file in sorted(root.rglob('*'),key=lambda item:item.relative_to(root).as_posix()):
                 relative=file.relative_to(root)
                 if any(part in EXCLUDED for part in relative.parts):continue
                 if file.suffix in {'.log','.pid','.pyc','.zip'}:continue
                 if file.is_symlink() or (hasattr(file,'is_junction') and file.is_junction()):raise PermissionError('SDK payload cannot contain links')
                 if not file.is_file():continue
-                before=file.stat();archive.write(file,relative.as_posix());after=file.stat()
+                before=file.stat()
+                # Stable metadata prevents identical npm trees from acquiring a
+                # different cache/ABI identity merely because they were rebuilt.
+                info=zipfile.ZipInfo(relative.as_posix(),date_time=(1980,1,1,0,0,0))
+                info.create_system=3;info.external_attr=0o100644<<16
+                info.compress_type=zipfile.ZIP_DEFLATED;info.file_size=before.st_size
+                with file.open('rb') as incoming,archive.open(info,'w') as outgoing:
+                    shutil.copyfileobj(incoming,outgoing,1024*1024)
+                after=file.stat()
                 if (before.st_size,before.st_mtime_ns)!=(after.st_size,after.st_mtime_ns):raise RuntimeError('SDK changed during packaging')
         checksum=hashlib.sha256()
         with temporary.open('rb') as stream:

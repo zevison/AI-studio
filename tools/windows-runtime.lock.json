@@ -1,22 +1,96 @@
 {
-  "format": "seedance.windows-build-lock@1",
-  "architecture": "win-x64",
-  "node": {
-    "version": "22.16.0",
-    "url": "https://nodejs.org/dist/v22.16.0/node-v22.16.0-win-x64.zip",
-    "sha256": "21c2d9735c80b8f86dab19305aa6a9f6f59bbc808f68de3eef09d5832e3bfbbd",
-    "archive_root": "node-v22.16.0-win-x64"
-  },
-  "browser": {
-    "version": "152.0.7928.2",
-    "url": "https://storage.googleapis.com/chrome-for-testing-public/152.0.7928.2/win64/chrome-headless-shell-win64.zip",
-    "sha256": "ec7d7cfbc9d97093c9269d6a26de78a3244a49f3112ff9616e2ccb5ac3afeb24",
-    "cache_root": "chrome-headless-shell/win64-152.0.7928.2"
-  },
-  "ffmpeg": {
-    "version": "9.0.2",
-    "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip",
-    "sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
-    "file": "ffmpeg-9.0.2-essentials_build.zip"
-  }
+    "format":  "seedance.windows-build-lock@1",
+    "architecture":  "win-x64",
+    "node":  {
+                 "bytes": 35574076,
+                 "version":  "22.23.3",
+                 "url":  "https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip",
+                 "sha256":  "2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71",
+                 "archive_root":  "node-v22.23.3-win-x64"
+             },
+    "browser":  {
+                    "bytes": 123681250,
+                    "version":  "155.0.8059.84",
+                    "url":  "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/win64/chrome-headless-shell-win64.zip",
+                    "sha256":  "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4",
+                    "cache_root":  "chrome-headless-shell/win64-155.0.8059.84"
+                },
+    "webview2":  {
+                     "version":  "155.0.4283.62",
+                     "url":  "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/232cf50b-3980-4531-afbb-779f446d7de1/Microsoft.WebView2.FixedVersionRuntime.155.0.4283.62.x64.cab",
+                     "sha256":  "cf54aa717a0ebd05b40e87620724583cb6eb0a5b8b64764cc11e42822f68bf6c",
+                     "format":  "cab"
+                 },
+    "ffmpeg":  {
+                   "version":  "9.0.2",
+                   "url":  "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip",
+                   "sha256":  "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+                   "file":  "ffmpeg-9.0.2-essentials_build.zip"
+               },
+    "tesseract":  {
+                      "version":  "5.5.3.20260724",
+                      "url":  "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe",
+                      "sha256":  "bee9e3434bd94fd65387d9be28cd467a41f61b1275383b55b0f59a1331270ae4",
+                      "extractor":  {
+                                        "url":  "https://github.com/ip7z/7zip/releases/download/26.04/7z2604-x64.msi",
+                                        "version":  "26.04",
+                                        "sha256":  "0b01334a418654293513449f61d6bfc99e5196ca371e3c3dc961eda57cd535c6"
+                                    },
+                      "languages":  [
+                                        {
+                                            "url":  "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+                                            "file":  "eng.traineddata",
+                                            "sha256":  "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+                                        },
+                                        {
+                                            "url":  "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/chi_sim.traineddata",
+                                            "file":  "chi_sim.traineddata",
+                                            "sha256":  "a5fcb6f0db1e1d6d8522f39db4e848f05984669172e584e8d76b6b3141e1f730"
+                                        },
+                                        {
+                                            "url":  "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/osd.traineddata",
+                                            "file":  "osd.traineddata",
+                                            "sha256":  "9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff"
+                                        }
+                                    ],
+                      "language_license":  {
+                                               "sha256":  "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+                                               "url":  "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/LICENSE"
+                                           }
+                  },
+    "asr":  {
+                "format":  "seedance.faster-whisper-model@1",
+                "repository":  "Systran/faster-whisper-small",
+                "revision":  "536b0662742c02347bc0e980a01041f333bce120",
+                "files":  [
+                              {
+                                  "path":  "config.json",
+                                  "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json",
+                                  "sha256":  "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828",
+                                  "bytes":  2370,
+                                  "upstream_lfs_sha256":  null
+                              },
+                              {
+                                  "path":  "model.bin",
+                                  "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin",
+                                  "sha256":  "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+                                  "bytes":  483546902,
+                                  "upstream_lfs_sha256":  "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671"
+                              },
+                              {
+                                  "path":  "tokenizer.json",
+                                  "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json",
+                                  "sha256":  "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+                                  "bytes":  2203239,
+                                  "upstream_lfs_sha256":  null
+                              },
+                              {
+                                  "path":  "vocabulary.txt",
+                                  "url":  "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt",
+                                  "sha256":  "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913",
+                                  "bytes":  459861,
+                                  "upstream_lfs_sha256":  null
+                              }
+                          ]
+            }
 }

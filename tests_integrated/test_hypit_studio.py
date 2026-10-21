@@ -37,8 +37,8 @@ def product(tmp_path, monkeypatch):
     db.execute('INSERT INTO assets(id,path,kind,sha256,duration) VALUES(?,?,?,?,?)',
         ('asset_test',str(file),'video',hashlib.sha256(file.read_bytes()).hexdigest(),2))
     instance=HypitStudio(root=tmp_path/'projects')
-    monkeypatch.setattr('core.hypit_studio.media.ffmpeg_path',lambda:'ffmpeg.exe')
-    monkeypatch.setattr('core.hypit_studio.media.ffprobe_path',lambda:'ffprobe.exe')
+    monkeypatch.setattr('core.hypit_studio.media.ffmpeg_path',lambda:str(tmp_path/'ffmpeg.exe'))
+    monkeypatch.setattr('core.hypit_studio.media.ffprobe_path',lambda:str(tmp_path/'ffprobe.exe'))
     # This fixture tests admission/state behavior. Native media decoding is
     # separately exercised by the actual Runtime installation smoke tests.
     monkeypatch.setattr('core.hypit_studio.media.probe',lambda path:{'ok':True,'duration':2,'width':320,'height':240,
@@ -79,6 +79,33 @@ def test_material_fingerprint_binds_copy(product):
     row=create(product)
     copied=product.path(row['id'])/'assets/material-1.mp4'
     assert hashlib.sha256(copied.read_bytes()).hexdigest()==row['metadata']['inventory'][0]['sha256']
+
+
+def test_old_runtime_rebound_before_tools_without_changing_material(product, monkeypatch):
+    from core.hypit_runtime_relocation import _native
+    row=create(product);pid=row['id'];folder=product.path(pid)
+    profile=folder/'hypit.runtime.json';original=profile.read_bytes()
+    asset=folder/'assets/material-1.mp4';asset_hash=hashlib.sha256(asset.read_bytes()).hexdigest()
+    monkeypatch.setattr('core.hypit_studio.media.ffmpeg_path',lambda:str(folder.parent/'new ffmpeg.exe'))
+    receipt=product.ensure_runtime(pid)
+    assert receipt['changed'] and _native(receipt['backup']).read_bytes()==original
+    assert hashlib.sha256(asset.read_bytes()).hexdigest()==asset_hash
+    assert not product.ensure_runtime(pid)['changed']
+
+
+@pytest.mark.parametrize('marker',['remote','missing_ledger','corrupt_token'])
+def test_unknown_outcome_prevents_old_runtime_rebind(product,monkeypatch,marker):
+    row=create(product);pid=row['id'];folder=product.path(pid)
+    original=(folder/'hypit.runtime.json').read_bytes()
+    if marker=='remote': metadata={'remote_video_task':{'phase':'submission_unknown'}}
+    elif marker=='missing_ledger': metadata={'video_operation':{'quote':{'request_hash':'missing','account':'test'}}}
+    else:
+        ledger=config.DATA_DIR/'unreadable.db';ledger.write_bytes(b'corrupt')
+        metadata={'token_ledger':str(ledger)}
+    product.update(pid,status='interrupted',metadata=metadata)
+    monkeypatch.setattr('core.hypit_studio.media.ffmpeg_path',lambda:str(folder.parent/'new ffmpeg.exe'))
+    with pytest.raises(PermissionError,match='未知'): product.ensure_runtime(pid)
+    assert (folder/'hypit.runtime.json').read_bytes()==original
 
 
 def test_rechecking_unchanged_finished_project_preserves_completed_status(product,monkeypatch):

@@ -68,6 +68,12 @@ function v42Settings(){
  const sections=[...page.children].filter(el=>el.classList?.contains('grid')||el.classList?.contains('card'));
  for(const item of sections)item.classList.add('v42-settings-group');
  const banner=page.querySelector('.settings-banner');if(banner)banner.classList.add('v42-settings-banner');
+ // Keep cards/controls and their reading order; CSS balances whole cards.
+ const pairs=Array.from(page.children).filter(el=>el.classList?.contains('grid')&&el.classList.contains('two'));
+ if(pairs.length){
+  const layout=elt('div','settings-columns');pairs[0].before(layout);
+  for(const pair of pairs){layout.append(...Array.from(pair.children));pair.remove();}
+ }
  page.dataset.v42Ready='1';
 }
 function v42Ads(){

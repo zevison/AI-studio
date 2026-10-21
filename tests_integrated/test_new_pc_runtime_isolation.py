@@ -54,6 +54,7 @@ def test_backup_names_never_collide_with_repeated_attempts(monkeypatch, isolated
 
 
 def test_running_workspace_blocks_before_venv_mutation(monkeypatch, isolated):
+    monkeypatch.setattr(boot,'host_supported',lambda:True)
     monkeypatch.setattr(analysis,'studio_is_running',lambda:True)
     monkeypatch.setattr(boot,'prepare_venv',lambda:pytest.fail('modified live environment'))
     assert boot.main()==3

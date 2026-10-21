@@ -1,0 +1,3 @@
+code,name,category,description,prompt,mode,tags
+/myhero,自定义电商主图,产品主图,真实产品白底图,以真实产品参考图为准生成完整白底商品主图。不改外形颜色商标。,image,电商
+/mysocial,美国家庭场景,真实使用场景,美式生活化场景,以用户上传产品图为依据在美国家庭中呈现真实的使用动作。,image,UGC

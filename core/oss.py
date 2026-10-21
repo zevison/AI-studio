@@ -62,7 +62,10 @@ def configured() -> bool:
 
 
 def status() -> dict:
-    c = _cfg(); sec = secrets_store.status()
+    try:
+        c = _cfg(); sec = secrets_store.status()
+    except (OSError,ValueError,UnicodeError):
+        return {'configured':False,'sdk_available':bool(oss_sdk),'credential_error':'本机凭据无法读取，原文件已保留，请在设置中恢复。'}
     return {
         'configured': configured(),
         'sdk_available': bool(oss_sdk),

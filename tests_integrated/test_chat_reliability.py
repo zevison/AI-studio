@@ -35,7 +35,7 @@ def stream(text='成功'):
 
 def test_completed_reply_survives_closed_browser(conversation):
     def disconnected(*args):raise BrokenPipeError()
-    with patch.object(chat.urllib.request,'urlopen',return_value=stream()):
+    with patch.object(chat.provider_transport,'urlopen',return_value=stream()):
         chat.chat_events(message(conversation),disconnected)
     assert store.messages(conversation)[-1]['content']=='成功'
     assert store.call_state(conversation)['status']=='completed'
@@ -43,7 +43,7 @@ def test_completed_reply_survives_closed_browser(conversation):
 
 def test_document_persists_and_returns_in_next_turn(conversation):
     attachment={'name':'facts.txt','data':base64.b64encode('商品参数 160 PSI'.encode()).decode()}
-    with patch.object(chat.urllib.request,'urlopen',return_value=stream()):
+    with patch.object(chat.provider_transport,'urlopen',return_value=stream()):
         chat.chat_events(message(conversation,attachments=[attachment]),lambda *args:None)
     saved=store.messages(conversation)
     assert 'value' not in saved[0]['attachments'][0]
@@ -62,7 +62,7 @@ def image_attachments(count):
 
 def test_twenty_images_are_sent_saved_and_reopenable(conversation):
     attachments=image_attachments(20)
-    with patch.object(chat.urllib.request,'urlopen',return_value=stream()):
+    with patch.object(chat.provider_transport,'urlopen',return_value=stream()):
         chat.chat_events(message(conversation,attachments=attachments),lambda *args:None)
     saved=store.messages(conversation)
     assert len(saved[0]['attachments'])==20
@@ -107,7 +107,7 @@ def test_duplicate_request_and_parallel_same_conversation_reserve_once(conversat
 def test_definite_rejection_does_not_lock_conversation(conversation):
     events=[]
     error=urllib.error.HTTPError('https://example.invalid',400,'Bad request',{},io.BytesIO())
-    with patch.object(chat.urllib.request,'urlopen',side_effect=error):
+    with patch.object(chat.provider_transport,'urlopen',side_effect=error):
         chat.chat_events(message(conversation),lambda name,value:events.append((name,value)))
     assert store.call_state(conversation)['status']=='rejected'
     assert events[-1][1]['state']=='rejected'
@@ -119,7 +119,7 @@ def test_unknown_request_requires_acknowledgement_without_replay(conversation):
     payload={'conversation_id':conversation,'call_id':call_id,'acknowledge_possible_charge':True}
     with pytest.raises(ValueError,match='4分钟'):store.acknowledge_unknown(payload)
     db.execute('UPDATE ai_calls SET updated_at=? WHERE id=?',(time.time()-300,call_id))
-    with patch.object(chat.urllib.request,'urlopen',side_effect=AssertionError('must not submit')):
+    with patch.object(chat.provider_transport,'urlopen',side_effect=AssertionError('must not submit')):
         result=store.acknowledge_unknown(payload)
     assert result['resubmitted'] is False and result['possible_charge'] is True
     assert chat._start(message(conversation,message='另一个问题'))[0]
@@ -130,7 +130,7 @@ def test_partial_stream_is_saved_before_timeout(conversation):
         def __iter__(self):
             yield ('data: '+json.dumps({'choices':[{'delta':{'content':'已生成的半句'}}]})+'\n').encode()
             raise TimeoutError()
-    with patch.object(chat.urllib.request,'urlopen',return_value=Interrupted()):
+    with patch.object(chat.provider_transport,'urlopen',return_value=Interrupted()):
         chat.chat_events(message(conversation),lambda *args:None)
     assert store.messages(conversation)[-1]['content']=='已生成的半句'
     assert store.call_state(conversation)['status']=='partial'

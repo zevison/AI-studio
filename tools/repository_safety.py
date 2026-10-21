@@ -76,13 +76,16 @@ def scan_tree(root):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--tree',type=Path)
+    parser.add_argument('--git',default=shutil.which('git'))
     args=parser.parse_args()
     if args.tree:result=scan_tree(args.tree)
     else:
         root=Path(__file__).resolve().parents[1]
-        git=shutil.which('git')
+        git=args.git
         if not git:raise SystemExit('Git is required')
-        names=[p.decode('utf8') for p in subprocess.check_output([git,'-C',str(root),'ls-files','-z']).split(b'\0') if p]
+        names=sorted({p.decode('utf8') for p in subprocess.check_output([git,
+            '-c','safe.directory='+str(root).replace('\\','/'),'-C',str(root),
+            'ls-files','--cached','--others','--exclude-standard','-z']).split(b'\0') if p})
         result=scan_files(root,names)
     print(json.dumps(result,ensure_ascii=False,indent=2))
     raise SystemExit(bool(result['findings']))

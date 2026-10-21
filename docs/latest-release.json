@@ -1,0 +1,10 @@
+{
+  "product": "SeedanceStudio",
+  "version": "5.2.0",
+  "build": "R3.18",
+  "release_date": "2026-10-21",
+  "channel": "stable",
+  "installer_url": "",
+  "release_notes": "R3.18：使用指南完整化、插件手动导入、SHA-256 校验、红队测试通过。",
+  "min_upgrade_version": "5.0.0"
+}

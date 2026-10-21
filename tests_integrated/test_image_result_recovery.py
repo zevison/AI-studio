@@ -9,6 +9,12 @@ from core import db,config
 @pytest.fixture
 def isolated(tmp_path,monkeypatch):
     import app
+    from types import SimpleNamespace
+    from core import configuration_service
+    # Receipt recovery tests use a synthetic provider identity, never the
+    # developer account or its DPAPI vault. Real config is covered separately.
+    monkeypatch.setattr(configuration_service,'resolve_provider',lambda kind:
+        SimpleNamespace(model='fixture-image',profile_id='fixture-provider'))
     monkeypatch.setattr(db,'DB_PATH',tmp_path/'studio.db');db.init_db()
     for key,name in [('ASSET_DIR','assets'),('OUTPUT_DIR','outputs')]:
         path=tmp_path/name;path.mkdir();monkeypatch.setattr(config,key,path)

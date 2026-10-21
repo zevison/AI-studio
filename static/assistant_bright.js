@@ -9,6 +9,30 @@ let cid='',busy=false,preparing=false,creating=false,loadingChat=false,chatLoadV
 const cache={get(key){try{return localStorage.getItem('workspace:'+(window.STUDIO_CONTEXT?.workspace||'owner')+':'+key)}catch{return null}},set(key,value){try{localStorage.setItem('workspace:'+(window.STUDIO_CONTEXT?.workspace||'owner')+':'+key,value)}catch{}},remove(key){try{localStorage.removeItem('workspace:'+(window.STUDIO_CONTEXT?.workspace||'owner')+':'+key)}catch{}}};
 const notify=msg=>{if($('aiStatus'))$('aiStatus').textContent=msg};
 const selectedModel=()=>$('aiModel').value==='custom'?$('aiCustomModel').value.trim():$('aiModel').value;
+let configuredChatModel='';
+function updateModelHint(){
+ const select=$('aiModel');if(!select)return;
+ let hint=$('aiModelSource');
+ if(!hint){hint=document.createElement('small');hint.id='aiModelSource';hint.className='muted';select.after(hint)}
+ const current=selectedModel();
+ hint.textContent=configuredChatModel?(current===configuredChatModel?'当前使用已保存默认：'+configuredChatModel:'本轮临时选择：'+current+'；已保存默认：'+configuredChatModel)+'。修改默认请到“状态与设置”。':'此处选择仅用于当前窗口；默认模型由“状态与设置”保存。';
+}
+function applyConfiguredChatModel(model){
+ if(typeof model!=='string'||!model.trim())return;
+ configuredChatModel=model.trim();
+ const select=$('aiModel'),custom=$('aiCustomModel');if(!select||!custom)return;
+ if(Array.from(select.options||[]).some(option=>option.value===configuredChatModel))select.value=configuredChatModel;
+ else{select.value='custom';custom.value=configuredChatModel}
+ custom.hidden=select.value!=='custom';
+ cache.remove('seedance-gpt-model');updateModelHint();
+}
+async function loadConfiguredChatModel(){
+ const settings=await api('/api/configuration');
+ if(settings.configuration_error)throw Error(settings.configuration_error);
+ const provider=settings.providers?.find(row=>row.id===settings.defaults?.chat&&row.enabled);
+ if(provider?.models?.chat)applyConfiguredChatModel(provider.models.chat);
+}
+
 const screen=document.getElementById('aiMessages');
 // Display real message times in the viewer's local timezone. The stored UTC/Unix
 // time is authoritative on reload; unsent UI state is not treated as persisted.
@@ -112,10 +136,12 @@ async function syncModels(){const btn=$('aiSyncModels');btn.disabled=true;const 
 $('aiCustomModel').hidden=select.value!=='custom';$('aiDiagnostics').textContent=r.verified?'已从当前账户读取 '+r.models.length+' 个候选聊天模型；列表可见不等于生成接口已验证':(r.error||'尚未验证账户模型权限');}
 catch(e){$('aiDiagnostics').textContent='模型列表同步失败：'+e.message}
 finally{btn.disabled=false;}}
-async function load(){if(loaded)return;loaded=true;try{const rows=await loadList();const saved=cache.get('seedance-active-chat');if(rows.length)await openChat(rows.find(r=>r.id===saved)?.id||rows[0].id);const prev=cache.get('seedance-gpt-model');if(prev&&[...$('aiModel').options].some(x=>x.value===prev))$('aiModel').value=prev;$('aiCustomModel').hidden=$('aiModel').value!=='custom'}catch(e){loaded=false;notify('读取聊天记录失败：'+e.message)}}
+async function load(){if(loaded)return;loaded=true;try{const rows=await loadList();const saved=cache.get('seedance-active-chat');if(rows.length)await openChat(rows.find(r=>r.id===saved)?.id||rows[0].id);try{await loadConfiguredChatModel()}catch(error){notify('无法读取已保存默认模型：'+error.message)};$('aiCustomModel').hidden=$('aiModel').value!=='custom'}catch(e){loaded=false;notify('读取聊天记录失败：'+e.message)}}
 function init(){if(!$('aiSend'))return;
+document.addEventListener('studio-configuration-saved',event=>applyConfiguredChatModel(event.detail?.chat_model));
+$('aiCustomModel').addEventListener('input',updateModelHint);updateModelHint();
 notify('每条消息最多20个图片或文档附件；单张图片不超过4MB，附件合计不超过10MB。');
-$('aiNew').onclick=()=>newChat().catch(e=>notify(e.message));$('aiSend').onclick=send;$('aiDiagnose').onclick=diagnose;$('aiSyncModels').onclick=syncModels;$('aiModel').onchange=()=>{$('aiCustomModel').hidden=$('aiModel').value!=='custom';cache.set('seedance-gpt-model',$('aiModel').value)};
+$('aiNew').onclick=()=>newChat().catch(e=>notify(e.message));$('aiSend').onclick=send;$('aiDiagnose').onclick=diagnose;$('aiSyncModels').onclick=syncModels;$('aiModel').onchange=()=>{$('aiCustomModel').hidden=$('aiModel').value!=='custom';updateModelHint()};
 $('aiGotoSettings').onclick=()=>document.querySelector('.nav[data-page="settings"]')?.click();$('aiPrompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();send()}});
 $('aiFiles').onchange=async e=>{try{await addFiles([...e.target.files])}catch(ex){notify('附件失败：'+ex.message)}finally{e.target.value=''}};
 $('aiPrompt').addEventListener('input',()=>{if(cid)try{cache.set('seedance-chat-draft:'+cid,$('aiPrompt').value)}catch{}});

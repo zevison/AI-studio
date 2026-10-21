@@ -1,7 +1,7 @@
 # Verified development/test environment; heavyweight optional AI stacks are not
 # required for offline unit tests. Runtime ranges remain in requirements.txt.
 -r requirements.txt
-pytest==8.3.5
+pytest==9.1.1
 Pillow==12.3.0
 numpy==2.5.4
 imageio-ffmpeg==0.6.0
@@ -10,3 +10,6 @@ pypdf==6.20.1
 python-docx==1.2.0
 openpyxl==3.1.5
 certifi==2026.7.22
+tuf==7.0.1
+securesystemslib[crypto]==1.5.1
+cryptography==50.0.2

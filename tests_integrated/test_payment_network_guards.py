@@ -7,14 +7,14 @@ from core import openlux,network_trust
 
 def test_paid_post_ignores_requested_retries(monkeypatch):
     monkeypatch.setattr(openlux.config,'OPENLUX_API_KEY','test-only')
-    with patch.object(openlux.urllib.request,'urlopen',side_effect=TimeoutError()) as send:
+    with patch.object(openlux.provider_transport,'urlopen',side_effect=TimeoutError()) as send:
         with pytest.raises(openlux.ApiError):
             openlux.request_json('POST','/v1/chat/completions',{'model':'fixture'},retries=3)
     assert send.call_count==1
 
 
 def test_account_write_also_never_retries():
-    with patch.object(openlux.urllib.request,'urlopen',side_effect=TimeoutError()) as send:
+    with patch.object(openlux.provider_transport,'urlopen',side_effect=TimeoutError()) as send:
         with pytest.raises(openlux.ApiError):
             openlux.request_json_with_token('POST','/api/example','test-only',{},retries=3)
     assert send.call_count==1

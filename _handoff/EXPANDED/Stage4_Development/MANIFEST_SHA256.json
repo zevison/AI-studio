@@ -1,0 +1,21 @@
+{
+  "README_CN.txt": "a91a619b2cd79d56d2423f11c001f8d61ac74d625c43478f2f5b7a4fa9e26aeb",
+  "TEST_RESULTS.txt": "79961eed0a0c3841e54b322ddb0a46281fdbc857dac96984b3cea7c964b4976f",
+  "core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "core/hypit_agent_runtime.py": "7646647aaa1ba8fd971d8588a523828749534e7a00450e17ad43a6c97f5276a9",
+  "core/hypit_openlux_gateway.py": "2365183665a810d2150e61c1e8cedff3ba8d35d3757f27e4c35e5b50a00754b3",
+  "core/hypit_production_gate.py": "da237b30952acb0932e29359f277f8b717697104d0c7496f842b80e5acd501db",
+  "core/hypit_provider_bridge.py": "6f9e4ee9707cc045c8bc34417c42377827afdf853ee4158f2b90946d780f6c74",
+  "dist/src/openlux-contract.js": "de15a577398a85f22daf1ef15b0b1bd37ed3b34c1f5eed884ba48a1fbd04151f",
+  "dist/tests/openlux-contract.test.js": "43db8ebcb6d875ffba8b0d94030ed54681236b3213f50791b0bded8bba9bfb52",
+  "package.json": "e35d4be32c4a64624b71445879f403c8652e9b90ed55fd23efac12cb2c116617",
+  "src/openlux-contract.ts": "bffc4cc06c9a9bbe8b51c4fd65a3d52a3cf5475d29f8d93aa62f5b045be6385f",
+  "tests/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "tests/openlux-contract.test.ts": "03d6c9187954bde5af0b6706194e64ef94aff79e4d8380eae193f3e4316d5fb1",
+  "tests/real_sample.mp4": "ade0bdf152ea0171a1d13be40e688d0b1d25c5b9f77c18123e744646fa8c5177",
+  "tests/test_hypit_agent_runtime.py": "b0b2b96b3d9197f29c94b3c665668cdafbc4b2a4edd7ce9b750341caa4c9a9cc",
+  "tests/test_hypit_openlux_gateway.py": "5363f7980516628a802301a30936ccc6a9bce9f741c03ea0fd446c68edcf50b5",
+  "tests/test_hypit_production_gate.py": "e9ee069118015053adaac095d6493702aab2ea9d097b4dcd3d2203e9532c7a53",
+  "tests/test_hypit_provider_bridge.py": "e7e4d14a8d1f1b3780fa6375f88a35dae1f24cdaaf3c66cbf8c640ccc15ceaf2",
+  "tsconfig.json": "ab474092ead0fe0a62c7a67dc6ac80b7faedfe8a69216e0397f1119cf4b51929"
+}

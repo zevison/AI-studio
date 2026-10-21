@@ -10,6 +10,9 @@ OSS_PROFILE_KEYS = (
 )
 
 def _base_dir() -> Path:
+    explicit = os.getenv('STUDIO_PROFILE_HOME', '').strip()
+    if explicit:
+        return Path(explicit).expanduser().resolve()
     if os.name == 'nt':
         base = os.getenv('LOCALAPPDATA')
         if base:
@@ -116,7 +119,10 @@ def read_secrets() -> dict:
         if os.name == 'nt':
             # Never silently discard a corrupted vault: that could hide a failed
             # upgrade and cause repeated authentication requests.
-            return json.loads(_dpapi(SECRETS_PATH.read_bytes(),decrypt=True).decode('utf-8'))
+            value=json.loads(_dpapi(SECRETS_PATH.read_bytes(),decrypt=True).decode('utf-8'))
+            if not isinstance(value,dict) or any(not isinstance(k,str) or not isinstance(v,str) for k,v in value.items()):
+                raise ValueError('本机凭据格式无效，原文件已保留')
+            return value
         return _read_json(SECRETS_PATH)
     if os.name == 'nt' and LEGACY_SECRETS_PATH.exists():
         legacy = _read_json(LEGACY_SECRETS_PATH)
@@ -246,7 +252,10 @@ def ensure_bootstrap(current_root: Path) -> dict:
         return {'profile':profile,'secrets':{k:bool(v) for k,v in secrets.items()},'imported':False}
     need_profile=not (profile.get('oss_endpoint') and profile.get('oss_bucket'))
     imported=False
-    for root in _candidate_roots(current_root):
+    # A packaged installation must never silently import a neighbouring user's
+    # project. Desktop migration is explicit and journalled, before startup.
+    roots = [] if getattr(__import__('sys'), 'frozen', False) or os.getenv('STUDIO_PROFILE_HOME') else _candidate_roots(current_root)
+    for root in roots:
         if need_profile:
             vals={}
             vals.update(_env_oss_settings(root/'.env'))

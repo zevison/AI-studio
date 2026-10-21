@@ -1,0 +1,6 @@
+{
+  "format": "seedance.plugin-update-trust@1",
+  "product_id": "SeedanceStudio",
+  "enabled": false,
+  "reason": "Production public trust root, signed repository and approved hosting have not been provisioned. No networking or automatic promotion."
+}

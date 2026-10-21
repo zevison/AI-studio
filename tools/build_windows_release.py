@@ -24,15 +24,26 @@ def write(path,value):
     path.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
 
 def fetch(item,cache):
+    validate_runtime_url(item['url'])
     if urlsplit(item['url']).scheme!='https' or not re.fullmatch('[a-f0-9]{64}',item['sha256']):
         raise ValueError('Pinned public HTTPS archive required')
     target=cache/urlsplit(item['url']).path.rsplit('/',1)[1]
     if target.exists():
         if sha(target)!=item['sha256']:raise ValueError('Cache checksum mismatch; existing file preserved')
         return target
+    if item.get('bytes'):
+        # Same upstream hash, reviewed domestic mirrors first. No version selection.
+        sys.path.insert(0,str(ROOT))
+        from core.component_download import fetch as fetch_component
+        last=[0]
+        def progress(**value):
+            if value['downloaded']-last[0]>=8*1024**2:
+                print(target.name+': '+str(value['downloaded']//1024**2)+' MiB · '+value['source'],flush=True)
+                last[0]=value['downloaded']
+        return fetch_component(item,cache/'verified-components',progress=progress)
     partial=target.with_name(target.name+'.'+uuid.uuid4().hex+'.part')
     start=time.monotonic();total=0;last=0
-    with open_public_url(item['url'],timeout=35) as response,partial.open('xb') as out:
+    with open_public_url(item['url'],timeout=35,validate_url=validate_runtime_url) as response,partial.open('xb') as out:
         if urlsplit(response.geturl()).scheme!='https':raise ValueError('Insecure download redirect')
         while block:=response.read(1024*1024):
             total+=len(block)
@@ -43,6 +54,15 @@ def fetch(item,cache):
     if sha(partial)!=item['sha256']:raise ValueError('Download checksum mismatch; partial preserved')
     partial.rename(target)
     return target
+
+
+def validate_runtime_url(url):
+    patterns=(r'https://nodejs\.org/dist/v(\d+\.\d+\.\d+)/node-v\1-win-x64\.zip',
+              r'https://storage\.googleapis\.com/chrome-for-testing-public/\d+\.\d+\.\d+\.\d+/win64/chrome-headless-shell-win64\.zip',
+              r'https://www\.gyan\.dev/ffmpeg/builds/packages/ffmpeg-\d+\.\d+(?:\.\d+)?-essentials_build\.zip',
+              r'https://msedge\.sf\.dl\.delivery\.mp\.microsoft\.com/filestreamingservice/files/[0-9a-f-]{36}/Microsoft\.WebView2\.FixedVersionRuntime\.\d+\.\d+\.\d+\.\d+\.x64\.cab')
+    if not isinstance(url,str) or not any(re.fullmatch(pattern,url) for pattern in patterns):
+        raise ValueError('Untrusted runtime download source; explicit source review required')
 
 def extract(archive,target):
     """Validate the complete archive before any write; no links/ADS/traversal."""

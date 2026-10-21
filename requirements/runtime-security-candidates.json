@@ -1,0 +1,45 @@
+{
+  "schema": "seedance.runtime-candidates@1",
+  "checked_at_utc": "2026-10-20T04:45:05.071072+00:00",
+  "channel": "candidate",
+  "stable_baseline": null,
+  "automatic_promotion": false,
+  "node": {
+    "version": "22.23.3",
+    "url": "https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip",
+    "sha256": "2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71"
+  },
+  "browser": {
+    "version": "155.0.8059.84",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.84/win64/chrome-headless-shell-win64.zip",
+    "sha256": "5ca590a4968864e219ea25ccd134597ef8898a733a4698c07fc3e8b2c480fef4",
+    "cache_root": "chrome-headless-shell/win64-155.0.8059.84",
+    "hash_authority": "computed from official HTTPS download; CfT JSON does not publish SHA256; see Google Authenticode separately"
+  },
+  "webview2_fixed": {
+    "filename": "webview2-fixed-x64.cab",
+    "url": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/232cf50b-3980-4531-afbb-779f446d7de1/Microsoft.WebView2.FixedVersionRuntime.155.0.4283.62.x64.cab",
+    "sha256": "cf54aa717a0ebd05b40e87620724583cb6eb0a5b8b64764cc11e42822f68bf6c",
+    "bytes": 310492238,
+    "source_metadata": "official vendor distribution page",
+    "independent_upstream_sha256": "not published in page; signature check is separate",
+    "version": "155.0.4283.62",
+    "authenticode": "Valid",
+    "signer": "Microsoft Corporation",
+    "signer_thumbprint": "21CA9DD6DA7C57C3A599880D17317D7BDA31899C"
+  },
+  "gates": {
+    "hashes": "PASS",
+    "licenses": "NOT TESTED",
+    "security": "NOT TESTED",
+    "startup": "NOT TESTED",
+    "configuration": "NOT TESTED",
+    "database": "NOT TESTED",
+    "sdk": "PASS",
+    "local_media": "PASS",
+    "clean_windows": "NOT TESTED",
+    "restart": "NOT TESTED",
+    "upgrade_rollback_uninstall": "NOT TESTED"
+  },
+  "validation_note": "SDK40 and official free Film combination actual PASS; full EXE/clean Windows gates belong to main acceptance report"
+}

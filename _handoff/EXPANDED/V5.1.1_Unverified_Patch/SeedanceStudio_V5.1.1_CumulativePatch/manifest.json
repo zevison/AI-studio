@@ -1,0 +1,150 @@
+{
+  "target_version": "5.1.1",
+  "supported_versions": [
+    "5.0.0",
+    "5.0.1",
+    "5.0.2",
+    "5.0.3",
+    "5.1.0",
+    "5.1.1"
+  ],
+  "kind": "cumulative",
+  "files": [
+    {
+      "path": "app.py",
+      "sha256": "a4dd3f51ed6924acaa71a33eca5b98333ff3358a81e75e3488fe0e1a10c1c6c7",
+      "allowed_old": [
+        "26b4847c746db4d580f11ffaed9c1c542fffc75e3902cf3a0402b0a7a03ea07b",
+        "359d43518c3a312e19b25f725cf3a1fde5fd05d2afd81c4c619ff48320595ed2",
+        "5cb3d12dd4296d9e847ead667fec9b4efc1a5085774798a7a2b1899e23e3a270",
+        "916158e3d9b50932511361ca44162f398740040ae7b26fea4c2d9c1c6f76625a",
+        "bbf9f671bd684b7d3595a2dbbd32cd02c503e2ed10d4d4525ef7bcd58c429890"
+      ],
+      "allow_missing": false,
+      "bytes": 119159
+    },
+    {
+      "path": "core/config.py",
+      "sha256": "c8259ca81b09ae71d3e500b63cf2848031ae414510a32cdb0572c218aef3f8cc",
+      "allowed_old": [
+        "04bddddb238b7928ff76735aa3cb957b0afe8ba10973ce4277fa31d4263b888a",
+        "27f3aa99c6db68b22af7fd2a3dc7c3385dd1b91906ccb0da3ed597d0c11952c6",
+        "4e26964a4f46cd9da3400bcb29a71874afa18a4fe8b95bd68cccf8533188da61",
+        "9f6a68135715aa36dd6d09b37544d864ad7d0a7c0e2f36114a88963e8bb23355",
+        "41f2377d6b45b4bae6464ee15e7d877e922f8eef672edcb2107aaecfc90042ba"
+      ],
+      "allow_missing": false,
+      "bytes": 4793
+    },
+    {
+      "path": "core/hybrid_workflow.py",
+      "sha256": "701bfa55c72a5a5c33c15f23bfdec466f4497b4d8e64b4676e5ba4adef41ef1f",
+      "allowed_old": [
+        "55623f97fe0fcd5edc7ebf3e211968eb61bf92ffd124d027ddd150053951c754",
+        "b1c5a7693eeee2ee3deefd96ef1dc900f8971d368d93250ff954125bf9d0ed1a",
+        "a3de3d9c212c77454154fba3754eae94748844c3ce3bc7bfd81d5741bbbad00f"
+      ],
+      "allow_missing": true,
+      "bytes": 34582
+    },
+    {
+      "path": "core/hypit_official.py",
+      "sha256": "b55e345e433f8a35279b3cfee1eb1c7051b20cf14ba12efca22cb30a477662a7",
+      "allowed_old": [
+        "fdc3010c28f05108732b1d87fc729132607301333914eef7bfc571cb0ca27fe4"
+      ],
+      "allow_missing": true,
+      "bytes": 33690
+    },
+    {
+      "path": "core/reference_logic.py",
+      "sha256": "4fa6182a0b1f2d376276bf1b26163f5f29df8aceb9a637823040be81b213f596",
+      "allowed_old": [
+        "29b8f0f5765b466e040a4071a9078131cd9298d91cc711c3336ae9d29a308028"
+      ],
+      "allow_missing": false,
+      "bytes": 7916
+    },
+    {
+      "path": "core/voice_bindings.py",
+      "sha256": "bb2ada9914c55953927da385e8fefd20cf39e9e52ea6e9f42861d32777d8982c",
+      "allowed_old": [
+        "943d55340ac36014558c81a90809d525c3564d7a9fe75415d38f57a91d80b3cb"
+      ],
+      "allow_missing": false,
+      "bytes": 9855
+    },
+    {
+      "path": "core/workflow.py",
+      "sha256": "3fa514e02842ab176d63e4cec64da46ddc4fc31d7ea5fa16d988caffa9f733ff",
+      "allowed_old": [
+        "fbc9a896278cc93c8c1d6dd941785b1ced7470e33ce687c831c0c4dcf385ef13"
+      ],
+      "allow_missing": false,
+      "bytes": 13479
+    },
+    {
+      "path": "static/app.js",
+      "sha256": "3ff16c0294b0108b84b9585f092ddfede47d229f13b144ddb0ff41fb4dcb2cd9",
+      "allowed_old": [
+        "10b19d21d6fbaa248b425fa1c3d9d6a49e9a3964664681b7ac5efa9f37ff51c8",
+        "8313df5edf1471d0226c4787b8f3015ad11c5f2167b26ce6381dc6c4231f2ead",
+        "f40a1045cf1aed9540b160587000d12052574563c2c22f6757f7c022b401ba25"
+      ],
+      "allow_missing": false,
+      "bytes": 127049
+    },
+    {
+      "path": "static/hybrid_workflow.css",
+      "sha256": "090d037d668e2037fcd6802b431e509c66e2969f7ca0d74fed4435a15e87d5fc",
+      "allowed_old": [
+        "2155d15eb26858190f05163cb3befadd52d414cbbf6ce953c7b1bf3cddfb6e2e",
+        "80380a1ac2dece251b6e36321de9e02b7c557e299fc493d0403ba41b6a07beb3"
+      ],
+      "allow_missing": true,
+      "bytes": 6248
+    },
+    {
+      "path": "static/hybrid_workflow.js",
+      "sha256": "f3df1df3cfe02d04b71fd650c59f515d70a71f35c36e729566d9926eb6879059",
+      "allowed_old": [
+        "2527cbb368b0a061c1ae013f685bbb53d495f11d29c98bc8e9616f15ec397811",
+        "db12b2f00ae287a97f2c5a2199dd6e21819e47eb374d006bd73062aed47270ac",
+        "1df63823a790d86bd3edef2765690bf49a85ba5635efe7f2e04fc6699c00f3a4"
+      ],
+      "allow_missing": true,
+      "bytes": 17452
+    },
+    {
+      "path": "static/index.html",
+      "sha256": "95b9fb2d10801d987e0464aa3b991f6cda124f5d03b2f376e827967169fa7f2b",
+      "allowed_old": [
+        "2a8f108159124f28913efc410ae897cff8692106f7a94c1908e74c8f84977777",
+        "5344c9d1ffca3ef94859994ce479beff3547d9391ee7027908f84f7ace9d3259",
+        "d74ec0a247a043a525d08c6b15c9654bbf7e2373766930dfade4e35c518c17f6",
+        "f57a36eb927adbba9ffdfaf99a26fb15cd993dc772f2e771247c6f6bbc5d825c"
+      ],
+      "allow_missing": false,
+      "bytes": 78482
+    },
+    {
+      "path": "tools/setup_hypit_official.ps1",
+      "sha256": "c9ad4794465b7d321990520f9c27df3e0809eda081daf07f782db59c608857b7",
+      "allowed_old": [],
+      "allow_missing": true,
+      "bytes": 3151
+    },
+    {
+      "path": "版本更新汇总.txt",
+      "sha256": "fb31d6c3284d760d673d4be31c6d4a60611a20dc40e02e2a36fdcdfc3c26f3e8",
+      "allowed_old": [
+        "01e6920cd70d0ecf873778651d0022fd89531e351d236313aab8a8666a803f64",
+        "38f01f71976b0df4af29bcc4dbfa933e7c2296948d6eac47ba3d95135469a7ae",
+        "3a76d8fdb96baa924b9d8225678ef1bf8e15056512b6c14586a9189b2b006f79",
+        "7a0aa4697218dfcfeb7810b27e43aac2180511de3aba90f224afb067cec12176"
+      ],
+      "allow_missing": false,
+      "bytes": 119298
+    }
+  ]
+}

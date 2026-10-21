@@ -5,6 +5,7 @@ from pathlib import Path
 from . import config, tunnel, settings
 from .utils import find_url
 from .network_trust import tls_context
+from . import configuration_service, provider_transport
 
 _ROUTE_AUTO = object()
 
@@ -13,36 +14,50 @@ class ApiError(RuntimeError):
         super().__init__(message); self.status=status; self.body=body; self.retryable=retryable
 
 
-def _headers(extra=None):
-    h={'Authorization':f'Bearer {config.OPENLUX_API_KEY}','User-Agent':f'SeedanceStudio/{config.APP_VERSION}'}
+def _provider(kind='video'):
+    return configuration_service.resolve_provider(kind)
+
+
+def _headers(extra=None, kind='video', provider=None):
+    provider=provider or _provider(kind)
+    h={'Authorization':f'Bearer {provider.api_key}','User-Agent':f'SeedanceStudio/{config.APP_VERSION}'}
     if extra: h.update(extra)
     return h
 
 
-def _url(path):
-    path=str(path)  # WindowsPath/PurePath are accepted from saved settings and Windows callers.
-    if path.startswith(('http://','https://')): return path
-    base=config.OPENLUX_BASE_URL.rstrip('/')
+def _url(path, kind='video', provider=None):
+    from urllib.parse import urlsplit
+    path=str(path)
+    base=(provider or _provider(kind)).base_url.rstrip('/')
+    configuration_service.validate_base_url(base)
+    if path.startswith(('http://','https://')):
+        target=urlsplit(path); origin=urlsplit(base)
+        if (target.scheme,target.netloc)!=(origin.scheme,origin.netloc):
+            raise ValueError('接口地址不能跨服务商发送凭据')
+        path=target.path+('?' + target.query if target.query else '')
+    configuration_service.validate_path(path)
     if base.lower().endswith('/v1') and path.startswith(('/v1/', '/api/')): base=base[:-3]
-    return base + ('/' if not path.startswith('/') else '') + path
+    return base+path
 
 
-def request_json(method, path, payload=None, timeout=None, retries=0, idempotency_key=None):
+def request_json(method, path, payload=None, timeout=None, retries=0, idempotency_key=None, provider_config=None):
     if method.upper() not in ('GET','HEAD'):retries=0
-    if not config.OPENLUX_API_KEY:
+    official_path=str(path).startswith(('/api/pricing','/api/ratio_config','/api/user/','/v1/dashboard/','/api/token/','/api/log/'))
+    provider_config=configuration_service.resolve_official_provider() if official_path else (provider_config or _provider('chat' if any(x in str(path) for x in ('/chat/', '/responses')) else 'video'))
+    if not provider_config.api_key:
         raise ApiError('未配置 OPENLUX_API_KEY。请先填写根目录 .env。')
-    data=None; headers=_headers({'Content-Type':'application/json'})
+    data=None; headers=_headers({'Content-Type':'application/json'},provider=provider_config)
     if idempotency_key: headers['Idempotency-Key']=idempotency_key
     if payload is not None: data=json.dumps(payload,ensure_ascii=False).encode('utf-8')
     last=None
     for attempt in range(retries+1):
         try:
-            req=urllib.request.Request(_url(path),data=data,headers=headers,method=method)
-            with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
+            req=urllib.request.Request(_url(path,provider=provider_config),data=data,headers=headers,method=method)
+            with provider_transport.urlopen(req,timeout=timeout or provider_config.timeout,context=tls_context()) as r:
                 raw=r.read(); txt=raw.decode('utf-8','replace')
                 return json.loads(txt) if txt.strip() else {}
         except urllib.error.HTTPError as e:
-            body=e.read().decode('utf-8','replace'); retryable=e.code in (408,429,500,502,503,504)
+            body=e.read().decode('utf-8','replace').replace(provider_config.api_key,'[REDACTED]'); retryable=e.code in (408,429,500,502,503,504)
             last=ApiError(f'接口返回 HTTP {e.code}',e.code,body,retryable)
             if attempt<retries and retryable:
                 time.sleep(min(2**attempt,4)); continue
@@ -55,6 +70,15 @@ def request_json(method, path, payload=None, timeout=None, retries=0, idempotenc
         except json.JSONDecodeError as e:
             raise ApiError(f'接口返回了无法解析的 JSON：{e}')
     raise last or ApiError('未知接口错误')
+
+
+def _account_url(path):
+    configuration_service.validate_path(str(path))
+    # Account bearer tokens must never follow a configurable model endpoint.
+    from urllib.parse import urlsplit
+    if urlsplit(config.OPENLUX_BASE_URL).hostname != 'api.openlux.ai':
+        raise ValueError('官方账户凭据仅允许发送至 api.openlux.ai')
+    return 'https://api.openlux.ai'+str(path)
 
 
 def request_json_with_token(method, path, auth_token, payload=None, timeout=None, retries=0, user_id=None):
@@ -73,12 +97,12 @@ def request_json_with_token(method, path, auth_token, payload=None, timeout=None
     last=None
     for attempt in range(retries+1):
         try:
-            req=urllib.request.Request(_url(path),data=data,headers=headers,method=method)
-            with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
+            req=urllib.request.Request(_account_url(path),data=data,headers=headers,method=method)
+            with provider_transport.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
                 txt=r.read().decode('utf-8','replace')
                 return json.loads(txt) if txt.strip() else {}
         except urllib.error.HTTPError as e:
-            body=e.read().decode('utf-8','replace')
+            body=e.read().decode('utf-8','replace').replace(auth_token,'[REDACTED]')
             retryable=e.code in (408,429,500,502,503,504)
             last=ApiError(f'账号接口返回 HTTP {e.code}',e.code,body,retryable)
             if attempt<retries and retryable:
@@ -94,7 +118,8 @@ def request_json_with_token(method, path, auth_token, payload=None, timeout=None
     raise last or ApiError('账号接口未知错误')
 
 def multipart_request(path, fields:dict, file_fields:list[tuple[str,Path,str]], timeout=None, idempotency_key=None):
-    if not config.OPENLUX_API_KEY: raise ApiError('未配置 OPENLUX_API_KEY。')
+    provider_config=_provider('image')
+    if not provider_config.api_key: raise ApiError('未配置 OPENLUX_API_KEY。')
     boundary='----SeedanceStudio'+uuid.uuid4().hex; chunks=[]
     for k,v in fields.items():
         if v is None: continue
@@ -103,14 +128,14 @@ def multipart_request(path, fields:dict, file_fields:list[tuple[str,Path,str]], 
         chunks += [f'--{boundary}\r\n'.encode(), f'Content-Disposition: form-data; name="{field}"; filename="{path.name}"\r\n'.encode('utf-8'),
                    f'Content-Type: {mime or mimetypes.guess_type(path.name)[0] or "application/octet-stream"}\r\n\r\n'.encode(), path.read_bytes(), b'\r\n']
     chunks.append(f'--{boundary}--\r\n'.encode()); body=b''.join(chunks)
-    headers=_headers({'Content-Type':f'multipart/form-data; boundary={boundary}'})
+    headers=_headers({'Content-Type':f'multipart/form-data; boundary={boundary}'},provider=provider_config)
     if idempotency_key: headers['Idempotency-Key']=idempotency_key
     try:
-        req=urllib.request.Request(_url(path),data=body,headers=headers,method='POST')
-        with urllib.request.urlopen(req,timeout=timeout or config.HTTP_TIMEOUT,context=tls_context()) as r:
+        req=urllib.request.Request(_url(path,provider=provider_config),data=body,headers=headers,method='POST')
+        with provider_transport.urlopen(req,timeout=timeout or provider_config.timeout,context=tls_context()) as r:
             txt=r.read().decode('utf-8','replace'); return json.loads(txt) if txt.strip() else {}
     except urllib.error.HTTPError as e:
-        b=e.read().decode('utf-8','replace')
+        b=e.read().decode('utf-8','replace').replace(provider_config.api_key,'[REDACTED]')
         raise ApiError(f'图片编辑接口返回 HTTP {e.code}',e.code,b,e.code in (408,429,500,502,503,504))
     except (urllib.error.URLError,TimeoutError,OSError) as e:
         raise ApiError(f'图片编辑网络请求失败：{e}',None,None,True)
@@ -137,15 +162,17 @@ def _ratio_prompt(prompt, ratio):
 def image_generate(prompt, ratio='auto', quality='auto', idempotency_key=None):
     size=resolve_image_size(ratio)
     prompt=_ratio_prompt(prompt,ratio)
-    payload={'model':config.IMAGE_MODEL,'prompt':prompt,'n':1,'size':size,'quality':quality or 'auto'}
-    return request_json('POST',config.IMAGE_CREATE_PATH,payload,retries=config.PAID_CREATE_RETRIES,idempotency_key=idempotency_key)
+    selected=_provider('image')
+    payload={'model':selected.model,'prompt':prompt,'n':1,'size':size,'quality':quality or 'auto'}
+    return request_json('POST',selected.paths['image'],payload,retries=0,idempotency_key=idempotency_key,provider_config=selected)
 
 
 def image_edit(prompt, source_path:Path, source_mime='image/png', ratio='auto', quality='auto', idempotency_key=None):
     size=resolve_image_size(ratio)
     prompt=_ratio_prompt(prompt,ratio)
-    fields={'model':config.IMAGE_MODEL,'prompt':prompt,'n':1,'size':size,'quality':quality or 'auto'}
-    return multipart_request(config.IMAGE_EDIT_PATH,fields,[('image',source_path,source_mime)],idempotency_key=idempotency_key)
+    selected=_provider('image')
+    fields={'model':selected.model,'prompt':prompt,'n':1,'size':size,'quality':quality or 'auto'}
+    return multipart_request(selected.paths['image_edit'],fields,[('image',source_path,source_mime)],idempotency_key=idempotency_key)
 
 
 def _asset_url(asset:dict, public_base_url:str|None):
@@ -167,6 +194,7 @@ def video_create(prompt, media_specs:list[dict], ratio, resolution, duration, ge
                  public_base_url=None, idempotency_key=None, output_format='mp4', model=None, provider=_ROUTE_AUTO,
                  create_path=None, query_path=None, omni_reference_task_type=None):
     cfg=settings.get_all()
+    selected=_provider('video')
     route=settings.route_info(cfg)
     model=model or route['request_model']
     if provider is _ROUTE_AUTO:
@@ -198,7 +226,7 @@ def video_create(prompt, media_specs:list[dict], ratio, resolution, duration, ge
     # video edit while the request still carries reference-mode ratio/duration.
     if omni_reference_task_type in ('auto','reference','edit','extend'):
         payload['omni_reference_task_type']=omni_reference_task_type
-    resp=request_json('POST',create_path,payload,timeout=int(cfg.get('http_timeout',config.HTTP_TIMEOUT)),retries=config.PAID_CREATE_RETRIES,idempotency_key=idempotency_key)
+    resp=request_json('POST',create_path,payload,timeout=selected.timeout,retries=config.PAID_CREATE_RETRIES,idempotency_key=idempotency_key,provider_config=selected)
     payload['_request_model']=model
     payload['_request_provider']=provider
     payload['_create_path']=create_path
@@ -208,9 +236,10 @@ def video_create(prompt, media_specs:list[dict], ratio, resolution, duration, ge
 
 def video_query(task_id, query_path=None):
     cfg=settings.get_all()
+    selected=_provider('video')
     _,default_query=settings.effective_video_paths(cfg)
     path=(query_path or default_query).format(task_id=urllib.parse.quote(str(task_id)))
-    return request_json('GET',path,timeout=int(cfg.get('http_timeout',config.HTTP_TIMEOUT)),retries=int(cfg.get('query_retries',config.QUERY_RETRIES)))
+    return request_json('GET',path,timeout=selected.timeout,retries=int(cfg.get('query_retries',config.QUERY_RETRIES)),provider_config=selected)
 
 def list_models():
     resp=request_json('GET','/v1/models',timeout=30,retries=1)

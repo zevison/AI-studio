@@ -2,28 +2,45 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from .runtime_layout import resource_root, user_home
+from .configuration_service import startup_options
+STARTUP_OPTIONS = startup_options()
+ROOT = resource_root()
+USER_HOME = user_home()
+DATA_ROOT = USER_HOME / 'data'
 # An authenticated workspace is a separate process and database, not a UI filter.
 WORKSPACE_ID = os.getenv('STUDIO_WORKSPACE_ID','owner')
 if WORKSPACE_ID!='owner' and not __import__('re').fullmatch('[a-f0-9]{24}',WORKSPACE_ID):
     raise RuntimeError('Invalid workspace identity')
-DATA_DIR = ROOT / 'data' if WORKSPACE_ID=='owner' else ROOT / 'data/workspaces' / WORKSPACE_ID
+DATA_DIR = DATA_ROOT if WORKSPACE_ID=='owner' else DATA_ROOT / 'workspaces' / WORKSPACE_ID
 WORKSPACE_TOKEN = os.getenv('STUDIO_WORKSPACE_TOKEN','')
 if WORKSPACE_ID!='owner' and len(WORKSPACE_TOKEN)<32:raise RuntimeError('Isolated workspace requires a gateway token')
 ASSET_DIR = DATA_DIR / 'assets'
-OUTPUT_DIR = DATA_DIR / 'outputs'
+OUTPUT_DIR = Path(STARTUP_OPTIONS['output_directory']) if WORKSPACE_ID=='owner' and STARTUP_OPTIONS.get('output_directory') else DATA_DIR / 'outputs'
 CACHE_DIR = DATA_DIR / 'cache'
 STATIC_DIR = ROOT / 'static'
 DB_PATH = DATA_DIR / 'studio.db'
-LOG_PATH = (ROOT if WORKSPACE_ID=='owner' else DATA_DIR) / 'seedance_studio.log'
-PID_PATH = (ROOT if WORKSPACE_ID=='owner' else DATA_DIR) / 'seedance_studio.pid'
+LOG_PATH = (USER_HOME if WORKSPACE_ID=='owner' else DATA_DIR) / 'seedance_studio.log'
+PID_PATH = (USER_HOME if WORKSPACE_ID=='owner' else DATA_DIR) / 'seedance_studio.pid'
 
-for p in (DATA_DIR, ASSET_DIR, OUTPUT_DIR, CACHE_DIR, STATIC_DIR):
+for p in (DATA_DIR, ASSET_DIR, CACHE_DIR):
     p.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIRECTORY_ERROR = ''
+try:
+    OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
+except OSError:
+    OUTPUT_DIRECTORY_ERROR = '指定输出目录不可用，已使用本机默认目录。请在设置中检查目录权限后重启。'
+    OUTPUT_DIR = DATA_DIR / 'outputs'
+    OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
+from . import output_registry
+try:
+    output_registry.register(USER_HOME if WORKSPACE_ID=='owner' else DATA_DIR,OUTPUT_DIR,DATA_DIR/'outputs')
+except (OSError,ValueError,TypeError):
+    OUTPUT_DIRECTORY_ERROR = '输出目录历史无法更新，原记录和成片已保留；请检查目录权限或恢复历史文件。'
 
 
 def load_env(path: Path | None = None) -> None:
-    path = path or ROOT / '.env'
+    path = path or USER_HOME / '.env'
     if not path.exists():
         return
     for raw in path.read_text(encoding='utf-8-sig').splitlines():
@@ -43,14 +60,21 @@ load_env()
 # current Windows user account (DPAPI). A new installation auto-imports
 # previous sibling versions' .env and OSS settings without showing secrets.
 from . import profile_store
-profile_store.ensure_bootstrap(ROOT)
-_vault = profile_store.read_secrets()
+try:
+    profile_store.ensure_bootstrap(ROOT)
+    _vault = profile_store.read_secrets()
+    CREDENTIAL_ERROR = ''
+except (OSError, ValueError, UnicodeError):
+    # The settings UI must remain available to repair a damaged/cross-user vault.
+    # Keep the original bytes; never silently replace unreadable credentials.
+    _vault = {}
+    CREDENTIAL_ERROR = '本机凭据无法解密或已损坏；原文件已保留，请在设置中重新授权。'
 if not _external_openlux_key and _vault.get('openlux_api_key'):
     # A key changed in Settings must win over an old .env left in the folder.
     os.environ['OPENLUX_API_KEY'] = _vault['openlux_api_key']
 
 APP_VERSION = '5.2.0'
-APP_BUILD = 'R3.8-release-candidate'
+APP_BUILD = 'R3.18-plugins-candidate'
 APP_EDITION = '人工爆款复查与真实视觉脚本版'
 HOST = os.getenv('HOST', '127.0.0.1')
 PORT = int(os.getenv('PORT', '8765'))

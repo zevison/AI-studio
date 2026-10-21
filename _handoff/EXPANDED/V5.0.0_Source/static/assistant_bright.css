@@ -1,0 +1,63 @@
+/* V4 independent chat with independently scrollable history and messages */
+@media(min-width:701px){body:has(#page-assistant.active){height:100dvh;overflow:hidden}body:has(#page-assistant.active) .main{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-top:10px;padding-bottom:10px}body:has(#page-assistant.active) .topbar{flex:none}#page-assistant.active{display:flex;flex:1;min-height:0;overflow:hidden}}
+.gpt-shell{display:flex;flex:1;min-height:0;width:100%;height:100%;border:1px solid #384058;border-radius:15px;overflow:hidden;background:#121722;color:#eff3ff}
+.gpt-side{width:214px;min-width:190px;border-right:1px solid #354156;background:#151b29;display:flex;flex-direction:column;gap:10px;padding:14px;min-height:0}
+.gpt-side>button{flex:none}.gpt-conversations{display:flex;flex:1;flex-direction:column;gap:4px;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.gpt-history{width:100%;text-align:left;background:none;color:#d8e1f4;border:0;border-radius:8px;padding:11px 9px;cursor:pointer;font:inherit}
+.gpt-history.active,.gpt-history:hover{background:#32284e;color:white}
+.gpt-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;padding:14px 20px 12px;gap:12px;background:#10151f}
+.gpt-heading{display:flex;flex:none;justify-content:space-between;gap:15px;align-items:flex-start;flex-wrap:wrap}
+.gpt-heading h2{margin:0;font-size:20px}.gpt-heading p{margin:5px 0 0}
+.gpt-model-area{width:min(390px,100%);display:flex;flex-wrap:wrap;align-items:center;gap:7px}.gpt-model-area select{min-width:160px;flex:1}.gpt-model-area button{white-space:nowrap}.gpt-model-area input,.gpt-model-area #aiDiagnostics{width:100%}
+.gpt-messages{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:16px;padding:12px 4px;scrollbar-width:thin;scrollbar-color:#566480 transparent}
+.gpt-empty{margin:auto;text-align:center;color:#9dacc4}.gpt-empty h3{font-size:22px;color:#fff}
+.gpt-bubble{align-self:flex-start;max-width:82%;padding:14px 17px;border-radius:12px;border:1px solid #35445d;background:#1c2635;color:#edf3ff;line-height:1.78;overflow-wrap:anywhere}
+.gpt-bubble.user{align-self:flex-end;background:#332456;border-color:#6c4ca4}
+.gpt-bubble strong{display:block;color:#b6c5e6;margin-bottom:8px;font-size:12px}.gpt-answer{white-space:pre-wrap;overflow-wrap:anywhere}
+.gpt-composer{flex:none;min-height:106px;border:1px solid #465774;background:#1b2638;border-radius:12px;padding:12px}
+.gpt-composer:focus-within{border-color:#9a70e8}.gpt-composer textarea{width:100%;height:60px;min-height:60px;max-height:150px;resize:vertical;background:transparent!important;color:#fff!important;-webkit-text-fill-color:#fff!important;caret-color:#fff!important;box-shadow:none!important;border:none!important;outline:none;font:inherit}.gpt-composer textarea::placeholder{color:#9db0ca!important}.gpt-actions{display:flex;align-items:center;justify-content:space-between;gap:9px}.gpt-composer #aiStatus{margin:5px 0 0;line-height:1.5;overflow-wrap:anywhere;color:#a5b7d8}
+#aiDiagnostics{font-size:11px;line-height:1.5;color:#9ce5b6;max-height:50px;overflow:auto}
+.bd-panel{margin:12px 0}.bd-panel input[type=password],.bd-panel input[type=number]{max-width:660px}.bd-panel .row{flex-wrap:wrap}.bd-jobs{display:grid;gap:10px;margin-top:12px}.bd-job{padding:10px;border:1px solid #414b68;border-radius:10px;overflow-wrap:anywhere;font-size:12px}.bd-job button{margin:5px}.bd-manual-actions{align-items:flex-end}.bd-manual-actions label{width:130px}
+@media(max-width:700px){.gpt-shell{flex-direction:column;height:auto}.gpt-side{width:100%;max-height:180px;min-height:0}.gpt-conversations{max-height:100px}.gpt-main{min-height:80dvh}.gpt-messages{min-height:260px;max-height:60dvh}.gpt-bubble{max-width:94%}}
+/* V4.1: strong model controls, streaming indicator, opt-in attachments */
+#page-assistant .gpt-model-area{width:min(570px,100%);display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+#page-assistant .gpt-model-area select#aiModel{min-width:190px;flex:1 1 255px;}
+#page-assistant .gpt-model-area .gpt-chat-options{display:flex;gap:12px;width:100%;align-items:center;justify-content:flex-end;flex-wrap:wrap;}
+#page-assistant .gpt-chat-options label{display:flex;gap:6px;align-items:center;font-size:12px;color:#d5e0ef}
+#page-assistant .gpt-chat-options label select{min-width:100px;max-width:160px;padding:5px}
+#page-assistant .gpt-chat-options input[type=checkbox]{accent-color:#9365f5;}
+#page-assistant .gpt-composer .gpt-upload-btn{border:1px solid #56617a;background:#2b3449;color:#fff;padding:7px 11px;border-radius:9px;cursor:pointer;font-size:12px;flex:none}
+#page-assistant .gpt-attachment-list{display:flex;flex-wrap:wrap;gap:6px;max-height:62px;overflow-y:auto}
+#page-assistant .gpt-attach{background:#263757;border:1px solid #51658b;border-radius:8px;color:#f1f4ff;font-size:11px;padding:5px 9px}
+#page-assistant .gpt-attach button{background:transparent;color:#fff;border:0;padding-left:7px;cursor:pointer}
+#page-assistant .gpt-composer{min-height:102px}
+#page-assistant .gpt-main{min-height:0}
+#page-assistant .gpt-model-area #aiDiagnostics{font-size:11px;color:#a8c4e6;max-height:42px;overflow-y:auto}
+@media(max-width:1140px){#page-assistant .gpt-heading{gap:6px}#page-assistant .gpt-model-area{width:min(100%,520px)}#page-assistant .gpt-actions .tiny{display:none}}
+
+#page-assistant .gpt-advanced{width:100%;font-size:11px;color:#c4d0e5;border:1px solid #394963;border-radius:8px;padding:5px 9px}
+#page-assistant .gpt-advanced summary{cursor:pointer;user-select:none}
+#page-assistant .gpt-advanced .gpt-chat-options{padding:10px 0 5px}
+
+/* V4.1.1 · Per-message send/reply time, compact and subordinate to content. */
+#page-assistant .gpt-bubble .gpt-message-time{font-size:11px;line-height:1.5;letter-spacing:.01em;color:#a7b7d2;margin-top:10px;user-select:text;white-space:normal;overflow-wrap:anywhere;}
+#page-assistant .gpt-bubble.user .gpt-message-time{color:#d6c5f3;text-align:right;}
+#page-assistant .gpt-bubble.assistant .gpt-message-time{color:#aebdd7;text-align:left;}
+@media(max-width:700px){#page-assistant .gpt-bubble .gpt-message-time{font-size:10px;}}
+/* V4.2.8.8 · Bright Data: visible task lifecycle, no fake percentages */
+#page-radar .bd-live{border:1px solid #485475;border-radius:12px;padding:13px 15px;margin-top:11px;background:#101928;display:grid;gap:11px;line-height:1.55;font-size:12px;overflow-wrap:anywhere}
+#page-radar .bd-live-head{display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap;color:#e8f1ff}
+#page-radar .bd-live-head strong{font-size:14px}
+#page-radar .bd-live-id,#page-radar .bd-hint{color:#9fb4d5;font-size:11px}
+#page-radar .bd-stages{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+#page-radar .bd-stages span{font-size:11px;padding:8px 4px;border-radius:7px;text-align:center;border:1px solid #354561;color:#7e8fa8}
+#page-radar .bd-stages span.done{border-color:#287855;color:#b7f0d0;background:#102d29}
+#page-radar .bd-stages span.active{border-color:#8661c6;color:#e5d7ff;background:#34214e}
+#page-radar .bd-data{display:flex;gap:9px 18px;flex-wrap:wrap;color:#d4e0f2}
+#page-radar .bd-data span{white-space:nowrap}
+#page-radar .bd-error{padding:8px 10px;background:#3d1d2b;border:1px solid #913d60;border-radius:7px;color:#ffc3d1;font-size:12px;overflow-wrap:anywhere}
+#page-radar .bd-live button{width:max-content;max-width:100%;font-size:12px}
+#page-radar .bd-history{margin-top:8px;border-top:1px solid #35465c;padding-top:8px}
+#page-radar .bd-history>summary{cursor:pointer;color:#afbdda;font-size:12px}
+#page-radar .bd-history .bd-jobs{max-height:310px;overflow-y:auto}
+@media(max-width:800px){#page-radar .bd-stages{grid-template-columns:repeat(2,minmax(0,1fr))}}

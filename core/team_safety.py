@@ -17,7 +17,7 @@ UNCERTAIN=('submission_unknown','paid_result_unknown','unknown')
 
 class Refused(ValueError):pass
 
-def control_path():return Path(os.getenv('STUDIO_CONTROL_DB',str(config.ROOT/'data/team-control.sqlite')))
+def control_path():return Path(os.getenv('STUDIO_CONTROL_DB',str(config.DATA_ROOT/'team-control.sqlite')))
 
 @contextmanager
 def connection():
@@ -30,6 +30,9 @@ def connection():
           client_key TEXT NOT NULL,state TEXT NOT NULL,pid INTEGER NOT NULL,created REAL NOT NULL,
           updated REAL NOT NULL,status INTEGER,response BLOB,note TEXT)''')
         c.execute('CREATE INDEX IF NOT EXISTS admissions_fingerprint ON admissions(workspace,digest,created)')
+        c.execute('''CREATE TABLE IF NOT EXISTS update_request_writes(
+          id TEXT PRIMARY KEY,workspace TEXT NOT NULL,pid INTEGER NOT NULL,
+          status TEXT NOT NULL,updated REAL NOT NULL)''')
         c.commit();yield c
     finally:c.close()
 
@@ -56,6 +59,8 @@ def busy(include_unknown=True):
 def recover():
     # Called only by a newly bound backend, after it owns its workspace port.
     with connection() as c:
+        c.execute("UPDATE update_request_writes SET status='interrupted',updated=? WHERE workspace=? AND pid<>? AND status='in_flight'",
+                  (time.time(),workspace(),os.getpid()))
         c.execute("UPDATE admissions SET state='unknown',updated=?,note='后台重启，原请求结果待核对；禁止自动重发' WHERE workspace=? AND state='pending' AND pid<>?",(time.time(),workspace(),os.getpid()));c.commit()
 
 def claim(route,payload,client_key=''):
@@ -66,6 +71,8 @@ def claim(route,payload,client_key=''):
     now=time.time()
     with connection() as c:
         c.execute('BEGIN IMMEDIATE')
+        from .update_service import assert_admission_open
+        assert_admission_open(config.USER_HOME,connection=c)
         row=c.execute('''SELECT * FROM admissions WHERE workspace=? AND
             ((client_key<>'' AND client_key=?) OR
             (digest=? AND (state IN ('pending','unknown') OR (?='' AND created>?))))
@@ -78,7 +85,7 @@ def claim(route,payload,client_key=''):
             raise Refused('原请求正在处理或结果待核对，请查看任务记录；未重复提交。记录：'+row['id'])
         pending=c.execute("SELECT COUNT(*) FROM admissions WHERE state='pending'").fetchone()[0]
         per_user=c.execute("SELECT COUNT(*) FROM admissions WHERE workspace=? AND state='pending'",(workspace(),)).fetchone()[0]
-        roots=[config.ROOT/'data/studio.db',*(config.ROOT/'data/workspaces').glob('*/studio.db')]
+        roots=[config.DATA_ROOT/'studio.db',*(config.DATA_ROOT/'workspaces').glob('*/studio.db')]
         jobs=sum(active_in_database(p,False) for p in roots if p.exists())
         own=active_in_database(config.DB_PATH,False)
         if per_user or own>=int(os.getenv('STUDIO_USER_CONCURRENCY','2')):
@@ -89,6 +96,24 @@ def claim(route,payload,client_key=''):
         c.execute('INSERT INTO admissions VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
             (item,workspace(),route,digest,client_key,'pending',os.getpid(),now,now,None,None,None))
         c.commit();return {'id':item,'replay':False}
+
+
+@contextmanager
+def mutation_scope():
+    """Serialize upgrade admission with even non-paid writes, without a long DB lock."""
+    identifier='write_'+uuid.uuid4().hex
+    with connection() as c:
+        c.execute('BEGIN IMMEDIATE')
+        from .update_service import assert_admission_open
+        assert_admission_open(config.USER_HOME,connection=c)
+        c.execute('INSERT INTO update_request_writes VALUES(?,?,?,?,?)',
+                  (identifier,workspace(),os.getpid(),'in_flight',time.time()))
+        c.commit()
+    try:yield
+    finally:
+        with connection() as c:
+            c.execute("DELETE FROM update_request_writes WHERE id=? AND pid=?",(identifier,os.getpid()))
+            c.commit()
 
 def finish(item,status,body):
     uncertain=status is None or status>=500

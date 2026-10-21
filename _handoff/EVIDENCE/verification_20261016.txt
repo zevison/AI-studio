@@ -1,0 +1,156 @@
+SEEDANCE CODEX HANDOFF - INDEPENDENT EVIDENCE LOG
+Date: 2026-10-16 (system current date); isolated Linux runtime, not user's Windows
+Python: 3.13.5
+Node: v22.16.0
+Stage4 source: /mnt/data/Seedance_Hypit_Stage4_Dev_20261016.zip
+
+1) Python: /opt/pyvenv/bin/python -W error -m unittest discover -s tests -q
+EXIT=0
+STDOUT:
+
+STDERR:
+----------------------------------------------------------------------
+Ran 93 tests in 0.144s
+
+OK
+
+
+2) Node prebuilt test: node --test dist/tests/openlux-contract.test.js
+EXIT=0
+STDOUT TAIL:
+'test'
+  ...
+# Subtest: unknown reference attribute cannot be dropped
+ok 12 - unknown reference attribute cannot be dropped
+  ---
+  duration_ms: 0.114363
+  type: 'test'
+  ...
+# Subtest: reject local hosts and credentials
+ok 13 - reject local hosts and credentials
+  ---
+  duration_ms: 0.285041
+  type: 'test'
+  ...
+# Subtest: reject conflicting remote IDs
+ok 14 - reject conflicting remote IDs
+  ---
+  duration_ms: 0.216507
+  type: 'test'
+  ...
+# Subtest: reject missing remote ID
+ok 15 - reject missing remote ID
+  ---
+  duration_ms: 0.089104
+  type: 'test'
+  ...
+# Subtest: accept same task identity in both nodes
+ok 16 - accept same task identity in both nodes
+  ---
+  duration_ms: 0.089436
+  type: 'test'
+  ...
+# Subtest: unknown state fails closed
+ok 17 - unknown state fails closed
+  ---
+  duration_ms: 0.132831
+  type: 'test'
+  ...
+# Subtest: status conflict fails closed
+ok 18 - status conflict fails closed
+  ---
+  duration_ms: 0.081763
+  type: 'test'
+  ...
+# Subtest: recognize explicit states
+ok 19 - recognize explicit states
+  ---
+  duration_ms: 0.07277
+  type: 'test'
+  ...
+# Subtest: reject success without signed result URL
+ok 20 - reject success without signed result URL
+  ---
+  duration_ms: 0.125259
+  type: 'test'
+  ...
+# Subtest: reject conflicting result URLs
+ok 21 - reject conflicting result URLs
+  ---
+  duration_ms: 0.086691
+  type: 'test'
+  ...
+# Subtest: accept explicit result URL
+ok 22 - accept explicit result URL
+  ---
+  duration_ms: 0.07932
+  type: 'test'
+  ...
+# Subtest: poll task identity mismatch rejected
+ok 23 - poll task identity mismatch rejected
+  ---
+  duration_ms: 0.156817
+  type: 'test'
+  ...
+# Subtest: poll response without identity is not proof of identity
+ok 24 - poll response without identity is not proof of identity
+  ---
+  duration_ms: 0.087893
+  type: 'test'
+  ...
+# Subtest: payload fingerprint binds account
+ok 25 - payload fingerprint binds account
+  ---
+  duration_ms: 6.998883
+  type: 'test'
+  ...
+# Subtest: same semantically identical payload uses one fingerprint regardless of key order
+ok 26 - same semantically identical payload uses one fingerprint regardless of key order
+  ---
+  duration_ms: 0.144979
+  type: 'test'
+  ...
+# Subtest: public CDN IP not falsely treated as local
+ok 27 - public CDN IP not falsely treated as local
+  ---
+  duration_ms: 0.09921
+  type: 'test'
+  ...
+# Subtest: private 172.16.0.0/12 address rejected
+ok 28 - private 172.16.0.0/12 address rejected
+  ---
+  duration_ms: 0.090717
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 78.915003
+
+STDERR:
+
+
+3) TypeScript compile: tsc -p tsconfig.json
+EXIT=2
+STDOUT:
+error TS2688: Cannot find type definition file for 'node'.
+  The file is in the program because:
+    Entry point of type library 'node' specified in compilerOptions
+
+STDERR:
+
+Reason: missing @types/node types package in environment. Current package.json does not pin build-time devDependencies; the prebuilt dist JS test does not validate fresh TypeScript build.
+
+4) Recorded historical results from Stage4/TEST_RESULTS.txt (NOT rerun here): FFmpeg 1s synthetic video, SafeMp4Collector, ffprobe, SHA256, prior tsc command claimed successful with preinstalled dependency.
+
+SOURCE HASHES
+V5.0.0 original: 646a561fe9168679079dc5b685d0b248c1db0f275c878eedeee8f825e6133c6f
+V5.1.1 unverified patch: 6e0318af8266696ad6f4f91b941971207ee310d920de6f7e97e654aad6b92452
+Stage4 development: 3d432ae4adf12a396f249043ceec21ef39b018178818204c3fc9956f7e99fea2
+
+No vendor calls, no Windows build, no official Hypit SDK package compile performed in this audit. No paid video request executed.

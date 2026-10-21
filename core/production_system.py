@@ -3,20 +3,23 @@ import json, os, shutil, subprocess, sys, time, urllib.request, zipfile, tempfil
 from pathlib import Path
 from . import config, db, media, smart_analysis
 from .tesseract_support import find_tesseract
+from .local_component_paths import whisperx_path, local_asr_status
 
-TOOLS_DIR=config.ROOT/'tools'/'runtime'
+TOOLS_DIR=config.USER_HOME/'runtime' if getattr(sys,'frozen',False) else config.ROOT/'tools'/'runtime'
 BIN_DIR=TOOLS_DIR/'bin'
 MODELS_DIR=TOOLS_DIR/'models'
 TOOLS_DIR.mkdir(parents=True,exist_ok=True); BIN_DIR.mkdir(parents=True,exist_ok=True); MODELS_DIR.mkdir(parents=True,exist_ok=True)
 
 def _which(name):
+    if name.lower() == 'ffmpeg':return media.ffmpeg_path()
+    if name.lower() == 'ffprobe':return media.ffprobe_path()
     if name.lower() == 'tesseract':
         return find_tesseract()
     if name.lower() == 'whisperx':
-        sidecar = TOOLS_DIR / 'whisperx_py313' / ('Scripts/whisperx.exe' if os.name == 'nt' else 'bin/whisperx')
-        if sidecar.exists(): return str(sidecar)
+        return whisperx_path(config.ROOT)
     local=BIN_DIR/(name+'.exe' if os.name=='nt' and not name.endswith('.exe') else name)
     if local.exists(): return str(local)
+    if getattr(sys,'frozen',False):return None
     return shutil.which(name)
 
 def _module(name):
@@ -30,7 +33,7 @@ def tool_status():
       'ffprobe':{'ok':bool(_which('ffprobe')),'path':_which('ffprobe'),'level':'required'},
       'opencv':{'ok':_module('cv2'),'level':'required'},
       'scenedetect':{'ok':_module('scenedetect'),'level':'required'},
-      'faster_whisper':{'ok':_module('faster_whisper'),'level':'required'},
+      'faster_whisper':{'ok':bool(local_asr_status().get('available')),'level':'required'},
       'whisperx':{'ok':bool(_which('whisperx')) or _module('whisperx'),'level':'recommended'},
       'tesseract':{'ok':bool(_which('tesseract')),'path':_which('tesseract'),'level':'recommended'},
       'mediapipe':{'ok':smart_analysis.pose_runtime.available() or _module('mediapipe'),'level':'recommended'},
@@ -45,7 +48,7 @@ def doctor():
     missing_recommended=[k for k,v in tools.items() if v.get('level')=='recommended' and not v['ok']]
     if tools.get('yolo',{}).get('ok') and not tools.get('yolo',{}).get('model_ready',False):
         missing_recommended.append('yolo_model')
-    disk=shutil.disk_usage(config.ROOT)
+    disk=shutil.disk_usage(config.DATA_DIR)
     checks=[
       {'name':'本地数据库','ok':config.DB_PATH.exists(),'detail':str(config.DB_PATH)},
       {'name':'素材目录可写','ok':os.access(config.ASSET_DIR,os.W_OK),'detail':str(config.ASSET_DIR)},
@@ -159,5 +162,5 @@ def backup_bundle():
     # Keep this legacy endpoint's root directory and filename style unchanged.
     from . import backup_manager
     result=backup_manager.create_backup(include_outputs=True,
-             destination_dir=config.ROOT,filename_prefix='SeedanceStudio_Backup')
+             destination_dir=config.USER_HOME,filename_prefix='SeedanceStudio_Backup')
     return {'path':result['path'],'name':result['name'],'size_bytes':result['size_bytes']}

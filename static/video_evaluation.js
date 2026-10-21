@@ -11,7 +11,7 @@ const refresh=node('button','刷新记录（不重发任务）'),check=node('but
 const state=node('p');state.className='evaluation-state';state.setAttribute('role','status');const video=node('video');video.controls=true;video.preload='metadata';video.hidden=true;section.append(state,video);
 const sourceDetails=node('details'),sourceText=node('pre'),references=node('div');sourceDetails.append(node('summary','本次要求与参考素材（评分前核对）'),sourceText,references);section.append(sourceDetails);
 const rubric=node('div');rubric.className='evaluation-rubric';section.append(rubric);
-function checkbox(text){const label=node('label'),input=node('input');label.className='evaluation-check';input.type='checkbox';label.append(input,document.createTextNode(text));section.append(label);return input}
+function checkbox(text){const label=node('label'),input=node('input');label.className='evaluation-check check';input.type='checkbox';label.append(input,node('span',text));section.append(label);return input}
 const facts=checkbox('已核对商品外观、功能和宣传事实，没有新增或夸大卖点');
 const usable=checkbox('本条已达到实际可用要求（每项≥3分、平均≥4分，且技术检查完成）');
 const notesLabel=node('label','评审依据／退回修改原因'),notes=node('textarea');notes.rows=2;notes.maxLength=1000;notesLabel.append(notes);section.append(notesLabel);
@@ -22,7 +22,7 @@ const current=()=>data?.tasks.find(t=>t.id===select.value);
 const statuses={passed:'基础技术检查通过',warning:'技术检查有警告，须人工复核',failed:'基础技术检查失败',incomplete:'技术检查未完成',not_checked:'尚未检查'};
 function lock(value){pending=value;for(const b of [refresh,check,save,select])b.disabled=value;}
 async function request(path,body){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);try{const response=await fetch('/api/video-evaluation/'+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:controller.signal,cache:'no-store'});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'读取失败');return result.data}finally{clearTimeout(timer)}}
-function showTask(){const task=current();for(const score of Object.values(scoreInputs))score.value='';facts.checked=usable.checked=false;notes.value='';video.hidden=!task?.output_url;if(task?.output_url)video.src=task.output_url;else video.removeAttribute('src');
+function showTask(){const task=current();for(const score of Object.values(scoreInputs)){score.value='';score.disabled=!task||task.status!=='completed'||!task.output_url;}facts.disabled=usable.disabled=!task||task.status!=='completed'||!task.output_url;facts.checked=usable.checked=false;notes.value='';video.hidden=!task?.output_url;if(task?.output_url)video.src=task.output_url;else video.removeAttribute('src');
  sourceText.textContent=task?.instruction||'旧任务未记录原始要求，不能把缺失证据当作已核验。';references.replaceChildren();
  for(const ref of task?.references||[]){const a=node('a',ref.name||'参考素材');a.href=ref.url;a.target='_blank';a.rel='noopener';references.append(a,document.createTextNode(' '))}
  if(!task){state.textContent='暂无视频任务；先完成一次创作，再到这里评审。';check.disabled=save.disabled=true;return}

@@ -64,6 +64,30 @@ def test_payload_excludes_generated_studio_cache_but_keeps_code_integrity(tmp_pa
     with pytest.raises(RuntimeError):module.extract_verified(bundle,target,identity['sha256'])
 
 
+def test_identical_sdk_bytes_ignore_host_mtimes_and_file_modes(tmp_path):
+    import os
+    spec=importlib.util.spec_from_file_location('build_hypit_payload',Path(__file__).parents[1]/'tools/build_hypit_payload.py')
+    builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+    root=tmp_path/'sdk';root.mkdir();code=root/'code.js';code.write_bytes(b'export const stable = true;')
+    first=builder.build_payload(root,tmp_path/'first.zip')
+    os.utime(code,(1800000000,1800000000));code.chmod(0o600)
+    second=builder.build_payload(root,tmp_path/'second.zip')
+    assert first['sha256']==second['sha256']
+    assert (tmp_path/'first.zip').read_bytes()==(tmp_path/'second.zip').read_bytes()
+    with zipfile.ZipFile(tmp_path/'second.zip') as archive:
+        assert archive.getinfo('code.js').date_time==(1980,1,1,0,0,0)
+
+
+def test_sdk_archive_cannot_recursively_package_its_own_output(tmp_path):
+    spec=importlib.util.spec_from_file_location('build_hypit_payload',Path(__file__).parents[1]/'tools/build_hypit_payload.py')
+    builder=importlib.util.module_from_spec(spec);spec.loader.exec_module(builder)
+    root=tmp_path/'sdk';root.mkdir();(root/'keep.js').write_bytes(b'original')
+    with pytest.raises(ValueError,match='outside'):builder.build_payload(root,root/'payload.zip')
+    if __import__('os').name=='nt':
+        with pytest.raises(ValueError,match='outside'):builder.build_payload(module.native_path(root),root/'payload.zip')
+    assert [p.name for p in root.iterdir()]==['keep.js']
+
+
 def test_deep_unicode_paths_install_reuse_and_cleanup(tmp_path):
     import os
     target=tmp_path/('中文安装目录'+'a'*65)/'runtime'

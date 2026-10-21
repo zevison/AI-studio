@@ -13,8 +13,13 @@ class SafetyTests(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   self.data=self.root/'data';self.data.mkdir()
   for name in ('assets','outputs','cache','product_knowledge'):(self.data/name).mkdir()
-  self.config=types.SimpleNamespace(ROOT=self.root,DATA_DIR=self.data,CACHE_DIR=self.data/'cache',DB_PATH=self.data/'studio.db',WORKSPACE_ID='owner')
+  self.config=types.SimpleNamespace(ROOT=self.root,DATA_ROOT=self.data,USER_HOME=self.root,DATA_DIR=self.data,CACHE_DIR=self.data/'cache',DB_PATH=self.data/'studio.db',WORKSPACE_ID='owner')
   package=types.ModuleType('testspace');package.__path__=[];sys.modules['testspace']=package;sys.modules['testspace.config']=self.config
+  # Admission uses the real shared upgrade gate against this fixture's own
+  # control connection. Do not replace it with an always-open test stub.
+  from core import update_service
+  sys.modules['testspace.update_service']=update_service
+  self.addCleanup(lambda:sys.modules.pop('testspace.update_service',None))
   for name in ('upload_lifecycle','team_safety','storage_manager'):
    file=BASE/'core'/f'{name}.py'
    if name=='upload_lifecycle' and not file.exists():file=Path('work/video-fix-uploads/core/upload_lifecycle.py')
@@ -26,9 +31,32 @@ class SafetyTests(unittest.TestCase):
   path=self.data/'assets/test.png';path.write_bytes(b'original')
   with sql(self.config.DB_PATH) as c:c.execute('INSERT INTO assets VALUES(?,?,?)',('asset1',str(path),path.name))
   return path
+ def test_update_gate_rejects_paid_and_ordinary_mutation_admission(self):
+  from core.update_service import _gate_schema
+  from core.update_security import UpdateBlocked
+  with self.team_safety.connection() as c:
+   _gate_schema(c);c.execute("INSERT INTO studio_update_gate VALUES(1,'controlled-test','prepared',?)",(time.time(),));c.commit()
+  with self.assertRaises(UpdateBlocked):self.team_safety.claim('/api/image/generate',{'prompt':'blocked'})
+  with self.assertRaises(UpdateBlocked):
+   with self.team_safety.mutation_scope():self.fail('Mutation started during update')
+ def test_ordinary_mutation_registers_durable_busy_marker_and_cleans_it(self):
+  with self.team_safety.mutation_scope():
+   with self.team_safety.connection() as c:
+    self.assertEqual(c.execute("SELECT status FROM update_request_writes").fetchall()[0][0],'in_flight')
+  with self.team_safety.connection() as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM update_request_writes').fetchone()[0],0)
  def test_same_payload_replays_receipt_without_new_operation(self):
   a=self.team_safety.claim('/api/image/generate',{'prompt':'same'});self.team_safety.finish(a['id'],200,b'{"ok":true}')
   b=self.team_safety.claim('/api/image/generate',{'prompt':'same'});self.assertTrue(b['replay']);self.assertEqual(b['id'],a['id'])
+ def test_configured_external_output_is_managed_under_outputs_alias(self):
+  self.config.OUTPUT_DIR=self.root/'单独 成片目录';self.config.OUTPUT_DIR.mkdir()
+  result=self.config.OUTPUT_DIR/'export.mp4';result.write_bytes(b'local-export')
+  rows=self.storage_manager.files('outputs')['rows']
+  self.assertEqual(rows[0]['path'],'outputs/export.mp4')
+  self.assertEqual(self.storage_manager.media_path('outputs/export.mp4'),result)
+  moved=self.storage_manager.trash('outputs/export.mp4',True)
+  self.assertFalse(result.exists());self.storage_manager.restore(moved['id'])
+  self.assertEqual(result.read_bytes(),b'local-export')
+  with self.assertRaises(PermissionError):self.storage_manager.media_path('outputs/../outside.txt')
  def test_concurrent_identical_requests_have_one_winner(self):
   barrier=threading.Barrier(2);results=[]
   def run():

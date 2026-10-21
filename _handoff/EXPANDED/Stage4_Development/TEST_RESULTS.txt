@@ -1,0 +1,13 @@
+Seedance Hypit Stage4 Engineering Test Evidence - 2026-10-16
+OS: isolated Linux; Python 3.13.5; Node 22.16.0; tsc preinstalled
+Python: 93 offline unittest cases PASS (warnings as errors)
+TypeScript: 28 offline test cases PASS (tsc + node --test)
+Real media: 1-second FFmpeg-generated MP4 -> SafeMp4Collector -> ffprobe -> SHA256 binary equality PASS
+No real Hypit CLI, OpenLux model/API call, Windows runtime, user API credentials, or paid video request performed.
+
+Red-team case A: preflight source or hypit.runtime.json / provider package changes after official check/plan -> denied before POST in simulated run (PASS).
+Red-team case B: remote POST acknowledgment lost or repeated submission -> SQLite fingerprint quarantines and blocks retry (PASS).
+Red-team case C: downloaded signed URL points to a malicious/private host or media bytes fail validation -> rejected without output overwrite (PASS).
+Red-team case D: quoted price exceeds approved limit or approval expired -> POST never called (PASS).
+
+Unverified: Hypit v0.3.1 real SDK, OpenLux account-specific response format and pricing, Windows end-to-end release.

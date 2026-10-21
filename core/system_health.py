@@ -3,6 +3,7 @@ import importlib.util, json, os, shutil, subprocess, sys, threading, time
 from pathlib import Path
 from . import config, media, db, pose_runtime
 from .tesseract_support import check_tesseract
+from .local_component_paths import whisperx_path, local_asr_status
 
 _LOCK=threading.RLock();_JOB={'running':False,'started_at':None,'finished_at':None,'exit_code':None,'log_tail':'','error':None}
 
@@ -24,10 +25,7 @@ def _tesseract_path():
 
 
 def _whisperx_path():
-    c=[shutil.which('whisperx'),Path(sys.executable).parent/'whisperx.exe',Path(sys.executable).parent/'whisperx']
-    for p in c:
-        if p and Path(p).exists():return str(p)
-    return None
+    return whisperx_path(config.ROOT)
 
 
 def report():
@@ -44,7 +42,9 @@ def report():
     # core image/video creation API is unusable.
     add('opencv','OpenCV（计算机视觉）','recommended',_mod('cv2'),'已安装' if _mod('cv2') else '未安装')
     add('scenedetect','PySceneDetect（镜头检测）','recommended',_mod('scenedetect'),'已安装' if _mod('scenedetect') else '未安装')
-    add('faster_whisper','Faster-Whisper（高速语音识别）','recommended',_mod('faster_whisper'),'已安装' if _mod('faster_whisper') else '未安装')
+    local_asr=local_asr_status()
+    add('faster_whisper','Faster-Whisper（高速语音识别）','recommended',local_asr.get('available'),
+        local_asr.get('reason') or ('运行库与本地模型已准备' if local_asr.get('model_ready') else '模块/本地缓存尚未完成准备'))
     add('whisperx','WhisperX（精确语音对齐）','recommended',bool(wx) or _mod('whisperx'),str(wx or ('Python 模块已安装' if _mod('whisperx') else '未安装')))
     add('tesseract','Tesseract OCR（画面文字识别）','recommended',bool(tess),str(tess or '未安装'))
     pose_ok=pose_runtime.available() or _mod('mediapipe')

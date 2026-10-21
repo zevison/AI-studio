@@ -23,6 +23,8 @@ def _root(monkeypatch, root):
     assets.mkdir(exist_ok=True)
     outputs.mkdir(exist_ok=True)
     monkeypatch.setattr(config,'ROOT',root)
+    monkeypatch.setattr(config,'USER_HOME',root)
+    monkeypatch.setattr(config,'DATA_ROOT',data)
     monkeypatch.setattr(config,'DATA_DIR',data)
     monkeypatch.setattr(config,'DB_PATH',data/'studio.db')
     monkeypatch.setattr(config,'ASSET_DIR',assets)
@@ -103,6 +105,33 @@ def test_corrupt_db_does_not_claim_backup_success(tmp_path,monkeypatch):
         backup_manager.create_backup()
     assert not list((config.DATA_DIR/'backups').glob('*.zip'))
     assert not list((config.DATA_DIR/'backups').glob('*.partial'))
+
+
+def test_backup_excludes_plaintext_credentials(tmp_path,monkeypatch):
+    _root(monkeypatch,tmp_path)
+    (tmp_path/'.env').write_text('OPENLUX_API_KEY=synthetic-secret-only',encoding='utf8')
+    (config.DATA_DIR/'secrets.json').write_text('{"api_key":"synthetic-secret-only"}',encoding='utf8')
+    connection=_active_wal(config.DB_PATH)
+    try:
+        out=backup_manager.create_backup()
+        with zipfile.ZipFile(out['path']) as archive:
+            assert '.env' not in archive.namelist()
+            assert 'data/secrets.json' not in archive.namelist()
+            assert all(b'synthetic-secret-only' not in archive.read(name) for name in archive.namelist())
+    finally:connection.close()
+
+
+def test_sqlite_snapshot_extended_windows_destination(tmp_path):
+    from core.sqlite_snapshot import snapshot_database, _native
+    source=tmp_path/'source.db'
+    connection=_active_wal(source)
+    destination=tmp_path/('deep-path-'*8)/('中文路径 '*12)/('nested-'*10)/'snapshot.db'
+    try:
+        assert len(str(destination))>260
+        snapshot_database(source,destination)
+        with sqlite3.connect(_native(destination)) as copied:
+            assert copied.execute('SELECT message FROM history').fetchone()[0]=='latest paid task'
+    finally:connection.close()
 
 
 def test_only_one_setup_and_start_entrypoint_and_stable_version():

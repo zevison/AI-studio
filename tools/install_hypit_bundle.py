@@ -16,7 +16,9 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def native_path(path):
     """Use extended Windows paths for EVERY filesystem operation, not only open()."""
-    value=os.path.abspath(os.fspath(path))
+    value=os.fspath(path)
+    if os.name=='nt' and value.startswith('\\\\?\\'):return Path(value)
+    value=os.path.abspath(value)
     if os.name=='nt' and not value.startswith('\\\\?\\'):
         value=('\\\\?\\UNC\\'+value[2:]) if value.startswith('\\\\') else ('\\\\?\\'+value)
     return Path(value)
@@ -44,17 +46,30 @@ def extract_verified(archive,destination,expected):
         if destination.is_symlink() or (hasattr(destination,'is_junction') and destination.is_junction()):
             raise PermissionError('Runtime directory cannot be a link')
         if destination.is_dir() and marker.is_file():
-            installed=json.loads(marker.read_text(encoding='utf8'))
+            try:installed=json.loads(marker.read_text(encoding='utf8'))
+            except (OSError,ValueError,UnicodeError) as error:
+                raise RuntimeError('Existing runtime marker is unreadable; preserved for diagnosis') from error
+            if not isinstance(installed,dict):raise RuntimeError('Existing runtime marker is invalid; preserved for diagnosis')
             files=installed.get('files')
             if installed.get('sha256')==expected and isinstance(files,dict) and files:
+                # Canonicalize the intended root once. Resolving it for every
+                # member duplicates Windows IO and could follow a replaced root.
+                canonical_root=destination.resolve()
                 for name,checksum in files.items():
                     file=destination/name
-                    if (not file.resolve().is_relative_to(destination.resolve()) or file.is_symlink()
-                        or not file.is_file() or digest(file)!=checksum):
+                    try:
+                        valid=file.resolve().is_relative_to(canonical_root)
+                        if valid:
+                            metadata=file.lstat()
+                            valid=(stat.S_ISREG(metadata.st_mode) and not stat.S_ISLNK(metadata.st_mode)
+                                and digest(file)==checksum)
+                    except OSError:valid=False
+                    if not valid:
                         raise RuntimeError('Installed runtime changed or is incomplete; files preserved for diagnosis')
                 return 'reused'
         raise RuntimeError('Existing runtime directory is incomplete; preserved for diagnosis')
     temporary=Path(tempfile.mkdtemp(prefix='.install-',dir=parent))
+    temporary_root=temporary.resolve()
     failure=None
     try:
         with zipfile.ZipFile(archive) as bundle:
@@ -71,7 +86,7 @@ def extract_verified(archive,destination,expected):
                 names.add(name.casefold().rstrip('/'));total+=info.file_size
                 if total>2*1024**3 or info.file_size>600*1024**2:raise RuntimeError('Bundled runtime exceeds extraction bounds')
                 target=temporary.joinpath(*parts)
-                if not target.resolve().is_relative_to(temporary.resolve()):raise RuntimeError('Runtime entry escapes staging')
+                if not target.resolve().is_relative_to(temporary_root):raise RuntimeError('Runtime entry escapes staging')
                 if info.is_dir():target.mkdir(parents=True,exist_ok=True);continue
                 target.parent.mkdir(parents=True,exist_ok=True)
                 # Explicit long-path prefix also handles unusually long npm filenames.

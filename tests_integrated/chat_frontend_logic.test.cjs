@@ -22,7 +22,7 @@ function harness(route,blockedStorage=false){
     fetch:async(url,options)=>({ok:true,json:async()=>({ok:true,data:await route(url,options)})}),
     setInterval,clearInterval,crypto:{randomUUID:()=> 'test-request-1234'}});
   const exposed="window.GPTChat={load,openChat,newChat,send,addFiles,cache,"+
-    "pasteAttachments,transferredFiles,state:()=>({cid,files,loadingChat}),seed:(id,items=[])=>{cid=id;files=items},"+
+    "applyConfiguredChatModel,loadConfiguredChatModel,selectedModel,pasteAttachments,transferredFiles,state:()=>({cid,files,loadingChat}),seed:(id,items=[])=>{cid=id;files=items},"+
     "replaceSender:fn=>{sendOnce=fn}};";
   vm.runInContext(source.replace('window.GPTChat={load};',exposed),context);
   return {chat:context.window.GPTChat,get,readers};
@@ -116,4 +116,23 @@ test('parallel additions cannot bypass the twenty-file limit or discard accepted
 test('oversized batch fails before reading image data',async()=>{
  const h=harness(()=>[]);await assert.rejects(h.chat.addFiles(Array.from({length:4},()=>({name:'large.png',size:3*1024*1024}))),/总大小/);
  assert.equal(h.readers.length,0);assert.equal(h.chat.state().files.length,0);
+});
+
+
+test('saved custom chat model replaces the temporary selection without a paid request',async()=>{
+ const requests=[];
+ const h=harness(url=>{requests.push(url);return {providers:[{id:'new-account',enabled:true,models:{chat:'my-custom-chat'}}],defaults:{chat:'new-account'}}});
+ h.get('aiModel').options=[{value:'old-model'},{value:'custom'}];h.get('aiModel').value='old-model';
+ await h.chat.loadConfiguredChatModel();
+ assert.equal(h.chat.selectedModel(),'my-custom-chat');assert.equal(h.get('aiModel').value,'custom');
+ assert.equal(h.get('aiCustomModel').hidden,false);assert.match(h.get('aiModelSource').textContent,/已保存默认：my-custom-chat/);
+ assert.deepEqual(requests,['/api/configuration']);
+});
+
+test('saving a preset default immediately clears an old custom model selection',()=>{
+ const h=harness(()=>{throw Error('no network expected')});
+ h.get('aiModel').options=[{value:'preset-model'},{value:'custom'}];h.get('aiModel').value='custom';h.get('aiCustomModel').value='stale-custom';
+ h.chat.applyConfiguredChatModel('preset-model');
+ assert.equal(h.chat.selectedModel(),'preset-model');assert.equal(h.get('aiCustomModel').hidden,true);
+ assert.match(h.get('aiModelSource').textContent,/当前使用已保存默认/);
 });
