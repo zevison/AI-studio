@@ -1,5 +1,7 @@
 name: Windows prerelease candidate
 on:
+  pull_request:
+    paths: ['.github/workflows/windows-prerelease-candidate.yml']
   workflow_dispatch:
     inputs:
       candidate_tag:
@@ -27,7 +29,7 @@ jobs:
       - name: Validate tag and source version before expensive work
         shell: pwsh
         env:
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
         run: |
           python -c "import os; from tools.release_preflight import declared_version, validate_tag; from pathlib import Path; validate_tag(os.environ['CANDIDATE_TAG'],declared_version(Path('core/config.py')))"
       - run: python -m pip install -r requirements-dev.txt
@@ -40,7 +42,7 @@ jobs:
       - name: Check candidate receipt and packaged files
         shell: pwsh
         env:
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
         run: |
           python tools/release_preflight.py --tag "$env:CANDIDATE_TAG" --archive build/SeedanceStudio_Candidate.zip
       - name: Install NSIS compiler
@@ -51,7 +53,7 @@ jobs:
       - name: Compile Chinese EXE from verified candidate folder
         shell: pwsh
         env:
-          CANDIDATE_TAG: ${{ inputs.candidate_tag }}
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $nsis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
@@ -65,6 +67,27 @@ jobs:
           $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()
           Set-Content -Path ($exe + '.sha256') -Value ($hash + '  ' + (Split-Path $exe -Leaf)) -Encoding ascii
           Write-Host ('Candidate EXE (unsigned, not stable): ' + (Split-Path $exe -Leaf))
+      - name: Verify actual complete EXE on clean Windows runner
+        shell: pwsh
+        env:
+          CANDIDATE_TAG: ${{ inputs.candidate_tag || 'v5.2.0-rc.1' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $PWD ('build/SeedanceStudio-' + $env:CANDIDATE_TAG + '-Setup.exe')
+          $proc = Start-Process -FilePath $exe -ArgumentList '/S' -Wait -PassThru
+          if($proc.ExitCode -ne 0){throw ('Full EXE install failed: '+$proc.ExitCode)}
+          $root = (Get-ItemProperty -Path 'HKCU:\Software\SeedanceStudio').CurrentAppRoot
+          foreach($item in @('app.py','core/config.py','00_START.cmd','.venv/Scripts/python.exe')){
+            if(-not (Test-Path (Join-Path $root $item))){throw ('Missing installed component: '+$item)}
+          }
+          $key = Join-Path $root 'data/verify-preserved.txt'
+          New-Item -ItemType Directory -Force (Split-Path $key) | Out-Null
+          Set-Content -Path $key -Value 'retain-user-data'
+          $uninstaller = Join-Path $env:LOCALAPPDATA 'Programs/SeedanceStudio/Uninstall-SeedanceStudio.exe'
+          $unproc = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+          if($unproc.ExitCode -ne 0){throw ('Uninstall failed: '+$unproc.ExitCode)}
+          if((Get-Content -Path $key -Raw).Trim() -ne 'retain-user-data'){throw 'Uninstall lost user data'}
+          Write-Host 'HOSTED WINDOWS PASS: full EXE installed, Python environment present, user file retained on uninstall; OS restart and old data upgrade remain separate gates'
       - uses: actions/upload-artifact@v4
         with:
           name: SeedanceStudio-Windows-EXE-Candidate
