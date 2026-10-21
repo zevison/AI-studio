@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "typescript": "5.9.3",
-    "@types/node": "22.15.30"
+    "@types/node": "26.6.5"
   },
   "dependencies": {
     "@hypit/hypit": "0.3.1",
